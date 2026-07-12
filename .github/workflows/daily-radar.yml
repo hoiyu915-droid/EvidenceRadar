@@ -44,7 +44,7 @@ jobs:
           NCBI_API_KEY: ${{ secrets.NCBI_API_KEY }}
           NCBI_EMAIL: ${{ secrets.NCBI_EMAIL }}
           OPENALEX_API_KEY: ${{ secrets.OPENALEX_API_KEY }}
-        run: python src/radar_v4.py
+        run: python src/run.py
 
       - name: Commit generated Markdown
         run: |
