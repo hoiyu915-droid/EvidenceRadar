@@ -1,2 +1,2 @@
-triggered_at: 2026-07-12T20:00:00+09:00
-reason: initial live EvidenceRadar run
+triggered_at: 2026-07-12T22:20:00+09:00
+reason: validate strict classification and stream relevance gates
