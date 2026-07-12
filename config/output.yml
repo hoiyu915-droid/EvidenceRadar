@@ -12,6 +12,7 @@ selection:
     hard_max: 8
   candidate_pool:
     hard_max: 30
+    includes_featured: true
   allow_below_minimum_when_insufficient: true
   padding_forbidden: true
 
@@ -53,3 +54,4 @@ rendering:
   include_main_caveat: true
   include_identifiers: true
   candidate_pool_detail: compact
+  auto_triage_label: true
