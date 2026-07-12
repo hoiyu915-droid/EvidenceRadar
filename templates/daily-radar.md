@@ -2,13 +2,17 @@
 
 - Generated: `{{ generated_at_iso }}`
 - Timezone: `{{ timezone }}`
-- Featured: `{{ featured_count }}`
-- Candidate Pool: `{{ candidate_count }}`（包含 Featured；下方僅列其餘候選）
+- Featured: `{{ featured_total }}` across four independent categories
+- Candidate Pool: `{{ candidate_total }}` total; maximum `30` per category
 - Status: `AUTO-TRIAGE` — 尚未完成全文與引用核實
 
-## Featured
+{{#categories}}
+## {{ category_title }}
 
-> 每日精選 5–8 篇；不足時不為湊數降低門檻。
+- Featured: `{{ category_featured_count }}`
+- Candidate Pool: `{{ category_candidate_count }}`（包含 Featured）
+
+> 每類獨立排序與截斷；其他類別不得吃掉本類配額。
 
 ### Anchor Evidence
 
@@ -22,11 +26,13 @@
 
 {{ weird_items }}
 
-## Candidate Pool
+### Candidate Pool
 
-> 總數最多 30 篇，包含 Featured。以下不重複列出 Featured；入池不代表已通過完整證據審核。
+> 本類最多 30 篇，以下不重複列出 Featured；入池不代表已通過完整證據審核。
 
 {{ candidate_items }}
+
+{{/categories}}
 
 ## Featured item format
 
@@ -57,7 +63,7 @@
 
 - Retrieved: `{{ retrieved_count }}`
 - Deduplicated: `{{ deduplicated_count }}`
-- Excluded before Candidate Pool: `{{ excluded_count }}`
+- Excluded before category pools: `{{ excluded_count }}`
 - Warnings: {{ warnings }}
 
 ## Interpretation Guardrail
