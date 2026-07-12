@@ -1,3 +1,6 @@
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
 from src import categories, clinical, quality
 from src.radar import Paper
 
@@ -106,3 +109,26 @@ def test_cross_clinical_sport_reason_uses_final_category():
     assert len(selected) == 1
     assert selected[0].one_line_reason.endswith("跨臨床與運動科學研究線")
     assert "與臨床醫學核心證據線高度相關" not in selected[0].one_line_reason
+
+
+def test_render_rewrites_reason_after_core_rebuild():
+    paper = make_paper("clinical_medicine", 1)
+    paper.secondary_streams = ["sport_science"]
+    paper.one_line_reason = "Randomized controlled trial；證據設計優先；與臨床醫學核心證據線高度相關"
+    featured = {
+        category: {"anchor": [], "strong_watch": [], "weird_but_important": []}
+        for category in categories.CATEGORY_ORDER
+    }
+    featured["sport_science"]["anchor"] = [paper]
+    markdown = categories.render_markdown(
+        datetime(2026, 7, 12, 22, 45, tzinfo=ZoneInfo("Asia/Tokyo")),
+        featured,
+        [paper],
+        retrieved_count=1,
+        deduplicated_count=1,
+        excluded_count=0,
+        warnings=[],
+    )
+    assert "跨臨床與運動科學研究線" in markdown
+    sport_section = markdown.split("## Sport Science", 1)[1]
+    assert "與臨床醫學核心證據線高度相關" not in sport_section
