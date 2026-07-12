@@ -1,0 +1,54 @@
+name: Daily Evidence Radar
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 6 * * *"
+      timezone: "Asia/Tokyo"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: daily-evidence-radar
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run tests
+        run: python -m pytest -q
+
+      - name: Generate radar
+        env:
+          NCBI_API_KEY: ${{ secrets.NCBI_API_KEY }}
+          NCBI_EMAIL: ${{ secrets.NCBI_EMAIL }}
+          OPENALEX_API_KEY: ${{ secrets.OPENALEX_API_KEY }}
+        run: python src/radar.py
+
+      - name: Commit generated Markdown
+        run: |
+          if [ -z "$(git status --porcelain -- daily/)" ]; then
+            echo "No new radar output."
+            exit 0
+          fi
+          git config user.name "evidence-radar[bot]"
+          git config user.email "evidence-radar[bot]@users.noreply.github.com"
+          git add daily/
+          git commit -m "radar: add daily evidence scan"
+          git push
