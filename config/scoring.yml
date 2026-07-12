@@ -8,17 +8,36 @@ selection:
     strong_watch: 4
     weird_but_important: 2
 
+category_selection:
+  candidate_min_score: 45
+  candidate_hard_max: 30
+  featured_target_min: 5
+  featured_hard_max: 8
+  section_caps:
+    anchor: 4
+    strong_watch: 4
+    weird_but_important: 2
+  min_relevance:
+    clinical_medicine: 58
+    sport_science: 62
+    sport_nutrition_fitness: 62
+    llm_social: 65
+
+categories:
+  clinical_medicine:
+    streams: [clinical_medicine]
+  sport_science:
+    streams: [sport_science]
+  sport_nutrition_fitness:
+    streams: [sport_nutrition, fitness_health]
+  llm_social:
+    streams: [llm_social]
+
 weights:
   evidence_quality: 0.40
   personal_relevance: 0.30
   novelty_interest: 0.20
   practical_impact: 0.10
-
-stream_limits:
-  sport_science: 12
-  sport_nutrition: 10
-  fitness_health: 10
-  llm_social: 10
 
 rules:
   anchor_min_evidence: 75
