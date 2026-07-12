@@ -1,0 +1,27 @@
+selection:
+  candidate_min_score: 45
+  featured_target_min: 5
+  featured_hard_max: 8
+  candidate_hard_max: 30
+  section_caps:
+    anchor: 4
+    strong_watch: 4
+    weird_but_important: 2
+
+weights:
+  evidence_quality: 0.40
+  personal_relevance: 0.30
+  novelty_interest: 0.20
+  practical_impact: 0.10
+
+stream_limits:
+  sport_science: 12
+  sport_nutrition: 10
+  fitness_health: 10
+  llm_social: 10
+
+rules:
+  anchor_min_evidence: 75
+  strong_min_evidence: 55
+  strong_min_relevance: 60
+  weird_min_interest: 85
