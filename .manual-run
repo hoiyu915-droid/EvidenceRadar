@@ -1,2 +1,2 @@
-triggered_at: 2026-07-13T00:05:00+09:00
-reason: validate eight-item clinical featured cap and clinical reason labels
+triggered_at: 2026-07-13T00:20:00+09:00
+reason: validate final category-specific reason labels and quota regression
