@@ -23,6 +23,30 @@ quality.HUMAN_SIGNALS = (
     "volunteer",
 )
 
+_BASE_CLASSIFY = quality.classify_study
+EXPLICIT_ANIMAL_TITLE = (
+    "animal model",
+    "animal models",
+    "in mice",
+    "in rats",
+    "mouse model",
+    "rat model",
+    "murine model",
+)
+
+
+def classify_with_explicit_animal_gate(paper):
+    title = paper.title.casefold()
+    if any(signal in title for signal in EXPLICIT_ANIMAL_TITLE):
+        types = {value.casefold() for value in paper.publication_types}
+        if "review" in types or "review" in title or "meta-analysis" in title:
+            return "Preclinical synthesis", "Preclinical/U", 45
+        return "Preclinical study", "Preclinical/U", 40
+    return _BASE_CLASSIFY(paper)
+
+
+quality.classify_study = classify_with_explicit_animal_gate
+
 
 def main() -> int:
     quality.install()
