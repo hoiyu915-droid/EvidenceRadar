@@ -9,6 +9,7 @@ from . import radar as core
 
 _BASE_IS_STREAM_RELEVANT = quality.is_stream_relevant
 _BASE_SCORE_RELEVANCE = quality.score_relevance
+_BASE_BUILD_REASON = core.build_reason
 
 CLINICAL_JOURNAL_SIGNALS = (
     "jama network open",
@@ -90,7 +91,18 @@ def score_relevance(paper: core.Paper, relevance_terms: Iterable[str]) -> int:
     return min(100, 68 + journal_bonus + len(matched) * 4 + title_matches * 4)
 
 
+def build_reason(paper: core.Paper) -> str:
+    reason = _BASE_BUILD_REASON(paper)
+    if paper.stream == "clinical_medicine":
+        reason = reason.replace(
+            "與核心運動／體適能研究線高度相關",
+            "與臨床醫學核心證據線高度相關",
+        )
+    return reason
+
+
 def install() -> None:
     quality.is_stream_relevant = is_stream_relevant
     quality.score_relevance = score_relevance
     core.score_relevance = score_relevance
+    core.build_reason = build_reason
