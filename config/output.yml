@@ -25,9 +25,9 @@ selection:
 
 sections:
   anchor_evidence:
-    hard_max_per_category: 4
+    hard_max_per_category: 8
   strong_watch:
-    hard_max_per_category: 4
+    hard_max_per_category: 8
   weird_but_important:
     hard_max_per_category: 2
 
