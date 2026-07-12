@@ -12,6 +12,17 @@ if str(REPO_ROOT) not in sys.path:
 
 from src import quality, radar
 
+# Generic age words such as "adult" and "adolescent" occur in animal papers.
+# Only explicit human-participant signals may override an animal-species signal.
+quality.HUMAN_SIGNALS = (
+    "participant",
+    "patient",
+    "human",
+    "people",
+    "athlete",
+    "volunteer",
+)
+
 
 def main() -> int:
     quality.install()
