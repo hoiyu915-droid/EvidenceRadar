@@ -18,8 +18,8 @@ streams:
       - power
       - occupational physical activity
     queries:
-      - '("exercise physiology"[Title/Abstract] OR "resistance training"[Title/Abstract] OR "endurance training"[Title/Abstract] OR "athletic performance"[Title/Abstract] OR "muscle hypertrophy"[Title/Abstract] OR biomechanics[Title/Abstract] OR "training load"[Title/Abstract])'
-      - '(exercise[Title/Abstract] AND (fatigue[Title/Abstract] OR recovery[Title/Abstract] OR strength[Title/Abstract] OR power[Title/Abstract] OR adaptation[Title/Abstract]))'
+      - '(("exercise physiology"[Title/Abstract] OR "resistance training"[Title/Abstract] OR "endurance training"[Title/Abstract] OR "athletic performance"[Title/Abstract] OR "muscle hypertrophy"[Title/Abstract] OR biomechanics[Title/Abstract] OR "training load"[Title/Abstract]) NOT (protocol[Title] OR letter[Publication Type] OR editorial[Publication Type] OR comment[Publication Type]))'
+      - '((exercise[Title] OR athlete*[Title] OR sport*[Title] OR muscle[Title] OR training[Title]) AND (fatigue[Title/Abstract] OR recovery[Title/Abstract] OR strength[Title/Abstract] OR power[Title/Abstract] OR adaptation[Title/Abstract]) NOT (protocol[Title] OR letter[Publication Type] OR editorial[Publication Type] OR comment[Publication Type]))'
 
   sport_nutrition:
     sources: [pubmed]
@@ -36,8 +36,8 @@ streams:
       - nutritional periodization
       - recovery nutrition
     queries:
-      - '("sports nutrition"[Title/Abstract] OR "energy availability"[Title/Abstract] OR RED-S[Title/Abstract] OR "relative energy deficiency"[Title/Abstract] OR "carbohydrate availability"[Title/Abstract] OR creatine[Title/Abstract] OR hydration[Title/Abstract])'
-      - '((athlete*[Title/Abstract] OR exercise[Title/Abstract] OR training[Title/Abstract]) AND (protein[Title/Abstract] OR carbohydrate*[Title/Abstract] OR supplement*[Title/Abstract] OR nutrition*[Title/Abstract]))'
+      - '(("sports nutrition"[Title/Abstract] OR "energy availability"[Title/Abstract] OR RED-S[Title/Abstract] OR "relative energy deficiency"[Title/Abstract] OR "carbohydrate availability"[Title/Abstract]) NOT (protocol[Title] OR letter[Publication Type] OR editorial[Publication Type]))'
+      - '((athlete*[Title] OR sport*[Title] OR exercise[Title] OR training[Title] OR performance[Title] OR recovery[Title]) AND (protein[Title] OR carbohydrate*[Title] OR creatine[Title] OR hydration[Title] OR rehydration[Title] OR supplement*[Title] OR nutrition*[Title] OR diet*[Title]) NOT (protocol[Title] OR letter[Publication Type] OR editorial[Publication Type]))'
 
   fitness_health:
     sources: [pubmed]
@@ -54,8 +54,8 @@ streams:
       - step count
       - dose response
     queries:
-      - '("physical fitness"[Title/Abstract] OR "cardiorespiratory fitness"[Title/Abstract] OR "muscular strength"[Title/Abstract] OR "step count"[Title/Abstract] OR "sedentary behavior"[Title/Abstract] OR "sedentary behaviour"[Title/Abstract])'
-      - '(("physical activity"[Title/Abstract] OR exercise[Title/Abstract]) AND (mortality[Title/Abstract] OR aging[Title/Abstract] OR sarcopenia[Title/Abstract] OR "dose-response"[Title/Abstract]))'
+      - '(("physical fitness"[Title/Abstract] OR "cardiorespiratory fitness"[Title/Abstract] OR "muscular strength"[Title/Abstract] OR "step count"[Title/Abstract] OR "sedentary behavior"[Title/Abstract] OR "sedentary behaviour"[Title/Abstract]) NOT (protocol[Title] OR letter[Publication Type] OR editorial[Publication Type]))'
+      - '((("physical activity"[Title] OR exercise[Title] OR walking[Title] OR sarcopenia[Title]) AND (mortality[Title/Abstract] OR aging[Title/Abstract] OR "dose-response"[Title/Abstract] OR health[Title/Abstract])) NOT (protocol[Title] OR letter[Publication Type] OR editorial[Publication Type]))'
 
   llm_social:
     sources: [openalex]
@@ -78,6 +78,7 @@ streams:
       - Replika
       - Character.AI
     queries:
-      - '("AI companion" OR "machine companion" OR "social chatbot" OR "relational agent" OR "artificial intimacy")'
-      - '(("large language model" OR chatbot OR "conversational agent") AND (companionship OR attachment OR intimacy OR loneliness OR "emotional support" OR "self-disclosure"))'
-      - '((Replika OR "Character.AI" OR Nomi OR Kindroid) AND (relationship OR companion OR attachment OR intimacy))'
+      - 'AI companion human relationship attachment'
+      - 'chatbot companionship loneliness emotional support'
+      - 'large language model relational agent self-disclosure'
+      - 'Replika Character.AI intimacy attachment'
