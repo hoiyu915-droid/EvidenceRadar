@@ -1,2 +1,2 @@
-triggered_at: 2026-07-13T00:20:00+09:00
-reason: validate final category-specific reason labels and quota regression
+triggered_at: 2026-07-13T00:35:00+09:00
+reason: validate render-time category reason rewrite and four-pool regression
