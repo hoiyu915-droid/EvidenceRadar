@@ -1,0 +1,55 @@
+output:
+  format: markdown
+  extension: ".md"
+  directory: "daily"
+  timezone: "Asia/Tokyo"
+  filename_pattern: "%Y%m%d %H%M.Rader.md"
+  example_filename: "20260712 0630.Rader.md"
+
+selection:
+  featured:
+    target_min: 5
+    hard_max: 8
+  candidate_pool:
+    hard_max: 30
+  allow_below_minimum_when_insufficient: true
+  padding_forbidden: true
+
+sections:
+  anchor_evidence:
+    hard_max: 4
+  strong_watch:
+    hard_max: 4
+  weird_but_important:
+    hard_max: 2
+
+candidate_fields:
+  - title
+  - authors
+  - journal_or_venue
+  - publication_date
+  - stream
+  - study_design
+  - evidence_tier
+  - relevance_score
+  - interest_score
+  - open_access
+  - doi
+  - pmid
+  - pmcid
+  - openalex_id
+  - one_line_reason
+
+streams:
+  - sport_science
+  - sport_nutrition
+  - fitness_health
+  - llm_social
+
+rendering:
+  language: "zh-TW"
+  preserve_original_title: true
+  include_abstract_summary: true
+  include_main_caveat: true
+  include_identifiers: true
+  candidate_pool_detail: compact
