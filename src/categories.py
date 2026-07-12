@@ -44,6 +44,10 @@ def category_reason(paper: core.Paper, category: str) -> str:
     stale_phrases = {
         "與核心運動／體適能研究線高度相關",
         "與臨床醫學核心證據線高度相關",
+        "與核心運動科學研究線高度相關",
+        "與核心運動營養／體適能研究線高度相關",
+        "跨臨床與運動科學研究線",
+        "跨臨床與運動營養／體適能研究線",
     }
     parts = [part for part in paper.one_line_reason.split("；") if part and part not in stale_phrases]
     streams = set(paper.all_streams())
@@ -142,6 +146,9 @@ def render_markdown(
     for paper in candidate_pool:
         category = category_for(paper)
         if category:
+            # core.main rebuilds reasons after Europe PMC enrichment; final category
+            # wording therefore belongs here, immediately before Markdown rendering.
+            paper.one_line_reason = category_reason(paper, category)
             buckets[category].append(paper)
 
     total_featured = sum(
