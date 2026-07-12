@@ -14,8 +14,8 @@ category_selection:
   featured_target_min: 5
   featured_hard_max: 8
   section_caps:
-    anchor: 4
-    strong_watch: 4
+    anchor: 8
+    strong_watch: 8
     weird_but_important: 2
   min_relevance:
     clinical_medicine: 58
