@@ -39,6 +39,33 @@ def category_for(paper: core.Paper) -> str | None:
     return None
 
 
+def category_reason(paper: core.Paper, category: str) -> str:
+    """Rewrite relevance wording after the final deduplicated category is known."""
+    stale_phrases = {
+        "與核心運動／體適能研究線高度相關",
+        "與臨床醫學核心證據線高度相關",
+    }
+    parts = [part for part in paper.one_line_reason.split("；") if part and part not in stale_phrases]
+    streams = set(paper.all_streams())
+
+    if paper.relevance_score >= 75:
+        if category == "clinical_medicine":
+            parts.append("與臨床醫學核心證據線高度相關")
+        elif category == "sport_science":
+            parts.append(
+                "跨臨床與運動科學研究線"
+                if "clinical_medicine" in streams
+                else "與核心運動科學研究線高度相關"
+            )
+        elif category == "sport_nutrition_fitness":
+            parts.append(
+                "跨臨床與運動營養／體適能研究線"
+                if "clinical_medicine" in streams
+                else "與核心運動營養／體適能研究線高度相關"
+            )
+    return "；".join(dict.fromkeys(parts))
+
+
 def _category_config(scoring: dict[str, Any]) -> dict[str, Any]:
     return scoring.get("category_selection", {})
 
@@ -68,6 +95,7 @@ def select_candidate_pool(papers: list[core.Paper], scoring: dict[str, Any]) -> 
             continue
         if paper.evidence_tier in {"Other/U", "Preclinical/U"} and paper.interest_score < 70:
             continue
+        paper.one_line_reason = category_reason(paper, category)
         buckets[category].append(paper)
 
     return [paper for category in CATEGORY_ORDER for paper in buckets[category]]
