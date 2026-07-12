@@ -1,0 +1,83 @@
+lookback_days: 3
+per_query: 60
+
+streams:
+  sport_science:
+    sources: [pubmed]
+    relevance_terms:
+      - exercise physiology
+      - resistance training
+      - endurance training
+      - athletic performance
+      - muscle hypertrophy
+      - fatigue
+      - recovery
+      - biomechanics
+      - training load
+      - strength
+      - power
+      - occupational physical activity
+    queries:
+      - '("exercise physiology"[Title/Abstract] OR "resistance training"[Title/Abstract] OR "endurance training"[Title/Abstract] OR "athletic performance"[Title/Abstract] OR "muscle hypertrophy"[Title/Abstract] OR biomechanics[Title/Abstract] OR "training load"[Title/Abstract])'
+      - '(exercise[Title/Abstract] AND (fatigue[Title/Abstract] OR recovery[Title/Abstract] OR strength[Title/Abstract] OR power[Title/Abstract] OR adaptation[Title/Abstract]))'
+
+  sport_nutrition:
+    sources: [pubmed]
+    relevance_terms:
+      - sports nutrition
+      - carbohydrate availability
+      - protein
+      - creatine
+      - hydration
+      - supplement
+      - energy availability
+      - RED-S
+      - body composition
+      - nutritional periodization
+      - recovery nutrition
+    queries:
+      - '("sports nutrition"[Title/Abstract] OR "energy availability"[Title/Abstract] OR RED-S[Title/Abstract] OR "relative energy deficiency"[Title/Abstract] OR "carbohydrate availability"[Title/Abstract] OR creatine[Title/Abstract] OR hydration[Title/Abstract])'
+      - '((athlete*[Title/Abstract] OR exercise[Title/Abstract] OR training[Title/Abstract]) AND (protein[Title/Abstract] OR carbohydrate*[Title/Abstract] OR supplement*[Title/Abstract] OR nutrition*[Title/Abstract]))'
+
+  fitness_health:
+    sources: [pubmed]
+    relevance_terms:
+      - physical fitness
+      - physical activity
+      - cardiorespiratory fitness
+      - muscular strength
+      - sedentary behaviour
+      - mortality
+      - aging
+      - sarcopenia
+      - exercise medicine
+      - step count
+      - dose response
+    queries:
+      - '("physical fitness"[Title/Abstract] OR "cardiorespiratory fitness"[Title/Abstract] OR "muscular strength"[Title/Abstract] OR "step count"[Title/Abstract] OR "sedentary behavior"[Title/Abstract] OR "sedentary behaviour"[Title/Abstract])'
+      - '(("physical activity"[Title/Abstract] OR exercise[Title/Abstract]) AND (mortality[Title/Abstract] OR aging[Title/Abstract] OR sarcopenia[Title/Abstract] OR "dose-response"[Title/Abstract]))'
+
+  llm_social:
+    sources: [openalex]
+    relevance_terms:
+      - AI companion
+      - machine companion
+      - social chatbot
+      - relational agent
+      - human-AI relationship
+      - artificial intimacy
+      - anthropomorphism
+      - attachment
+      - parasocial
+      - companionship
+      - loneliness
+      - self-disclosure
+      - emotional support
+      - dependency
+      - social substitution
+      - Replika
+      - Character.AI
+    queries:
+      - '("AI companion" OR "machine companion" OR "social chatbot" OR "relational agent" OR "artificial intimacy")'
+      - '(("large language model" OR chatbot OR "conversational agent") AND (companionship OR attachment OR intimacy OR loneliness OR "emotional support" OR "self-disclosure"))'
+      - '((Replika OR "Character.AI" OR Nomi OR Kindroid) AND (relationship OR companion OR attachment OR intimacy))'
