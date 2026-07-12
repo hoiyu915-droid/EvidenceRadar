@@ -2,6 +2,27 @@ lookback_days: 3
 per_query: 60
 
 streams:
+  clinical_medicine:
+    sources: [pubmed]
+    relevance_terms:
+      - randomized controlled trial
+      - systematic review
+      - meta-analysis
+      - clinical guideline
+      - diagnosis
+      - screening
+      - treatment
+      - prevention
+      - prognosis
+      - mortality
+      - morbidity
+      - adverse event
+      - public health
+    queries:
+      - '(("JAMA Netw Open"[Journal] OR "EClinicalMedicine"[Journal] OR "BMC Med"[Journal] OR "BMJ Open"[Journal] OR "Commun Med (Lond)"[Journal] OR "PLoS Med"[Journal] OR "BMJ Med"[Journal] OR "Lancet Reg Health West Pac"[Journal] OR "Lancet Reg Health Eur"[Journal] OR "Lancet Reg Health Am"[Journal]) NOT (protocol[Title] OR letter[Publication Type] OR editorial[Publication Type] OR comment[Publication Type]))'
+      - '(((meta-analysis[Publication Type] OR systematic review[Publication Type] OR randomized controlled trial[Publication Type] OR practice guideline[Publication Type]) AND humans[MeSH Terms]) NOT (protocol[Title] OR letter[Publication Type] OR editorial[Publication Type] OR comment[Publication Type]))'
+      - '(("N Engl J Med"[Journal] OR Lancet[Journal] OR JAMA[Journal] OR BMJ[Journal] OR "Ann Intern Med"[Journal] OR "Nat Med"[Journal]) AND (clinical trial[Publication Type] OR randomized controlled trial[Publication Type] OR meta-analysis[Publication Type] OR systematic review[Publication Type]) NOT (protocol[Title] OR letter[Publication Type] OR editorial[Publication Type]))'
+
   sport_science:
     sources: [pubmed]
     relevance_terms:
