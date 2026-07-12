@@ -31,6 +31,7 @@ def make_paper(stream: str, index: int, total_score: float = 90.0, strong: bool 
         interest_score=75,
         practical_score=70,
         total_score=total_score,
+        one_line_reason="Randomized controlled trial；證據設計優先；與臨床醫學核心證據線高度相關",
     )
 
 
@@ -92,3 +93,16 @@ def test_featured_is_capped_independently_per_category():
     featured = categories.select_featured(papers, scoring)
     for category in categories.CATEGORY_ORDER:
         assert sum(len(items) for items in featured[category].values()) == 8
+
+
+def test_cross_clinical_sport_reason_uses_final_category():
+    paper = make_paper("clinical_medicine", 1)
+    paper.secondary_streams = ["sport_science"]
+    scoring = {
+        "selection": {"candidate_min_score": 45, "candidate_hard_max": 30},
+        "category_selection": {"candidate_hard_max": 30},
+    }
+    selected = categories.select_candidate_pool([paper], scoring)
+    assert len(selected) == 1
+    assert selected[0].one_line_reason.endswith("跨臨床與運動科學研究線")
+    assert "與臨床醫學核心證據線高度相關" not in selected[0].one_line_reason
