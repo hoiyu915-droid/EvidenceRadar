@@ -7,28 +7,36 @@ output:
   example_filename: "20260712 0630.Rader.md"
 
 selection:
+  scope: per_category
+  categories:
+    - clinical_medicine
+    - sport_science
+    - sport_nutrition_fitness
+    - llm_social
   featured:
     target_min: 5
     hard_max: 8
   candidate_pool:
-    hard_max: 30
+    hard_max_per_category: 30
+    total_hard_max: 120
     includes_featured: true
   allow_below_minimum_when_insufficient: true
   padding_forbidden: true
 
 sections:
   anchor_evidence:
-    hard_max: 4
+    hard_max_per_category: 4
   strong_watch:
-    hard_max: 4
+    hard_max_per_category: 4
   weird_but_important:
-    hard_max: 2
+    hard_max_per_category: 2
 
 candidate_fields:
   - title
   - authors
   - journal_or_venue
   - publication_date
+  - category
   - stream
   - study_design
   - evidence_tier
@@ -42,6 +50,7 @@ candidate_fields:
   - one_line_reason
 
 streams:
+  - clinical_medicine
   - sport_science
   - sport_nutrition
   - fitness_health
