@@ -14,7 +14,7 @@ LLM Research 再依正式研究問題分成 L1–L9；Human–AI Research 分成
 
 ## 每日輸出契約
 
-- 格式：Markdown (`.md`)
+- 格式：同步產生 Markdown (`.md`) 與 self-contained HTML (`.html`)
 - 目錄：`daily/`
 - 檔名：`YYYYMMDD HHMM.Rader.md`
 - 時區：`Asia/Tokyo`
@@ -22,6 +22,24 @@ LLM Research 再依正式研究問題分成 L1–L9；Human–AI Research 分成
 - 每類 Candidate Pool：最多 30 篇，包含 Featured
 - 五類總上限：150 篇
 - AI 類先保留跨方向召回，再按分數補位
+- 事件窗：以執行時間倒推精確 72 小時；cutoff 當日若只有日期而沒有時間，保守排除
+
+## 每日實際搜尋與事件門檻
+
+每個 stream 的查詢式會同時送往 PubMed 與／或 OpenAlex；OpenAlex 失敗時由 Crossref 補位。PubMed 同一查詢會掃 `pdat`（出版）、`edat`（首次進 Entrez）與 `mdat`（記錄變更），因此可找到「舊文獻今天才正式索引或釋出 PMC 全文」的情況。搜尋只是召回層，單純 metadata 更新、搜尋引擎 freshness、卷期回填、作者更正或重新索引不會進報告。
+
+合格事件只有八類：
+
+1. version of record 首次 online
+2. 首次正式索引
+3. 正式 proceedings 釋出
+4. OA 全文首次可用
+5. author accepted manuscript 首次可用
+6. embargo 解除
+7. preprint 升級 peer-reviewed version
+8. 正式版本完成核實
+
+每一筆輸出都帶 `event type`、發生時間、來源欄位、證據 URL、時間精度與信心等級。HTML 與 Markdown 直接由同一組 `Paper`／event 物件生成，不會各自重新判定。
 
 ## 跨輪歷史與去重
 
@@ -43,16 +61,17 @@ DOI → PMID → PMCID → arXiv ID → Anthology ID → OpenAlex ID → normali
 ## 資料流
 
 ```text
-PubMed + OpenAlex
+PubMed (pdat + edat + mdat) + OpenAlex
 → OpenAlex 失敗時以 Crossref 補位
 → metadata 正規化與研究設計判定
 → 單輪 work-level 去重
 → 歷史 registry 去重（抑制重覆通知）
+→ 八類事件證據核對 + rolling 72h gate
 → 正式 research-problem taxonomy（L1–L9 / H1–H2）
 → 五類獨立 Candidate Pool
 → AI 類方向保留 + 跨方向價值排序
 → Europe PMC 補 OA、PMCID 與 DOI
-→ Markdown
+→ Markdown + self-contained HTML
 → literature registry + run history
 → workflow commit / push `daily/` 與 `state/`
 ```
@@ -69,11 +88,13 @@ python -m pytest -q
 python src/run.py
 ```
 
-可指定檢索結束日期與回看天數：
+預設為執行時間往回 72 小時。可指定精確結束時間：
 
 ```bash
-python src/run.py --end-date 2026-08-08 --lookback-days 3
+python src/run.py --end-at 2026-08-08T08:00:00+09:00 --window-hours 72
 ```
+
+`--end-date YYYY-MM-DD` 仍保留給歷史回放，會以該日 `23:59:59 Asia/Tokyo` 作窗尾；`--lookback-days` 只控制來源 over-fetch，不會放寬 72 小時事件門檻。
 
 ## GitHub Actions
 
@@ -100,5 +121,7 @@ python src/run.py --end-date 2026-08-08 --lookback-days 3
 - [`config/scoring.yml`](config/scoring.yml)：Candidate／Featured 門檻與方向配額
 - [`src/formal_taxonomy.py`](src/formal_taxonomy.py)：正式 AI taxonomy、多標籤與方向平衡
 - [`src/history.py`](src/history.py)：跨輪 registry、歷史匯入、抑制重覆與 run ledger
+- [`src/events.py`](src/events.py)：八類事件正規化、證據欄位與 rolling 72h gate
+- [`src/html_report.py`](src/html_report.py)：與 Markdown 同資料源的單檔 HTML renderer
 - [`src/quality.py`](src/quality.py)：研究設計、相關性與排除規則
 - [`src/categories.py`](src/categories.py)：五類獨立配額與 Markdown renderer
