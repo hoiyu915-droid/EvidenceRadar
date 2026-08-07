@@ -12,13 +12,14 @@ selection:
     - clinical_medicine
     - sport_science
     - sport_nutrition_fitness
-    - llm_social
+    - llm_research
+    - human_ai
   featured:
     target_min: 5
     hard_max: 8
   candidate_pool:
     hard_max_per_category: 30
-    total_hard_max: 120
+    total_hard_max: 150
     includes_featured: true
   allow_below_minimum_when_insufficient: true
   padding_forbidden: true
@@ -48,13 +49,25 @@ candidate_fields:
   - pmcid
   - openalex_id
   - one_line_reason
+  - research_directions
+  - history_status
 
 streams:
   - clinical_medicine
   - sport_science
   - sport_nutrition
   - fitness_health
-  - llm_social
+  - llm_l1_model_behavior
+  - llm_l2_context_inference
+  - llm_l3_retrieval_grounding
+  - llm_l4_memory_personalization
+  - llm_l5_agents_decision
+  - llm_l6_multi_agent
+  - llm_l7_systems_runtime
+  - llm_l8_training_architecture
+  - llm_l9_evaluation_measurement
+  - human_h1_llm_relationship
+  - human_h2_ai_hci
 
 rendering:
   language: "zh-TW"
