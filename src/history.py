@@ -232,8 +232,18 @@ class LiteratureRegistry:
                 record = self.works[existing_key]
                 was_preprint = bool(record.get("is_preprint"))
                 was_oa = record.get("open_access") is True
+                previous_versions = {
+                    str(value).casefold() for value in record.get("repository_versions", [])
+                }
+                current_versions = {
+                    str(value).casefold() for value in paper.repository_versions
+                }
                 version_upgrade = was_preprint and not paper.is_preprint
                 oa_unlock = not was_oa and paper.open_access is True
+                accepted_manuscript_unlock = (
+                    "acceptedversion" in current_versions
+                    and "acceptedversion" not in previous_versions
+                )
                 record["last_seen_at"] = now
                 record["seen_count"] = int(record.get("seen_count", 1)) + 1
                 record["sources"] = sorted(set(record.get("sources", [])) | {paper.source})
@@ -259,16 +269,30 @@ class LiteratureRegistry:
                 record["fulltext_urls"] = list(
                     dict.fromkeys([*record.get("fulltext_urls", []), *paper.fulltext_urls])
                 )
-                if version_upgrade or oa_unlock:
-                    event = (
-                        "preprint_to_peer_reviewed_upgrade"
-                        if version_upgrade else "oa_fulltext_first_available"
-                    )
+                record["repository_versions"] = sorted(previous_versions | current_versions)
+                if version_upgrade or oa_unlock or accepted_manuscript_unlock:
+                    if version_upgrade:
+                        event = "preprint_to_peer_reviewed_upgrade"
+                        event_at = paper.publication_date or now
+                        precision = "date" if paper.publication_date else "timestamp"
+                    elif accepted_manuscript_unlock:
+                        event = "author_accepted_manuscript_first_available"
+                        event_at = now
+                        precision = "timestamp"
+                    elif record.get("embargoed") is True:
+                        event = "embargo_lifted"
+                        event_at = now
+                        precision = "timestamp"
+                    else:
+                        event = "oa_fulltext_first_available"
+                        event_at = now
+                        precision = "timestamp"
                     core.events.add_event(
-                        paper, event, paper.publication_date or now,
+                        paper, event, event_at,
                         source="EvidenceRadar registry",
                         source_field="cross_run_state_transition",
-                        precision="date" if paper.publication_date else "timestamp",
+                        url=paper.fulltext_urls[0] if paper.fulltext_urls else "",
+                        precision=precision,
                         confidence="registry_verified_transition",
                     )
                     record.setdefault("notified_events", []).append(
@@ -304,6 +328,7 @@ class LiteratureRegistry:
                 "observed_events": _serialized_events(paper),
                 "notified_events": [],
                 "fulltext_urls": list(paper.fulltext_urls),
+                "repository_versions": list(paper.repository_versions),
                 "outcome": "retrieved",
                 "aliases": aliases,
             }
