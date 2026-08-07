@@ -278,6 +278,7 @@ def render_markdown(
             "",
             f"- Retrieved: `{retrieved_count}`",
             f"- New after same-run and cross-run deduplication: `{deduplicated_count}`",
+            f"- Event-qualified inside rolling window: `{core.RUN_CONTEXT.get('event_qualified_count', deduplicated_count)}`",
             f"- Excluded before category pools: `{excluded_count}`",
             f"- Warnings: {'；'.join(warnings) if warnings else 'None'}",
             "",
