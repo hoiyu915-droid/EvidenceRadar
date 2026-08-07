@@ -3,7 +3,7 @@ name: Daily Evidence Radar
 on:
   workflow_dispatch:
   schedule:
-    - cron: "17 6 * * *"
+    - cron: "55 8 * * *"
       timezone: "Asia/Tokyo"
   push:
     branches:
