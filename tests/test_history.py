@@ -74,6 +74,28 @@ def test_preprint_upgrade_is_a_new_event_not_a_duplicate(tmp_path):
     assert upgraded.run_stats["history_duplicates"] == 0
 
 
+def test_new_accepted_manuscript_location_is_a_timestamped_event(tmp_path):
+    state = registry(tmp_path)
+    state.begin_run()
+    original = paper("Repository transition", "10.1000/aam")
+    original.open_access = False
+    assert len(state.filter_new([original])) == 1
+    state.save_success()
+
+    upgraded = registry(tmp_path)
+    upgraded.begin_run()
+    accepted = paper("Repository transition", "10.1000/aam")
+    accepted.open_access = True
+    accepted.repository_versions = ["acceptedVersion"]
+    accepted.fulltext_urls = ["https://repository.example/aam.pdf"]
+    assert len(upgraded.filter_new([accepted])) == 1
+    assert any(
+        event["type"] == "author_accepted_manuscript_first_available"
+        and event["precision"] == "timestamp"
+        for event in accepted.events
+    )
+
+
 def test_legacy_fulltext_ledger_is_migrated_into_dedupe_index(tmp_path):
     legacy = tmp_path / "legacy.json"
     legacy.write_text(
