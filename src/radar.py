@@ -84,6 +84,7 @@ class Paper:
     events: list[dict[str, Any]] = field(default_factory=list)
     qualifying_events: list[dict[str, Any]] = field(default_factory=list)
     fulltext_urls: list[str] = field(default_factory=list)
+    repository_versions: list[str] = field(default_factory=list)
 
     def identity_key(self) -> str:
         if self.doi:
@@ -367,12 +368,27 @@ def fetch_openalex(
     end_date: date,
     max_results: int,
 ) -> list[Paper]:
-    payload = request(
-        OPENALEX_WORKS,
-        params=openalex_params(query, start_date, end_date, max_results),
-    ).json()
+    publication_params = openalex_params(query, start_date, end_date, max_results)
+    payloads = [request(OPENALEX_WORKS, params=publication_params).json()]
+    updated_params = dict(publication_params)
+    updated_params["filter"] = (
+        f"from_updated_date:{start_date.isoformat()},to_updated_date:{end_date.isoformat()}"
+    )
+    updated_params["sort"] = "updated_date:desc"
+    try:
+        payloads.append(request(OPENALEX_WORKS, params=updated_params, attempts=1).json())
+    except (RadarError, ValueError):
+        # Updated-date filtering is an over-fetch surface. Publication discovery
+        # remains useful if an OpenAlex plan or transient limit rejects it.
+        pass
     papers: list[Paper] = []
-    for result in payload.get("results", []):
+    seen_results: set[str] = set()
+    for result in [item for payload in payloads for item in payload.get("results", [])]:
+        result_key = compact_whitespace(result.get("id")) or normalize_doi(result.get("doi"))
+        if result_key and result_key in seen_results:
+            continue
+        if result_key:
+            seen_results.add(result_key)
         title = compact_whitespace(result.get("display_name") or result.get("title"))
         if not title:
             continue
@@ -403,6 +419,9 @@ def fetch_openalex(
             is_preprint=work_type.lower() in {"preprint", "posted-content"},
         )
         best_oa = result.get("best_oa_location") or {}
+        version = compact_whitespace(best_oa.get("version"))
+        if version:
+            paper.repository_versions.append(version)
         for candidate in (best_oa.get("pdf_url"), best_oa.get("landing_page_url")):
             candidate = compact_whitespace(candidate)
             if candidate and candidate not in paper.fulltext_urls:
@@ -618,6 +637,9 @@ def deduplicate(papers: Iterable[Paper]) -> list[Paper]:
         if winner.open_access is None:
             winner.open_access = loser.open_access
         events.merge_paper_events(winner, loser)
+        winner.repository_versions = list(
+            dict.fromkeys([*winner.repository_versions, *loser.repository_versions])
+        )
         deduped.pop(existing_key, None)
         deduped[key] = winner
         title_keys[title_key] = key
