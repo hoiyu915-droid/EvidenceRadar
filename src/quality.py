@@ -447,8 +447,7 @@ def fetch_crossref(
         containers = item.get("container-title") or []
         work_type = core.compact_whitespace(item.get("type"))
         abstract = re.sub(r"<[^>]+>", " ", item.get("abstract") or "")
-        papers.append(
-            core.Paper(
+        paper = core.Paper(
                 title=title,
                 abstract=core.compact_whitespace(abstract),
                 authors=authors,
@@ -460,7 +459,25 @@ def fetch_crossref(
                 publication_types=[work_type] if work_type else [],
                 is_preprint=work_type in {"posted-content", "preprint"},
             )
-        )
+        published_online = crossref_date({"published-online": item.get("published-online")})
+        if published_online and not paper.is_preprint:
+            event_type = (
+                "formal_proceedings_release"
+                if "proceedings" in work_type
+                else "version_of_record_first_online"
+            )
+            core.events.add_event(
+                paper, event_type, published_online,
+                source="Crossref", source_field="published-online",
+                url=f"https://doi.org/{paper.doi}" if paper.doi else "",
+                confidence="publisher_deposited_metadata",
+            )
+        for link in item.get("link") or []:
+            candidate = core.compact_whitespace(link.get("URL"))
+            if candidate and candidate not in paper.fulltext_urls:
+                paper.fulltext_urls.append(candidate)
+        core.events.ensure_provider_event(paper)
+        papers.append(paper)
     return papers
 
 
