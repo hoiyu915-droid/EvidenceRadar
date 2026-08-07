@@ -47,6 +47,10 @@ def aliases_for(paper: core.Paper) -> list[str]:
     return list(dict.fromkeys(aliases))
 
 
+def _serialized_events(paper: core.Paper) -> list[dict[str, Any]]:
+    return [dict(event) for event in paper.events]
+
+
 def _record_aliases(key: str, record: dict[str, Any]) -> list[str]:
     aliases = [key, *record.get("aliases", [])]
     identifiers = record.get("identifiers") or {}
@@ -245,8 +249,28 @@ class LiteratureRegistry:
                         identifiers[field] = value
                 record["open_access"] = paper.open_access if paper.open_access is not None else record.get("open_access")
                 record["is_preprint"] = paper.is_preprint
+                observed = record.setdefault("observed_events", [])
+                known_events = {
+                    core.events.event_fingerprint(event) for event in observed
+                }
+                for event in _serialized_events(paper):
+                    if core.events.event_fingerprint(event) not in known_events:
+                        observed.append(event)
+                record["fulltext_urls"] = list(
+                    dict.fromkeys([*record.get("fulltext_urls", []), *paper.fulltext_urls])
+                )
                 if version_upgrade or oa_unlock:
-                    event = "preprint_to_formal_version" if version_upgrade else "open_access_fulltext_unlock"
+                    event = (
+                        "preprint_to_peer_reviewed_upgrade"
+                        if version_upgrade else "oa_fulltext_first_available"
+                    )
+                    core.events.add_event(
+                        paper, event, paper.publication_date or now,
+                        source="EvidenceRadar registry",
+                        source_field="cross_run_state_transition",
+                        precision="date" if paper.publication_date else "timestamp",
+                        confidence="registry_verified_transition",
+                    )
                     record.setdefault("notified_events", []).append(
                         {"event": event, "date": paper.publication_date or None, "notified_at": now}
                     )
@@ -277,6 +301,9 @@ class LiteratureRegistry:
                 },
                 "open_access": paper.open_access,
                 "is_preprint": paper.is_preprint,
+                "observed_events": _serialized_events(paper),
+                "notified_events": [],
+                "fulltext_urls": list(paper.fulltext_urls),
                 "outcome": "retrieved",
                 "aliases": aliases,
             }
@@ -306,6 +333,38 @@ class LiteratureRegistry:
                 record["outcome"] = "featured"
             elif aliases & candidate_keys:
                 record["outcome"] = "candidate"
+            if aliases & candidate_keys:
+                paper = next(
+                    (
+                        item for item in candidate_pool
+                        if aliases & set(aliases_for(item))
+                    ),
+                    None,
+                )
+                if paper is not None:
+                    notified = record.setdefault("notified_events", [])
+                    fingerprints = {
+                        "|".join(
+                            str(item.get(field) or "").casefold()
+                            for field in ("event", "occurred_at", "source", "source_field")
+                        )
+                        for item in notified
+                    }
+                    for event in paper.qualifying_events:
+                        notification = {
+                            "event": event.get("type"),
+                            "occurred_at": event.get("occurred_at"),
+                            "source": event.get("source"),
+                            "source_field": event.get("source_field"),
+                            "notified_at": self.run_started_at.isoformat(),
+                        }
+                        fingerprint = "|".join(
+                            str(notification.get(field) or "").casefold()
+                            for field in ("event", "occurred_at", "source", "source_field")
+                        )
+                        if fingerprint not in fingerprints:
+                            notified.append(notification)
+                            fingerprints.add(fingerprint)
 
     def save_success(self) -> None:
         now = _now().isoformat()
@@ -321,6 +380,7 @@ class LiteratureRegistry:
             "committed_at": now,
             "status": "success",
             **self.run_stats,
+            **core.RUN_CONTEXT,
             "registry_works": len(self.works),
         }
         with self.run_history_path.open("a", encoding="utf-8") as handle:
