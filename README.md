@@ -1,84 +1,63 @@
 # EvidenceRadar
 
-每日文獻雷達，分成四個互不搶配額的頂層類別：
+每日文獻雷達。系統把研究問題、publication identity、全文事件與歷史通知分開處理，並在每次成功執行後把輸出與持久狀態寫回 repository。
+
+## 五個互不搶配額的頂層類別
 
 1. Clinical Medicine
 2. Sport Science
 3. Sport Nutrition & Fitness
-4. LLM & Social Impact
+4. LLM Research
+5. Human–AI Research
 
-底層仍保留 `sport_nutrition` 與 `fitness_health` 子 stream，但輸出時合併為同一頂層類別。
+LLM Research 再依正式研究問題分成 L1–L9；Human–AI Research 分成 H1–H2。完整定義見 [`docs/research_taxonomy.md`](docs/research_taxonomy.md)。ACL、ICLR、NeurIPS、ICML、AAMAS、AAAI、IJCAI、TACL、CL、PMLR、JMLR 等只記入 `journal_or_venue`，不作 taxonomy。
 
 ## 每日輸出契約
 
 - 格式：Markdown (`.md`)
-- 輸出目錄：`daily/`
+- 目錄：`daily/`
 - 檔名：`YYYYMMDD HHMM.Rader.md`
 - 時區：`Asia/Tokyo`
 - 每類 Featured：目標 5–8 篇；不足時不硬湊
 - 每類 Candidate Pool：最多 30 篇，包含 Featured
-- 四類總上限：120 篇
+- 五類總上限：150 篇
+- AI 類先保留跨方向召回，再按分數補位
 
-範例：
+## 跨輪歷史與去重
+
+`state/literature_registry.json` 是所有「曾經找出」文獻的持久 registry。每輪先做單輪 DOI／PMID／PMCID／OpenAlex／title 去重，再與 registry 比對；歷史中已存在的 work 會更新 `last_seen_at`、`seen_count`、來源、stream 與研究方向，但不再進入當輪 Candidate Pool。例外是可驗證的新事件：preprint 升級正式版本，或同一 work 首次取得 OA 全文；這些仍可重新入選一次，事件會寫入 `notified_events`。
+
+識別優先序：
 
 ```text
-daily/20260712 2224.Rader.md
+DOI → PMID → PMCID → arXiv ID → Anthology ID → OpenAlex ID → normalized title
 ```
 
-## 配額模型
+首次升級時會匯入：
 
-```text
-Clinical Medicine             ≤30
-Sport Science                 ≤30
-Sport Nutrition & Fitness     ≤30
-LLM & Social Impact           ≤30
-```
+- `state/readable_fulltext_event_ledger.json` 的既有全文事件
+- `daily/*.md` 中已輸出的歷史文獻
 
-每類各自排序、各自截斷。即使 Sport Science 當日有大量高分研究，也不能占用 Clinical Medicine、LLM 或其他類別的名額。
+每次成功執行另附加 `state/run_history.jsonl`，留下 new works、history duplicates、candidate、featured 與 registry 總量。Registry 只在整輪成功後以原子替換寫入，失敗執行不提交半成品。
 
 ## 資料流
 
 ```text
 PubMed + OpenAlex
 → OpenAlex 失敗時以 Crossref 補位
-→ metadata 正規化
-→ DOI / PMID / OpenAlex ID / title 去重
-→ publication type 與研究設計判定
-→ 標題優先的領域相關性 gate
-→ evidence / relevance / interest / practical 分數
-→ 四類獨立 Candidate Pool（每類 ≤30）
-→ 四類獨立 Featured（每類 ≤8）
+→ metadata 正規化與研究設計判定
+→ 單輪 work-level 去重
+→ 歷史 registry 去重（抑制重覆通知）
+→ 正式 research-problem taxonomy（L1–L9 / H1–H2）
+→ 五類獨立 Candidate Pool
+→ AI 類方向保留 + 跨方向價值排序
 → Europe PMC 補 OA、PMCID 與 DOI
 → Markdown
+→ literature registry + run history
+→ workflow commit / push `daily/` 與 `state/`
 ```
 
-目前屬於 `AUTO-TRIAGE` 發現層，不是最終證據審核。正式引用前仍須完成全文、校正／撤稿、方法、引用與斷言核對。
-
-## 臨床醫學來源
-
-Clinical Medicine 會同時監測：
-
-- JAMA Network Open
-- eClinicalMedicine
-- BMC Medicine
-- BMJ Open / BMJ Medicine
-- Communications Medicine
-- PLOS Medicine
-- Lancet Regional Health 系列
-- 主要綜合醫學期刊中的 RCT、Meta、SR 與 guideline
-
-OA-first，但不是 OA-only。
-
-## 品質防線
-
-`src/quality.py`、`src/clinical.py` 與 `src/categories.py` 會：
-
-1. 阻止 protocol、letter、editorial、correction 冒充 RCT 或高階證據。
-2. 讓 scoping review、narrative review、preclinical evidence 保留自己的等級，不升格成 SR／RCT。
-3. 以標題為主判斷是否真正屬於臨床、運動科學、運動營養／體適能或 LLM 社會研究。
-4. 阻止只在摘要順帶提到 exercise、protein、recovery、biomechanics 的跨領域文章混入。
-5. 將動物研究標成 `Preclinical/U`，不得繼承 human RCT／longitudinal tier。
-6. 確保四個頂層類別各自保有最多 30 個候選名額。
+目前仍屬於 `AUTO-TRIAGE` 發現層。Venue、metadata 日期或搜尋引擎 freshness 不能單獨證明正式全文事件；正式引用前仍須核對全文、版本、校正／撤稿、方法、引用與斷言。
 
 ## 執行
 
@@ -93,7 +72,7 @@ python src/run.py
 可指定檢索結束日期與回看天數：
 
 ```bash
-python src/run.py --end-date 2026-07-12 --lookback-days 3
+python src/run.py --end-date 2026-08-08 --lookback-days 3
 ```
 
 ## GitHub Actions
@@ -103,7 +82,8 @@ python src/run.py --end-date 2026-07-12 --lookback-days 3
 - 每天 `06:17 Asia/Tokyo` 執行
 - 可由 `workflow_dispatch` 手動執行
 - connector 可透過更新 `.manual-run` 觸發
-- 自動測試、產生 Markdown、commit 與 push
+- 自動測試與執行 radar
+- 將 `daily/`、`state/literature_registry.json`、`state/run_history.jsonl` 一起 commit / push
 
 可選 repository secrets：
 
@@ -111,20 +91,14 @@ python src/run.py --end-date 2026-07-12 --lookback-days 3
 |---|---|
 | `NCBI_API_KEY` | 提高 NCBI E-utilities 支援速率 |
 | `NCBI_EMAIL` | NCBI／Crossref polite-pool 聯絡資訊 |
-| `OPENALEX_API_KEY` | 提高 OpenAlex API 額度；缺少或限流時會嘗試 Crossref fallback |
+| `OPENALEX_API_KEY` | 提高 OpenAlex API 額度；缺少或限流時嘗試 Crossref fallback |
 
 ## 設定
 
-- [`config/output.yml`](config/output.yml)：四類輸出契約
-- [`config/streams.yml`](config/streams.yml)：臨床與各子 stream 查詢式
-- [`config/scoring.yml`](config/scoring.yml)：每類 Candidate／Featured 門檻與分數權重
-- [`src/quality.py`](src/quality.py)：研究設計、相關性、排除與 fallback 規則
-- [`src/clinical.py`](src/clinical.py)：Clinical Medicine relevance gate
-- [`src/categories.py`](src/categories.py)：四類獨立配額、Featured 與 Markdown renderer
-
-## 選文原則
-
-1. 高證據等級優先：Meta、SR、RCT、guideline、consensus、大型 cohort、高品質 longitudinal／field experiment。
-2. 允許納入證據未成熟、但機轉、方法或社會影響值得追蹤的研究。
-3. 證據強度與有趣程度分開評分，避免把吸睛題目誤當強證據。
-4. OA-first，但不是 OA-only。
+- [`config/output.yml`](config/output.yml)：五類輸出契約
+- [`config/streams.yml`](config/streams.yml)：臨床、運動、L1–L9、H1–H2 查詢式
+- [`config/scoring.yml`](config/scoring.yml)：Candidate／Featured 門檻與方向配額
+- [`src/formal_taxonomy.py`](src/formal_taxonomy.py)：正式 AI taxonomy、多標籤與方向平衡
+- [`src/history.py`](src/history.py)：跨輪 registry、歷史匯入、抑制重覆與 run ledger
+- [`src/quality.py`](src/quality.py)：研究設計、相關性與排除規則
+- [`src/categories.py`](src/categories.py)：五類獨立配額與 Markdown renderer
