@@ -1,10 +1,16 @@
 output:
-  format: markdown
-  extension: ".md"
+  formats:
+    - markdown
+    - self_contained_html
+  extensions:
+    - ".md"
+    - ".html"
   directory: "daily"
   timezone: "Asia/Tokyo"
   filename_pattern: "%Y%m%d %H%M.Rader.md"
   example_filename: "20260712 0630.Rader.md"
+  html_example_filename: "20260712 0630.Rader.html"
+  rolling_window_hours: 72
 
 selection:
   scope: per_category
@@ -51,6 +57,8 @@ candidate_fields:
   - one_line_reason
   - research_directions
   - history_status
+  - qualifying_events
+  - fulltext_urls
 
 streams:
   - clinical_medicine
