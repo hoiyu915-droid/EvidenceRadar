@@ -21,7 +21,7 @@ import time
 import unicodedata
 import xml.etree.ElementTree as ET
 from dataclasses import asdict, dataclass, field
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta
 from pathlib import Path
 from typing import Any, Iterable
 from urllib.parse import quote
@@ -30,11 +30,14 @@ from zoneinfo import ZoneInfo
 import requests
 import yaml
 
+from . import events
+
 PUBMED_BASE = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
 EUROPE_PMC_SEARCH = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
 OPENALEX_WORKS = "https://api.openalex.org/works"
 USER_AGENT = "EvidenceRadar/0.1 (+https://github.com/hoiyu915-droid/EvidenceRadar)"
 TIMEZONE = "Asia/Tokyo"
+RUN_CONTEXT: dict[str, Any] = {}
 
 MONTHS = {
     "jan": 1,
@@ -78,6 +81,9 @@ class Paper:
     one_line_reason: str = ""
     main_caveat: str = ""
     is_preprint: bool = False
+    events: list[dict[str, Any]] = field(default_factory=list)
+    qualifying_events: list[dict[str, Any]] = field(default_factory=list)
+    fulltext_urls: list[str] = field(default_factory=list)
 
     def identity_key(self) -> str:
         if self.doi:
@@ -201,19 +207,24 @@ def fetch_pubmed(
     end_date: date,
     max_results: int,
 ) -> list[Paper]:
-    search_params: dict[str, Any] = {
-        **pubmed_common_params(),
-        "db": "pubmed",
-        "term": query,
-        "retmode": "json",
-        "retmax": max_results,
-        "sort": "pub date",
-        "datetype": "pdat",
-        "mindate": start_date.strftime("%Y/%m/%d"),
-        "maxdate": end_date.strftime("%Y/%m/%d"),
-    }
-    search = request(f"{PUBMED_BASE}/esearch.fcgi", params=search_params).json()
-    ids = search.get("esearchresult", {}).get("idlist", [])
+    ids: list[str] = []
+    # pdat catches new publications; edat/mdat catch newly indexed records and
+    # old records whose PMC/full-text state changed inside the same window.
+    for date_type in ("pdat", "edat", "mdat"):
+        search_params: dict[str, Any] = {
+            **pubmed_common_params(),
+            "db": "pubmed",
+            "term": query,
+            "retmode": "json",
+            "retmax": max_results,
+            "sort": "pub date",
+            "datetype": date_type,
+            "mindate": start_date.strftime("%Y/%m/%d"),
+            "maxdate": end_date.strftime("%Y/%m/%d"),
+        }
+        search = request(f"{PUBMED_BASE}/esearch.fcgi", params=search_params).json()
+        ids.extend(search.get("esearchresult", {}).get("idlist", []))
+    ids = list(dict.fromkeys(ids))
     if not ids:
         return []
 
@@ -275,6 +286,48 @@ def fetch_pubmed(
             pmcid=identifiers.get("pmc", ""),
             publication_types=publication_types,
         )
+        article_date = item.find(".//Article/ArticleDate")
+        if article_date is not None:
+            value = safe_iso_date(
+                text_from_element(article_date.find("Year")),
+                text_from_element(article_date.find("Month")) or "1",
+                text_from_element(article_date.find("Day")) or "1",
+            )
+            events.add_event(
+                paper, "version_of_record_first_online", value,
+                source="PubMed", source_field="Article/ArticleDate",
+                url=f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/" if pmid else "",
+                confidence="publisher_supplied_citation",
+            )
+        for history_date in item.findall("PubmedData/History/PubMedPubDate"):
+            status = (history_date.attrib.get("PubStatus") or "").casefold()
+            value = safe_iso_date(
+                text_from_element(history_date.find("Year")),
+                text_from_element(history_date.find("Month")) or "1",
+                text_from_element(history_date.find("Day")) or "1",
+            )
+            hour = text_from_element(history_date.find("Hour"))
+            minute = text_from_element(history_date.find("Minute"))
+            precision = "date"
+            if value and hour.isdigit():
+                value = f"{value}T{int(hour):02d}:{int(minute) if minute.isdigit() else 0:02d}:00+09:00"
+                precision = "timestamp"
+            if status in {"pubmed", "entrez"}:
+                events.add_event(
+                    paper, "first_formal_indexing", value,
+                    source="PubMed", source_field=f"PubMedData/History[{status}]",
+                    url=f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/" if pmid else "",
+                    precision=precision, confidence="registry_timestamp",
+                )
+            elif status in {"pmc-release", "pmcr"} and paper.pmcid:
+                paper.open_access = True
+                events.add_event(
+                    paper, "oa_fulltext_first_available", value,
+                    source="PubMed/PMC", source_field=f"PubMedData/History[{status}]",
+                    url=f"https://pmc.ncbi.nlm.nih.gov/articles/{paper.pmcid}/",
+                    precision=precision, confidence="repository_release_timestamp",
+                )
+        events.ensure_provider_event(paper)
         papers.append(paper)
     return papers
 
@@ -298,7 +351,7 @@ def openalex_params(query: str, start_date: date, end_date: date, max_results: i
         "per-page": min(max_results, 100),
         "select": (
             "id,doi,title,display_name,publication_date,type,authorships,"
-            "primary_location,open_access,abstract_inverted_index,ids"
+            "primary_location,best_oa_location,open_access,abstract_inverted_index,ids"
         ),
     }
     api_key = os.getenv("OPENALEX_API_KEY", "").strip()
@@ -349,6 +402,12 @@ def fetch_openalex(
             publication_types=[work_type] if work_type else [],
             is_preprint=work_type.lower() in {"preprint", "posted-content"},
         )
+        best_oa = result.get("best_oa_location") or {}
+        for candidate in (best_oa.get("pdf_url"), best_oa.get("landing_page_url")):
+            candidate = compact_whitespace(candidate)
+            if candidate and candidate not in paper.fulltext_urls:
+                paper.fulltext_urls.append(candidate)
+        events.ensure_provider_event(paper)
         papers.append(paper)
     return papers
 
@@ -558,6 +617,7 @@ def deduplicate(papers: Iterable[Paper]) -> list[Paper]:
         winner.openalex_id = winner.openalex_id or loser.openalex_id
         if winner.open_access is None:
             winner.open_access = loser.open_access
+        events.merge_paper_events(winner, loser)
         deduped.pop(existing_key, None)
         deduped[key] = winner
         title_keys[title_key] = key
@@ -655,6 +715,19 @@ def ids_line(paper: Paper) -> str:
     return " · ".join(values) if values else "—"
 
 
+def event_line(paper: Paper) -> str:
+    event = events.display_event(paper)
+    if not event:
+        return "—"
+    evidence = f"{event.get('source', '—')} / {event.get('source_field', '—')}"
+    if event.get("url"):
+        evidence = f"[{evidence}]({event['url']})"
+    return (
+        f"{event.get('label')} · `{event.get('occurred_at')}` · {evidence} · "
+        f"`{event.get('precision')}` / `{event.get('confidence')}`"
+    )
+
+
 def render_featured_item(paper: Paper, rank: int) -> str:
     url = primary_url(paper)
     title = f"[{paper.title}]({url})" if url else paper.title
@@ -668,6 +741,7 @@ def render_featured_item(paper: Paper, rank: int) -> str:
             "",
             f"- **Tags:** `[{paper.evidence_tier}]` `[{streams}]` `[{paper.study_design}]` `{oa}`",
             f"- **Source:** {paper.journal_or_venue or '—'} · {paper.publication_date or '日期未確認'}",
+            f"- **Trigger event:** {event_line(paper)}",
             f"- **Authors:** {authors or '—'}",
             f"- **Why flagged:** {paper.one_line_reason}",
             f"- **Abstract signal:** {abstract_signal}",
@@ -691,6 +765,7 @@ def render_candidate_item(paper: Paper, rank: int) -> str:
             f"{rank}. **{title}**",
             f"   - `[{paper.evidence_tier}]` `[{streams}]` `[{paper.study_design}]` `{oa}` · score `{paper.total_score:.1f}`",
             f"   - {paper.journal_or_venue or '—'} · {paper.publication_date or '日期未確認'}",
+            f"   - Event: {event_line(paper)}",
             f"   - {paper.one_line_reason}",
             f"   - {ids_line(paper)}",
         ]
@@ -779,26 +854,38 @@ def write_raw_snapshot(path: Path, papers: list[Paper]) -> None:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Generate a Markdown evidence radar.")
+    parser = argparse.ArgumentParser(description="Generate Markdown and HTML evidence radars.")
     parser.add_argument("--streams", type=Path, default=Path("config/streams.yml"))
     parser.add_argument("--scoring", type=Path, default=Path("config/scoring.yml"))
     parser.add_argument("--output-dir", type=Path, default=Path("daily"))
     parser.add_argument("--raw-dir", type=Path, default=Path("data/raw"))
     parser.add_argument("--lookback-days", type=int, default=None)
+    parser.add_argument("--window-hours", type=int, default=72)
     parser.add_argument("--end-date", type=date.fromisoformat, default=None, help="YYYY-MM-DD")
+    parser.add_argument("--end-at", type=datetime.fromisoformat, default=None, help="ISO-8601 timestamp")
     parser.add_argument("--no-raw", action="store_true", help="Do not write JSON raw snapshot.")
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
-    generated_at = datetime.now(ZoneInfo(TIMEZONE))
+    generated_at = args.end_at or datetime.now(ZoneInfo(TIMEZONE))
+    if generated_at.tzinfo is None:
+        generated_at = generated_at.replace(tzinfo=ZoneInfo(TIMEZONE))
+    else:
+        generated_at = generated_at.astimezone(ZoneInfo(TIMEZONE))
+    if args.end_date and not args.end_at:
+        generated_at = datetime.combine(args.end_date, time.max, ZoneInfo(TIMEZONE))
     end_date = args.end_date or generated_at.date()
 
     streams_config = load_yaml(args.streams)
     scoring_config = load_yaml(args.scoring)
-    lookback_days = args.lookback_days or int(streams_config.get("lookback_days", 3))
-    start_date = end_date - timedelta(days=max(lookback_days - 1, 0))
+    window_hours = int(args.window_hours)
+    if window_hours <= 0:
+        raise RadarError("--window-hours must be positive")
+    start_date, end_date, cutoff = events.date_search_bounds(generated_at, window_hours)
+    if args.lookback_days is not None:
+        start_date = end_date - timedelta(days=max(args.lookback_days - 1, 0))
     per_query = int(streams_config.get("per_query", 60))
     stream_defs = streams_config.get("streams", {})
     weights = scoring_config.get("weights", {})
@@ -823,11 +910,25 @@ def main() -> int:
 
     retrieved_count = len(papers)
     for paper in papers:
+        events.ensure_provider_event(paper)
         apply_scores(paper, relevance_lookup.get(paper.stream, []), weights)
 
     unique_papers = deduplicate(papers)
     deduplicated_count = len(unique_papers)
-    candidate_pool = select_candidate_pool(unique_papers, scoring_config)
+    event_papers = events.filter_window(unique_papers, cutoff, generated_at)
+    event_qualified_count = len(event_papers)
+    RUN_CONTEXT.clear()
+    RUN_CONTEXT.update(
+        {
+            "window_hours": window_hours,
+            "cutoff": cutoff.isoformat(),
+            "end_at": generated_at.isoformat(),
+            "retrieved_count": retrieved_count,
+            "new_after_history_dedup": deduplicated_count,
+            "event_qualified_count": event_qualified_count,
+        }
+    )
+    candidate_pool = select_candidate_pool(event_papers, scoring_config)
 
     for paper in candidate_pool:
         enrich_europe_pmc(paper)
@@ -844,16 +945,48 @@ def main() -> int:
         excluded_count,
         warnings,
     )
+    window_note = "\n".join(
+        [
+            "## Verified Event Window",
+            "",
+            f"- Rolling window: `{window_hours}` hours",
+            f"- Cutoff: `{cutoff.isoformat()}`",
+            f"- Event-qualified new works: `{event_qualified_count}`",
+            "- Date-only evidence on the cutoff calendar day is excluded as boundary-ambiguous.",
+            "",
+        ]
+    )
+    markdown += "\n" + window_note
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     stem = generated_at.strftime("%Y%m%d %H%M.Rader")
     output_path = args.output_dir / f"{stem}.md"
     output_path.write_text(markdown, encoding="utf-8")
+    from . import categories as category_module
+    from .html_report import render_html
+
+    html_path = args.output_dir / f"{stem}.html"
+    html_path.write_text(
+        render_html(
+            generated_at,
+            featured,
+            candidate_pool,
+            category_order=category_module.CATEGORY_ORDER,
+            category_titles=category_module.CATEGORY_TITLES,
+            window_hours=window_hours,
+            cutoff=cutoff,
+            retrieved_count=retrieved_count,
+            event_qualified_count=event_qualified_count,
+            warnings=warnings,
+        ),
+        encoding="utf-8",
+    )
 
     if not args.no_raw:
         write_raw_snapshot(args.raw_dir / f"{stem}.json", unique_papers)
 
     print(output_path)
+    print(html_path)
     if warnings:
         print("Warnings:", *warnings, sep="\n- ", file=sys.stderr)
     return 0
