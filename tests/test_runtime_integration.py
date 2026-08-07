@@ -71,7 +71,10 @@ def fake_openalex(query, stream, start_date, end_date, max_results):
 
 radar.fetch_openalex = fake_openalex
 radar.enrich_europe_pmc = lambda paper: None
-sys.argv = ["radar", "--streams", "config/streams.yml", "--scoring", "config/scoring.yml"]
+sys.argv = [
+    "radar", "--streams", "config/streams.yml", "--scoring", "config/scoring.yml",
+    "--end-at", "2026-08-08T12:00:00+09:00",
+]
 raise SystemExit(radar.main())
 '''
     env = os.environ.copy()
@@ -88,7 +91,15 @@ raise SystemExit(radar.main())
     outputs = list((tmp_path / "daily").glob("*.md"))
     assert len(outputs) == 1
     assert "L3｜Retrieval & Grounding" in outputs[0].read_text(encoding="utf-8")
+    assert "Formal version verified" in outputs[0].read_text(encoding="utf-8")
+    html_outputs = list((tmp_path / "daily").glob("*.html"))
+    assert len(html_outputs) == 1
+    html_report = html_outputs[0].read_text(encoding="utf-8")
+    assert "<!doctype html>" in html_report
+    assert "Retrieval grounding and reranking" in html_report
+    assert "<script" not in html_report
     registry = json.loads((tmp_path / "state" / "literature_registry.json").read_text())
     assert "doi:10.1000/runtime-smoke" in registry["works"]
     run = json.loads((tmp_path / "state" / "run_history.jsonl").read_text().splitlines()[-1])
     assert run["new_works"] == 1
+    assert run["event_qualified_count"] == 1
