@@ -1,0 +1,15 @@
+{
+  "schema_version": "3.0",
+  "timezone": "Asia/Tokyo",
+  "updated_at": null,
+  "dedupe_priority": [
+    "doi",
+    "pmid",
+    "pmcid",
+    "arxiv_id",
+    "anthology_id",
+    "openalex_id",
+    "normalized_title"
+  ],
+  "works": {}
+}
