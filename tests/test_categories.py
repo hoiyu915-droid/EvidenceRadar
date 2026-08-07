@@ -1,11 +1,13 @@
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from src import categories, clinical, quality
+from src import categories, clinical, formal_taxonomy, quality
 from src.radar import Paper
 
 quality.install()
 clinical.install()
+categories.install()
+formal_taxonomy.install()
 
 
 def make_paper(stream: str, index: int, total_score: float = 90.0, strong: bool = False) -> Paper:
@@ -15,6 +17,8 @@ def make_paper(stream: str, index: int, total_score: float = 90.0, strong: bool 
         "sport_nutrition": f"Protein nutrition in athletes and exercise performance {index}",
         "fitness_health": f"Physical activity and mortality in adults {index}",
         "llm_social": f"AI companion attachment and human relationship study {index}",
+        "llm_l3_retrieval_grounding": f"Large language model retrieval grounding and reranking benchmark {index}",
+        "human_h1_llm_relationship": f"Large language model companion attachment and human relationship study {index}",
     }
     design = "Qualitative study" if strong else "Randomized controlled trial"
     tier = "Qual/A" if strong else "RCT/A"
@@ -38,12 +42,13 @@ def make_paper(stream: str, index: int, total_score: float = 90.0, strong: bool 
     )
 
 
-def test_category_assignment_uses_four_top_level_pools():
+def test_category_assignment_uses_five_top_level_pools():
     assert categories.category_for(make_paper("clinical_medicine", 1)) == "clinical_medicine"
     assert categories.category_for(make_paper("sport_science", 1)) == "sport_science"
     assert categories.category_for(make_paper("sport_nutrition", 1)) == "sport_nutrition_fitness"
     assert categories.category_for(make_paper("fitness_health", 1)) == "sport_nutrition_fitness"
-    assert categories.category_for(make_paper("llm_social", 1)) == "llm_social"
+    assert categories.category_for(make_paper("llm_l3_retrieval_grounding", 1)) == "llm_research"
+    assert categories.category_for(make_paper("human_h1_llm_relationship", 1)) == "human_ai"
 
 
 def test_sport_cannot_consume_clinical_quota():
@@ -51,29 +56,37 @@ def test_sport_cannot_consume_clinical_quota():
     papers.extend(make_paper("sport_science", i, 100 - i / 100) for i in range(40))
     papers.extend(make_paper("clinical_medicine", i, 70 - i / 100) for i in range(40))
     papers.extend(make_paper("sport_nutrition", i, 80 - i / 100) for i in range(40))
-    papers.extend(make_paper("llm_social", i, 75 - i / 100) for i in range(40))
+    papers.extend(make_paper("llm_l3_retrieval_grounding", i, 75 - i / 100) for i in range(40))
+    papers.extend(make_paper("human_h1_llm_relationship", i, 74 - i / 100) for i in range(40))
 
     scoring = {
         "selection": {"candidate_min_score": 45, "candidate_hard_max": 30},
-        "category_selection": {"candidate_hard_max": 30},
+        "category_selection": {
+            "candidate_hard_max": 30,
+            "direction_caps": {"candidate_max_per_direction": 30},
+        },
     }
     selected = categories.select_candidate_pool(papers, scoring)
     counts = {category: 0 for category in categories.CATEGORY_ORDER}
     for paper in selected:
         counts[categories.category_for(paper)] += 1
 
-    assert len(selected) == 120
+    assert len(selected) == 150
     assert counts == {
         "clinical_medicine": 30,
         "sport_science": 30,
         "sport_nutrition_fitness": 30,
-        "llm_social": 30,
+        "llm_research": 30,
+        "human_ai": 30,
     }
 
 
 def test_featured_is_capped_independently_per_category():
     papers = []
-    for stream in ("clinical_medicine", "sport_science", "sport_nutrition", "llm_social"):
+    for stream in (
+        "clinical_medicine", "sport_science", "sport_nutrition",
+        "llm_l3_retrieval_grounding", "human_h1_llm_relationship",
+    ):
         papers.extend(make_paper(stream, i) for i in range(4))
         papers.extend(make_paper(stream, i + 10, strong=True) for i in range(4))
 
@@ -85,6 +98,7 @@ def test_featured_is_capped_independently_per_category():
         "category_selection": {
             "featured_hard_max": 8,
             "section_caps": {"anchor": 4, "strong_watch": 4, "weird_but_important": 2},
+            "direction_caps": {"featured_max_per_direction": 8},
         },
         "rules": {
             "anchor_min_evidence": 75,

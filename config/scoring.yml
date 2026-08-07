@@ -21,7 +21,17 @@ category_selection:
     clinical_medicine: 58
     sport_science: 62
     sport_nutrition_fitness: 62
-    llm_social: 65
+    llm_research: 65
+    human_ai: 65
+  direction_caps:
+    candidate_min_per_active_direction: 1
+    candidate_max_per_direction:
+      llm_research: 6
+      human_ai: 15
+    featured_min_per_active_direction: 1
+    featured_max_per_direction:
+      llm_research: 2
+      human_ai: 4
 
 categories:
   clinical_medicine:
@@ -30,8 +40,19 @@ categories:
     streams: [sport_science]
   sport_nutrition_fitness:
     streams: [sport_nutrition, fitness_health]
-  llm_social:
-    streams: [llm_social]
+  llm_research:
+    streams:
+      - llm_l1_model_behavior
+      - llm_l2_context_inference
+      - llm_l3_retrieval_grounding
+      - llm_l4_memory_personalization
+      - llm_l5_agents_decision
+      - llm_l6_multi_agent
+      - llm_l7_systems_runtime
+      - llm_l8_training_architecture
+      - llm_l9_evaluation_measurement
+  human_ai:
+    streams: [human_h1_llm_relationship, human_h2_ai_hci]
 
 weights:
   evidence_quality: 0.40
