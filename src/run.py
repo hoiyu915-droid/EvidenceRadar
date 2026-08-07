@@ -10,7 +10,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from src import categories, clinical, quality, radar
+from src import categories, clinical, formal_taxonomy, history, quality, radar
 
 # Generic age words such as "adult" and "adolescent" occur in animal papers.
 # Only explicit human-participant signals may override an animal-species signal.
@@ -52,6 +52,8 @@ def main() -> int:
     quality.install()
     clinical.install()
     categories.install()
+    formal_taxonomy.install()
+    history.install()
     return radar.main()
 
 
