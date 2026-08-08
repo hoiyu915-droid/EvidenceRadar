@@ -14,10 +14,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v7.0.0
         with:
           python-version: "3.12"
+          cache: pip
+      - name: Install active-lane dependencies
+        run: python -m pip install -r requirements.txt
       - name: Validate public-release hygiene
         run: python tools/validate_public_release.py
       - name: Validate artifact examples

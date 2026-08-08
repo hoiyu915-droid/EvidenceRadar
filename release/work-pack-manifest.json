@@ -1,0 +1,56 @@
+{
+  "format": "evidenceradar-work-pack-manifest",
+  "manifest_version": "1",
+  "pack_version": "1.0.0",
+  "schema_version": "1.0",
+  "archive_manifest_path": "manifest.json",
+  "required": [
+    "EVIDENCE_RADAR_PROTOCOL.md",
+    "docs/WORK_SETUP.md",
+    "docs/research_taxonomy.md",
+    "docs/MIGRATION_DUAL_LANE_1.0.md",
+    "tools/merge_radar_state.py",
+    "tools/validate_gpt_work_artifacts.py"
+  ],
+  "include": [
+    "EVIDENCE_RADAR_PROTOCOL.md",
+    "docs/WORK_SETUP.md",
+    "docs/research_taxonomy.md",
+    "docs/MIGRATION_DUAL_LANE_1.0.md",
+    "config/*.yml",
+    "config/*.yaml",
+    "templates/**",
+    "schemas/**",
+    "examples/**",
+    "tools/merge_radar_state.py",
+    "tools/validate_gpt_work_artifacts.py"
+  ],
+  "exclude": [
+    ".git/**",
+    ".github/**",
+    "daily/**",
+    "state/**",
+    "legacy/**",
+    "tools/build_work_pack.py",
+    "tools/run_github_radar.py",
+    "tests/**",
+    "release/**",
+    "dist/**",
+    "**/.env",
+    "**/.env.*",
+    "**/*secret*",
+    "**/*credential*",
+    "**/*.pem",
+    "**/*.key",
+    "**/*.p12",
+    "**/*.pfx"
+  ],
+  "reproducibility": {
+    "zip_compression": "deflate",
+    "zip_compression_level": 9,
+    "timestamp_source": "SOURCE_DATE_EPOCH",
+    "default_source_date_epoch": 0,
+    "sort_entries": true,
+    "fixed_file_mode": "0644"
+  }
+}

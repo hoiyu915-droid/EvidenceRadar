@@ -42,9 +42,9 @@ SECRET_PATTERNS = (
 TEXT_SUFFIXES = {".md", ".txt", ".py", ".json", ".jsonl", ".yml", ".yaml", ".html", ".cff"}
 
 
-def tracked_files() -> list[str]:
+def repository_files() -> list[str]:
     result = subprocess.run(
-        ["git", "ls-files", "-z"],
+        ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
         cwd=ROOT,
         check=True,
         stdout=subprocess.PIPE,
@@ -64,11 +64,11 @@ def main() -> int:
             errors.append(f"missing required marker in {relative}")
 
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    for marker in ("ChatGPT Work is the formal EvidenceRadar execution environment", "Codex is **not** part of the radar runtime", "## License"):
+    for marker in ("GitHub Actions and ChatGPT Work are the two supported EvidenceRadar execution lanes", "Codex is **not** part of the radar runtime", "## License"):
         if marker not in readme:
             errors.append(f"README boundary missing: {marker}")
 
-    for relative in tracked_files():
+    for relative in repository_files():
         if any(pattern.search(relative) for pattern in BANNED_PATHS):
             errors.append(f"public-release forbidden path: {relative}")
             continue

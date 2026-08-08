@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://evidenceradar.local/schemas/evidence-radar-evidence.schema.json",
-  "title": "EvidenceRadar GPT Work evidence artifact",
+  "title": "EvidenceRadar evidence artifact",
   "description": "Claim-level evidence ledger with source locators and numeric interpretation fields.",
   "type": "object",
   "additionalProperties": false,

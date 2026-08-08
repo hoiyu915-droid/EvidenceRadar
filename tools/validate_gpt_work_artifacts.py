@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate GPT Work EvidenceRadar artifacts without third-party packages.
+"""Validate EvidenceRadar artifacts from either execution lane without dependencies.
 
 The repository intentionally keeps this validator small and dependency-free.
 It implements the JSON Schema vocabulary used by the three checked-in

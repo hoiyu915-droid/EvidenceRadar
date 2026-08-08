@@ -1,71 +1,91 @@
-# EvidenceRadar GPT Work Protocol
+# EvidenceRadar dual-lane protocol
 
-## 1. Authority and runtime
+## 1. Authority and execution lanes
 
-This file is the canonical execution contract for EvidenceRadar.
+This file is the canonical execution contract for EvidenceRadar. The same
+policy, configuration, schemas and four-artifact contract apply to two
+independent lanes:
 
-- Runtime owner: ChatGPT Work conversation/project
-- Retrieval: live web search plus direct source-page reads
-- Persistent handoff: user-carried JSON artifacts
-- Repository role: versioned protocol and read-only historical snapshots
-- Forbidden runtime dependencies: MCP, external server, Codex, GitHub Actions, repository writeback
+| Lane | Trigger | Verification boundary | State handoff |
+|---|---|---|---|
+| `chatgpt_work` | user-launched `daily`, `focused` or `deep_verify` run | live search, direct source reading, event and claim review | imported/exported JSON artifact |
+| `github_actions` | daily schedule or `workflow_dispatch` | automated discovery, event-metadata gate and bounded publisher-page access audit | repository canonical State |
 
-Memory, prior chat text and archived reports are navigation aids only. Every claim about the current research window requires a source opened during the current run.
+Both lanes may be enabled. Neither lane may present the other lane's prior
+output, memory, archived report, search snippet or metadata as current claim
+evidence. Codex is maintainer tooling and is not an EvidenceRadar runtime lane.
 
-## 2. Modes
+The repository is authoritative for the protocol and settings. GitHub Actions
+may write only generated artifacts, immutable run bundles and canonical State;
+ChatGPT Work has no implicit repository write access.
+
+## 2. Modes and window
 
 | Mode | Window | Scope | Verification |
 |---|---:|---|---|
-| `daily` | 72 hours | all five categories | verify all reported items |
-| `focused` | user supplied | selected categories/questions | verify all reported items |
+| `daily` | 72 hours | all five categories | lane-specific boundary above |
+| `focused` | user supplied | selected categories/questions | verify all reported claims |
 | `deep_verify` | user supplied | selected candidate IDs | full claim and conflict audit |
 
-Default mode is `daily` with an exact 72-hour rolling window in `Asia/Tokyo`.
+Default mode is `daily` with an exact rolling 72-hour window in `Asia/Tokyo`.
+Date-only evidence on the cutoff calendar day is boundary-ambiguous and must be
+excluded.
 
 ## 3. Required inputs
 
-Read these policy files before searching:
+Read these files before discovery:
 
 - `config/streams.yml`
 - `config/scoring.yml`
 - `config/output.yml`
+- `config/deployment.yml`
 - `docs/research_taxonomy.md`
-- latest `EvidenceRadar_State.json`, when available
+- latest valid `EvidenceRadar_State.json`, when available
 
-If the State artifact is absent or invalid, continue with same-run deduplication and set the run status to `STATE_HISTORY_INCOMPLETE`.
+The GitHub lane reads `state/current/EvidenceRadar_State.json`. A Work run uses
+the newest State explicitly supplied by the user. If State is absent or
+invalid, keep same-run deduplication and set `STATE_HISTORY_INCOMPLETE`.
 
-## 4. Phase A — source plan
+Every new State and Run artifact records these direct provenance fields:
+
+- `execution_lane`
+- `protocol_commit`
+- `base_state_sha256`
+- `parent_run_ids`
+
+`base_state_sha256` uses the UTF-8 SHA-256 of canonical JSON (sorted object
+keys, no insignificant whitespace, unescaped Unicode). With no valid prior
+State, it is the SHA-256 of the empty byte string.
+
+## 4. Source plan and discovery
 
 For every enabled stream:
 
-1. Convert query guidance into concise web-search queries.
-2. Prefer primary source pages and authoritative registries.
-3. Record each query, source target, execution time, URL and access result.
-4. Do not infer that a source was searched merely because another result cites it.
+1. Search categories independently so one category cannot consume another's
+   quota.
+2. Record the query, source target, execution time, URL, access status and
+   result count.
+3. Build candidates without drafting outcome claims.
+4. Preserve original title, authors, venue, date, identifiers and discovery
+   URLs.
+5. Do not infer that a source was searched because another result cites it.
 
-Minimum source targets:
+Minimum source targets are defined in `config/streams.yml`. PubMed and OpenAlex
+may support automated discovery. A primary registry, repository, proceedings
+page or publisher page is still required at the verification level claimed by
+the report.
 
-- Clinical/sport: PubMed, Europe PMC when relevant, and publisher or journal page for final verification.
-- LLM/Human–AI: arXiv, OpenReview, ACL Anthology/PMLR or formal publisher/proceedings page as applicable; OpenAlex may support discovery but cannot be the only verification source.
-- Correction/retraction check: PubMed publication type and publisher correction/retraction notice when applicable.
+## 5. Identity and event gate
 
-## 5. Phase B — discovery
-
-1. Search categories independently so one category cannot consume another category's quota.
-2. Build candidates without drafting outcome claims.
-3. Preserve original title, authors, venue, date, identifiers and discovery URLs.
-4. Deduplicate in this order:
+Deduplicate in this order:
 
 ```text
 DOI → PMID → PMCID → arXiv ID → Anthology ID → OpenAlex ID → normalized title
 ```
 
-5. Compare aliases against the prior State artifact when available.
-6. A previously notified work may re-enter only for a verified new event such as preprint-to-formal upgrade or first readable full text.
-
-## 6. Phase C — event gate
-
-At least one qualifying event must fall inside the exact rolling window:
+Compare every alias and event identifier against prior State. A previously
+notified work may re-enter only for a verified new event. At least one of these
+events must fall inside the exact rolling window:
 
 - `version_of_record_first_online`
 - `first_formal_indexing`
@@ -76,91 +96,139 @@ At least one qualifying event must fall inside the exact rolling window:
 - `preprint_to_peer_reviewed_upgrade`
 - `formal_version_verified`
 
-Each event requires `occurred_at`, `source`, `source_field`, `url`, `precision` and `confidence`.
+Each event requires `occurred_at`, `source`, `source_field`, `source_url`,
+`precision` and `confidence`. Search-engine freshness, metadata-only changes,
+issue assignment, correction publication or re-indexing are not qualifying
+events by themselves.
 
-Date-only evidence on the cutoff calendar day is boundary-ambiguous and must be excluded. Search-engine freshness, metadata-only changes, issue assignment, correction publication or re-indexing are not qualifying events by themselves.
-
-## 7. Phase D — classification and ranking
+## 6. Classification and ranking
 
 Apply `docs/research_taxonomy.md` and `config/scoring.yml`.
 
 - Category assignment answers the research problem, not the venue.
 - Every category has an independent Candidate Pool.
-- Featured target is 5–8 per active category, but padding is forbidden.
+- Featured target remains 5–8 per active category; insufficient evidence is
+  never padded.
 - Preserve active LLM/Human–AI direction diversity before score-only ranking.
-- Correspondence, protocols, editorials, retracted/flagged items and title-irrelevant results are excluded from ordinary ranking.
+- Correspondence, protocols, editorials, retracted/flagged items and
+  title-irrelevant results are excluded from ordinary ranking.
+- GitHub Actions may use deterministic metadata ranking only; its scores are
+  not evidence-quality adjudication.
 
-## 8. Phase E — evidence governance
+## 7. Publisher-access budget: 10–15
 
-Open a primary or authoritative page for every reported item. Record:
+For each GitHub run, aim to retain 10 accessible publisher/source-page audit
+records and make no more than 15 publisher-page attempts. Apply the shared
+settings in `config/deployment.yml`:
 
-- research design and population
-- claim text
-- support state
-- source URL and locator
-- exact visible numbers
-- sign, unit, direction, comparison group and semantic surface
-- limitations and unresolved conflicts
-- correction/retraction status
+- at most two requests per resolved domain;
+- delay between requests;
+- stop the affected domain on HTTP `401`, `403` or `429`;
+- record every failure and access gap;
+- finish below 10 when eligible sources are insufficient or blocked;
+- never pad the output and never exceed the hard maximum of 15.
 
-Allowed support states:
+This 10–15 budget is separate from the 5–8 Featured target. An accessible page
+is an audit record, not proof of a paper's substantive claims.
 
-- `SUPPORTED`
-- `PARTIAL`
-- `CONFLICT`
-- `UNVERIFIED`
+## 8. Evidence governance
 
-`UNVERIFIED` claims may appear only in the candidate/audit section and must not appear as a report conclusion.
+For a fully reviewed Work item, open a primary or authoritative page and
+record research design, population, claim text, support state, source URL,
+locator, visible numbers, sign, unit, direction, comparator, limitations and
+correction/retraction status.
+
+Allowed support states are `SUPPORTED`, `PARTIAL`, `CONFLICT` and `UNVERIFIED`.
+`UNVERIFIED` claims may appear only in a candidate/audit section and must not
+appear as conclusions.
+
+The GitHub lane must leave the claims ledger empty unless an independently
+defined full-verification implementation is added later. It reports automated
+event/source-access candidates and explicitly says that claim review remains
+required.
 
 ## 9. Source coverage and run status
 
-Compute coverage before finalizing the report:
+- `COMPLETE`: all required sources and every reported claim were directly
+  verified.
+- `PARTIAL_SOURCE_COVERAGE`: useful output exists, but source coverage or claim
+  review is incomplete.
+- `SOURCE_ACCESS_GAP`: a required verification source was attempted but could
+  not be accessed.
+- `STATE_HISTORY_INCOMPLETE`: valid prior cross-run State was unavailable.
+- `NO_QUALIFYING_ITEMS`: coverage was complete and no event passed the gate.
 
-- `COMPLETE`: all required source targets and reported-item verification succeeded.
-- `PARTIAL_SOURCE_COVERAGE`: the run produced useful results but one or more planned sources were not read.
-- `SOURCE_ACCESS_GAP`: a required verification source could not be accessed for a reported candidate.
-- `STATE_HISTORY_INCOMPLETE`: prior cross-run State was absent or invalid.
-- `NO_QUALIFYING_ITEMS`: coverage was complete and no item passed the event gate.
-
-Multiple limitations may be recorded, but the primary run status must never overstate completeness. `NO_QUALIFYING_ITEMS` is valid only with complete source coverage.
+The primary status must never overstate completeness. History incompleteness
+takes precedence. Automated candidates with unreviewed claims cannot make a
+GitHub run `COMPLETE`.
 
 ## 10. Required artifacts
 
-Create all four artifacts in the current ChatGPT Work run:
+Every lane creates and validates all four artifacts:
 
 1. `EvidenceRadar_Report.html`
 2. `EvidenceRadar_State.json`
 3. `EvidenceRadar_Evidence.json`
 4. `EvidenceRadar_Run.json`
 
-The three JSON artifacts must conform to `schemas/`. HTML is the primary user delivery and must agree with the JSON evidence and run status.
+The three JSON files must conform to `schemas/`. HTML is the primary readable
+delivery and must agree with Evidence and Run. State advances only after all
+artifacts validate. Partial runs preserve their limitations and do not promote
+unverified scientific claims.
 
-The State artifact advances only after the other artifacts validate. A partial or state-incomplete run may append observed identities but must preserve its limitation status and must not mark unverified events as notified.
+The report includes generated time and exact window, lane and status, source
+coverage, category sections, event evidence, claim support where available,
+caveats, identifiers, direct links, conflicts/gaps and the statement that the
+report is research triage rather than individual medical advice.
 
-## 11. Report contract
+## 11. State synchronization and concurrency
 
-The report must include:
+GitHub Actions serializes its writeback lane with a repository-scoped
+concurrency group. An immutable run bundle is written under `runs/<run_id>/`;
+current delivery lives under `artifacts/current/`; canonical State lives at
+`state/current/EvidenceRadar_State.json`.
 
-- generated time and exact window
-- primary run status
-- source-coverage matrix
-- concise daily conclusions
-- category sections
-- event evidence for every reported paper
-- claim support and caveats
-- identifiers and direct links
-- conflict/gap section
-- explicit statement that the report is research triage, not individual medical advice
+When a Work State and repository State diverge, union them with the deterministic
+merge tool before accepting repository writeback:
 
-## 12. Stop conditions
+```sh
+python tools/merge_radar_state.py \
+  state/current/EvidenceRadar_State.json \
+  /path/to/work/EvidenceRadar_State.json \
+  --execution-lane chatgpt_work \
+  --protocol-commit COMMIT \
+  --output /path/to/merged/EvidenceRadar_State.json
+```
 
-Stop and deliver the validated artifacts when every reported item has event evidence and evidence-governance fields.
+The merge is identity-aware and idempotent: it unions aliases and notification
+events, preserves the earliest first-seen and latest last-seen timestamps,
+uses the greatest observed count, and emits deterministic ordering. Validate
+the merged artifact before replacing canonical State.
+
+## 12. Public deployment contract
+
+- GitHub users create an independent repository from the template or fork,
+  enable Actions and run the workflow manually once before relying on schedule.
+- ChatGPT Work users download a versioned Work Pack with its SHA-256 sidecar,
+  keep paths intact and carry State separately.
+- Credentials stay in repository secrets or the user's Work environment; they
+  never enter config, artifacts, logs or the Work Pack.
+- Each deployment owns its State. Upstream historical data is not silently
+  shared with downstream deployments.
+
+See `docs/GITHUB_DEPLOYMENT.md` and `docs/WORK_SETUP.md`.
+
+## 13. Stop conditions
+
+Stop and deliver the validated artifacts when every reported item satisfies
+the verification boundary declared by its lane.
 
 Do not:
 
-- claim comprehensive coverage after a source gap
-- use memory as current evidence
-- fabricate a DOI, PMID, date, quote or locator
-- silently drop sign, unit, comparator or direction
-- update history after invalid artifact generation
-- trigger TA/TP03 or image generation without a separate user request
+- claim comprehensive coverage after a source gap;
+- use memory, old output or snippets as current evidence;
+- fabricate a DOI, PMID, date, quote or locator;
+- silently drop sign, unit, comparator or direction;
+- advance canonical State after invalid artifact generation;
+- overwrite a divergent State instead of merging it;
+- trigger TA/TP03 or image generation without a separate user request.

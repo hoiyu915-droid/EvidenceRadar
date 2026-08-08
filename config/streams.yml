@@ -1,9 +1,17 @@
 execution:
-  owner: chatgpt_work
-  retrieval: live_web_search_and_direct_source_read
+  contract_owner: repository
+  lanes:
+    chatgpt_work:
+      trigger: user_launched
+      retrieval: live_web_search_and_direct_source_read
+      claim_verification: full_source_and_claim_review
+    github_actions:
+      trigger: scheduled_or_workflow_dispatch
+      retrieval: pubmed_openalex_and_bounded_publisher_access
+      claim_verification: metadata_and_source_access_only
   query_strings_are_navigation_guidance: true
   search_snippets_are_not_evidence: true
-  current_run_source_read_required: true
+  current_run_source_read_required_for_claims: true
 
 window:
   lookback_days: 3
