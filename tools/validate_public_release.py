@@ -16,7 +16,7 @@ REQUIRED = {
     "NOTICE.md": "Research-source material",
     "CONTRIBUTING.md": "Contributing to EvidenceRadar",
     "SECURITY.md": "Security Policy",
-    "GOVERNANCE.md": "Primary maintainer",
+    "GOVERNANCE.md": "is the primary maintainer",
     "CITATION.cff": "cff-version: 1.2.0",
     "ROADMAP.md": "Roadmap",
     "PUBLIC_RELEASE_AUDIT.md": "Public release audit",
