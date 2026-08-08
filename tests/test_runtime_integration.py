@@ -93,11 +93,14 @@ raise SystemExit(radar.main())
     assert "L3｜Retrieval & Grounding" in outputs[0].read_text(encoding="utf-8")
     assert "Formal version verified" in outputs[0].read_text(encoding="utf-8")
     html_outputs = list((tmp_path / "daily").glob("*.html"))
-    assert len(html_outputs) == 1
-    html_report = html_outputs[0].read_text(encoding="utf-8")
+    assert len(html_outputs) == 2
+    preview = tmp_path / "daily" / "EvidenceRadar_latest.html"
+    archival = next(path for path in html_outputs if path != preview)
+    html_report = preview.read_text(encoding="utf-8")
     assert "<!doctype html>" in html_report
     assert "Retrieval grounding and reranking" in html_report
     assert "<script" not in html_report
+    assert archival.read_text(encoding="utf-8") == html_report
     registry = json.loads((tmp_path / "state" / "literature_registry.json").read_text())
     assert "doi:10.1000/runtime-smoke" in registry["works"]
     run = json.loads((tmp_path / "state" / "run_history.jsonl").read_text().splitlines()[-1])
