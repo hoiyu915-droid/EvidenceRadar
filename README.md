@@ -1,8 +1,52 @@
 # EvidenceRadar
 
-每日文獻雷達。系統把研究問題、publication identity、全文事件與歷史通知分開處理，並在每次成功執行後把輸出與持久狀態寫回 repository。
+EvidenceRadar 是一套在 **ChatGPT Work** 內執行的每日研究工作流。它以即時網路搜尋、直接來源讀取、來源連結與可攜狀態檔完成發現、去重、事件核實、證據治理與報告交付。
 
-## 五個互不搶配額的頂層類別
+本 repository 只保存工作流協議、搜尋政策、評分規則、輸出 schema、模板與歷史快照。它不執行每日掃描，也不承擔持久服務責任。
+
+產品能力基線採用 OpenAI 對 ChatGPT Work 的公開定位：以目標、檔案與上下文進行研究、綜合與交付物製作。參考：[OpenAI Developers](https://developers.openai.com/) 與 [ChatGPT research use cases](https://learn.chatgpt.com/use-cases?team=research)。
+
+## 執行邊界
+
+正式執行只有一條路徑：
+
+```text
+使用者在 ChatGPT Work 啟動 EvidenceRadar
+→ 讀取本 repo 的 protocol/config/template 與上輪 State artifact
+→ 即時 web search + 直接開啟權威來源頁
+→ 建立候選、事件、claim 與來源覆蓋紀錄
+→ 產生 HTML 報告及三個 JSON artifacts
+→ 使用者在下一輪重新提供最新 State artifact
+```
+
+以下項目均不屬於正式 runtime：
+
+- MCP
+- 自架或託管 server
+- Codex
+- GitHub Actions
+- repository 自動 commit／push
+- repo 內 Python crawler
+
+`daily/` 與 `state/` 是 2026-08-08 前的歷史快照，只讀保存。GPT Work 新產生的 artifact 不會自動寫回 repository。
+
+## 啟動方式
+
+在同一個 ChatGPT Work project 中提供：
+
+1. [`EVIDENCE_RADAR_PROTOCOL.md`](EVIDENCE_RADAR_PROTOCOL.md)
+2. `config/`、`docs/research_taxonomy.md` 與 `templates/gpt-work-instructions.md`
+3. 上一輪 `EvidenceRadar_State.json`；首次執行可省略
+
+然後輸入：
+
+```text
+依 EvidenceRadar protocol 執行 daily 模式。使用目前時間往回 72 小時，搜尋五個類別，重新讀取實際來源，產生完整 HTML、State、Evidence 與 Run artifacts。
+```
+
+若缺少上輪 State，該輪必須標記 `STATE_HISTORY_INCOMPLETE`，不得宣稱已完成跨輪去重。
+
+## 五個獨立類別
 
 1. Clinical Medicine
 2. Sport Science
@@ -10,27 +54,11 @@
 4. LLM Research
 5. Human–AI Research
 
-LLM Research 再依正式研究問題分成 L1–L9；Human–AI Research 分成 H1–H2。完整定義見 [`docs/research_taxonomy.md`](docs/research_taxonomy.md)。ACL、ICLR、NeurIPS、ICML、AAMAS、AAAI、IJCAI、TACL、CL、PMLR、JMLR 等只記入 `journal_or_venue`，不作 taxonomy。
+LLM Research 使用 L1–L9；Human–AI Research 使用 H1–H2。Venue 只記錄 publication identity，不作 taxonomy。完整定義見 [`docs/research_taxonomy.md`](docs/research_taxonomy.md)。
 
-## 每日輸出契約
+## 合格事件
 
-- 格式：同步產生 Markdown (`.md`) 與 self-contained HTML (`.html`)
-- 目錄：`daily/`
-- 歸檔檔名：`YYYYMMDD HHMM.Rader.md`、`YYYYMMDD HHMM.Rader.html`
-- 直接顯示入口：`daily/EvidenceRadar_latest.html`（每輪原子覆寫，內容與該輪歸檔 HTML 完全相同）
-- 對使用者交付時以可直接渲染的 HTML artifact 為主；GitHub `blob`／raw 原始碼頁只能作 repository 位置，不得冒充預覽
-- 時區：`Asia/Tokyo`
-- 每類 Featured：目標 5–8 篇；不足時不硬湊
-- 每類 Candidate Pool：最多 30 篇，包含 Featured
-- 五類總上限：150 篇
-- AI 類先保留跨方向召回，再按分數補位
-- 事件窗：以執行時間倒推精確 72 小時；cutoff 當日若只有日期而沒有時間，保守排除
-
-## 每日實際搜尋與事件門檻
-
-每個 stream 的查詢式會同時送往 PubMed 與／或 OpenAlex；OpenAlex 失敗時由 Crossref 補位。PubMed 同一查詢會掃 `pdat`（出版）、`edat`（首次進 Entrez）與 `mdat`（記錄變更），因此可找到「舊文獻今天才正式索引或釋出 PMC 全文」的情況。搜尋只是召回層，單純 metadata 更新、搜尋引擎 freshness、卷期回填、作者更正或重新索引不會進報告。
-
-合格事件只有八類：
+只有下列事件可以通過最近 72 小時事件窗：
 
 1. version of record 首次 online
 2. 首次正式索引
@@ -41,89 +69,56 @@ LLM Research 再依正式研究問題分成 L1–L9；Human–AI Research 分成
 7. preprint 升級 peer-reviewed version
 8. 正式版本完成核實
 
-每一筆輸出都帶 `event type`、發生時間、來源欄位、證據 URL、時間精度與信心等級。HTML 與 Markdown 直接由同一組 `Paper`／event 物件生成，不會各自重新判定。
+搜尋結果日期、搜尋引擎 freshness、卷期回填或 metadata 更新不能單獨作為新事件。
 
-## 跨輪歷史與去重
+## 兩階段研究
 
-`state/literature_registry.json` 是所有「曾經找出」文獻的持久 registry。每輪先做單輪 DOI／PMID／PMCID／OpenAlex／title 去重，再與 registry 比對；歷史中已存在的 work 會更新 `last_seen_at`、`seen_count`、來源、stream 與研究方向，但不再進入當輪 Candidate Pool。例外是可驗證的新事件：preprint 升級正式版本，或同一 work 首次取得 OA 全文；這些仍可重新入選一次，事件會寫入 `notified_events`。
+### Discovery
 
-識別優先序：
+- 逐類執行即時搜尋
+- 記錄實際查詢、來源 URL、搜尋時間與存取結果
+- 以 DOI → PMID → PMCID → arXiv ID → Anthology ID → OpenAlex ID → normalized title 去重
+- 建立 Candidate Pool；不足時不補位
 
-```text
-DOI → PMID → PMCID → arXiv ID → Anthology ID → OpenAlex ID → normalized title
-```
+### Evidence verification
 
-首次升級時會匯入：
+- 只對高排名候選直接讀取摘要、全文或出版者頁面
+- 核實事件、版本、全文狀態、研究設計、主要結果、限制、校正與撤稿
+- 所有可見數字保存正負號、單位、方向、比較組與原文 locator
+- claim support 只能是 `SUPPORTED`、`PARTIAL`、`CONFLICT`、`UNVERIFIED`
 
-- `state/readable_fulltext_event_ledger.json` 的既有全文事件
-- `daily/*.md` 中已輸出的歷史文獻
+## 每輪交付
 
-每次成功執行另附加 `state/run_history.jsonl`，留下 new works、history duplicates、candidate、featured 與 registry 總量。Registry 只在整輪成功後以原子替換寫入，失敗執行不提交半成品。
-
-## 資料流
-
-```text
-PubMed (pdat + edat + mdat) + OpenAlex
-→ OpenAlex 失敗時以 Crossref 補位
-→ metadata 正規化與研究設計判定
-→ 單輪 work-level 去重
-→ 歷史 registry 去重（抑制重覆通知）
-→ 八類事件證據核對 + rolling 72h gate
-→ 正式 research-problem taxonomy（L1–L9 / H1–H2）
-→ 五類獨立 Candidate Pool
-→ AI 類方向保留 + 跨方向價值排序
-→ Europe PMC 補 OA、PMCID 與 DOI
-→ Markdown + timestamped self-contained HTML + rendered-preview alias
-→ literature registry + run history
-→ workflow commit / push `daily/` 與 `state/`
-```
-
-目前仍屬於 `AUTO-TRIAGE` 發現層。Venue、metadata 日期或搜尋引擎 freshness 不能單獨證明正式全文事件；正式引用前仍須核對全文、版本、校正／撤稿、方法、引用與斷言。
-
-## 執行
-
-需要 Python 3.12+：
-
-```bash
-python -m pip install -r requirements.txt
-python -m pytest -q
-python src/run.py
-```
-
-預設為執行時間往回 72 小時。可指定精確結束時間：
-
-```bash
-python src/run.py --end-at 2026-08-08T08:00:00+09:00 --window-hours 72
-```
-
-`--end-date YYYY-MM-DD` 仍保留給歷史回放，會以該日 `23:59:59 Asia/Tokyo` 作窗尾；`--lookback-days` 只控制來源 over-fetch，不會放寬 72 小時事件門檻。
-
-## GitHub Actions
-
-`.github/workflows/daily-radar.yml`：
-
-- 每天 `06:17 Asia/Tokyo` 執行
-- 可由 `workflow_dispatch` 手動執行
-- connector 可透過更新 `.manual-run` 觸發
-- 自動測試與執行 radar
-- 將 `daily/`、`state/literature_registry.json`、`state/run_history.jsonl` 一起 commit / push
-
-可選 repository secrets：
-
-| Secret | 用途 |
+| Artifact | 用途 |
 |---|---|
-| `NCBI_API_KEY` | 提高 NCBI E-utilities 支援速率 |
-| `NCBI_EMAIL` | NCBI／Crossref polite-pool 聯絡資訊 |
-| `OPENALEX_API_KEY` | 提高 OpenAlex API 額度；缺少或限流時嘗試 Crossref fallback |
+| `EvidenceRadar_Report.html` | 主要可閱讀報告 |
+| `EvidenceRadar_State.json` | 跨輪 identity、已通知事件與 alias |
+| `EvidenceRadar_Evidence.json` | claim、數字、locator 與來源 |
+| `EvidenceRadar_Run.json` | 時間窗、查詢、來源覆蓋、警告與統計 |
 
-## 設定
+Run 狀態只可使用：
 
-- [`config/output.yml`](config/output.yml)：五類輸出契約
-- [`config/streams.yml`](config/streams.yml)：臨床、運動、L1–L9、H1–H2 查詢式
-- [`config/scoring.yml`](config/scoring.yml)：Candidate／Featured 門檻與方向配額
-- [`src/formal_taxonomy.py`](src/formal_taxonomy.py)：正式 AI taxonomy、多標籤與方向平衡
-- [`src/history.py`](src/history.py)：跨輪 registry、歷史匯入、抑制重覆與 run ledger
-- [`src/events.py`](src/events.py)：八類事件正規化、證據欄位與 rolling 72h gate
-- [`src/html_report.py`](src/html_report.py)：與 Markdown 同資料源的單檔 HTML renderer
-- [`src/quality.py`](src/quality.py)：研究設計、相關性與排除規則
-- [`src/categories.py`](src/categories.py)：五類獨立配額與 Markdown renderer
+- `COMPLETE`
+- `PARTIAL_SOURCE_COVERAGE`
+- `SOURCE_ACCESS_GAP`
+- `STATE_HISTORY_INCOMPLETE`
+- `NO_QUALIFYING_ITEMS`
+
+來源不完整時不得更新為 `COMPLETE`，也不得把「搜尋不到」寫成「沒有新研究」。
+
+## Repository 導航
+
+- [`EVIDENCE_RADAR_PROTOCOL.md`](EVIDENCE_RADAR_PROTOCOL.md)：完整執行與停止條件
+- [`templates/gpt-work-instructions.md`](templates/gpt-work-instructions.md)：可直接放入 ChatGPT Work project 的指令
+- [`templates/daily-radar.md`](templates/daily-radar.md)：報告內容模板
+- [`config/streams.yml`](config/streams.yml)：搜尋目標與導航查詢
+- [`config/scoring.yml`](config/scoring.yml)：排序與 evidence-governance 門檻
+- [`config/output.yml`](config/output.yml)：artifact 契約
+- `schemas/`：三個 JSON artifact schema
+- `examples/`：最小有效 artifact 範例
+- `tools/validate_gpt_work_artifacts.py`：標準函式庫結構驗證
+- [`LEGACY_RUNTIME.md`](LEGACY_RUNTIME.md)：2026-08-08 前 Python runtime 說明
+
+## 下游邊界
+
+EvidenceRadar 的終點是核實過的研究封包。除非使用者另行要求，不啟動 TA／TP03 或圖像生成。醫療決策、跨來源數字比較、來源衝突與正式交付必須保留 governed 狀態，不得降級成未核實的 Quick 內容。

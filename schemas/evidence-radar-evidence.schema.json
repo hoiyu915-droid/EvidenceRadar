@@ -1,0 +1,350 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://evidenceradar.local/schemas/evidence-radar-evidence.schema.json",
+  "title": "EvidenceRadar GPT Work evidence artifact",
+  "description": "Claim-level evidence ledger with source locators and numeric interpretation fields.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "generated_at",
+    "run_id",
+    "coverage_status",
+    "coverage",
+    "sources",
+    "works",
+    "claims"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0"
+    },
+    "artifact_type": {
+      "type": "string",
+      "const": "EvidenceRadar_Evidence"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "coverage_status": {
+      "type": "string",
+      "enum": [
+        "COMPLETE",
+        "PARTIAL_SOURCE_COVERAGE",
+        "SOURCE_ACCESS_GAP"
+      ]
+    },
+    "coverage": {
+      "$ref": "#/$defs/coverage"
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/source"
+      }
+    },
+    "works": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/work"
+      }
+    },
+    "claims": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/claim"
+      }
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  },
+  "$defs": {
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requested_sources",
+        "searched_sources",
+        "unavailable_sources",
+        "notes"
+      ],
+      "properties": {
+        "requested_sources": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "searched_sources": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "unavailable_sources": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_id",
+        "url",
+        "source_type",
+        "accessed_at",
+        "access_status"
+      ],
+      "properties": {
+        "source_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "url": {
+          "type": "string",
+          "pattern": "^https?://\\S+$"
+        },
+        "source_type": {
+          "type": "string",
+          "enum": [
+            "publisher",
+            "journal",
+            "pubmed",
+            "europe_pmc",
+            "crossref",
+            "arxiv",
+            "openreview",
+            "conference_proceedings",
+            "other"
+          ]
+        },
+        "accessed_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "access_status": {
+          "type": "string",
+          "enum": [
+            "FULL_TEXT",
+            "ABSTRACT",
+            "METADATA",
+            "UNAVAILABLE"
+          ]
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "publisher": {
+          "type": "string",
+          "minLength": 1
+        },
+        "locator": {
+          "type": "string",
+          "minLength": 1
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "work": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "work_id",
+        "title",
+        "category"
+      ],
+      "properties": {
+        "work_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "category": {
+          "type": "string",
+          "minLength": 1
+        },
+        "stream": {
+          "type": "string",
+          "minLength": 1
+        },
+        "identifiers": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "doi": { "type": "string", "minLength": 1 },
+            "pmid": { "type": "string", "minLength": 1 },
+            "pmcid": { "type": "string", "minLength": 1 },
+            "arxiv_id": { "type": "string", "minLength": 1 },
+            "anthology_id": { "type": "string", "minLength": 1 },
+            "openalex_id": { "type": "string", "minLength": 1 }
+          }
+        },
+        "study_design": {
+          "type": "string",
+          "minLength": 1
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "measurement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "value",
+        "symbol",
+        "unit",
+        "direction",
+        "comparison_group"
+      ],
+      "properties": {
+        "value": {
+          "type": [
+            "number",
+            "string",
+            "null"
+          ]
+        },
+        "symbol": {
+          "type": "string",
+          "minLength": 1
+        },
+        "unit": {
+          "type": "string",
+          "minLength": 1
+        },
+        "direction": {
+          "type": "string",
+          "enum": [
+            "increase",
+            "decrease",
+            "no_change",
+            "mixed",
+            "unclear",
+            "not_applicable"
+          ]
+        },
+        "comparison_group": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "claim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "claim_id",
+        "work_id",
+        "status",
+        "claim_text",
+        "measurement",
+        "source_ids",
+        "source_url",
+        "locator"
+      ],
+      "properties": {
+        "claim_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "work_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "SUPPORTED",
+            "PARTIAL",
+            "CONFLICT",
+            "UNVERIFIED"
+          ]
+        },
+        "claim_text": {
+          "type": "string",
+          "minLength": 1
+        },
+        "measurement": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/measurement"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "source_url": {
+          "type": "string",
+          "pattern": "^https?://\\S+$"
+        },
+        "locator": {
+          "type": "string",
+          "minLength": 1
+        },
+        "supporting_quote": {
+          "type": "string",
+          "minLength": 1
+        },
+        "caveat": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

@@ -1,5 +1,7 @@
 # EvidenceRadar Formal Research Taxonomy
 
+本 taxonomy 由 ChatGPT Work 在每輪即時搜尋後套用。它是語意分類政策，不是 Python module、venue 清單或自動程式執行規格；最新性與納入資格仍由 `EVIDENCE_RADAR_PROTOCOL.md` 的 source read、event gate 與 evidence governance 決定。
+
 ## Classification rule
 
 分類回答「這篇研究解決甚麼問題」，不回答「它在哪個 venue 發表」或「社群現在用甚麼包裝詞」。一篇研究可同時標上多個 direction，但只有一個 primary category 用於配額。

@@ -1,37 +1,36 @@
+execution:
+  evaluator: chatgpt_work
+  deterministic_code_required: false
+  explain_scores: true
+  rank_only_after_event_gate: true
+
 selection:
   candidate_min_score: 45
+  candidate_hard_max_per_category: 30
   featured_target_min: 5
   featured_hard_max: 8
-  candidate_hard_max: 30
-  section_caps:
-    anchor: 4
-    strong_watch: 4
-    weird_but_important: 2
-
-category_selection:
-  candidate_min_score: 45
-  candidate_hard_max: 30
-  featured_target_min: 5
-  featured_hard_max: 8
+  padding_forbidden: true
   section_caps:
     anchor: 8
     strong_watch: 8
     weird_but_important: 2
-  min_relevance:
-    clinical_medicine: 58
-    sport_science: 62
-    sport_nutrition_fitness: 62
-    llm_research: 65
-    human_ai: 65
-  direction_caps:
-    candidate_min_per_active_direction: 1
-    candidate_max_per_direction:
-      llm_research: 6
-      human_ai: 15
-    featured_min_per_active_direction: 1
-    featured_max_per_direction:
-      llm_research: 2
-      human_ai: 4
+
+category_min_relevance:
+  clinical_medicine: 58
+  sport_science: 62
+  sport_nutrition_fitness: 62
+  llm_research: 65
+  human_ai: 65
+
+direction_diversity:
+  candidate_min_per_active_direction: 1
+  candidate_max_per_direction:
+    llm_research: 6
+    human_ai: 15
+  featured_min_per_active_direction: 1
+  featured_max_per_direction:
+    llm_research: 2
+    human_ai: 4
 
 categories:
   clinical_medicine:
@@ -60,8 +59,43 @@ weights:
   novelty_interest: 0.20
   practical_impact: 0.10
 
-rules:
-  anchor_min_evidence: 75
-  strong_min_evidence: 55
-  strong_min_relevance: 60
-  weird_min_interest: 85
+sections:
+  anchor:
+    min_evidence: 75
+  strong_watch:
+    min_evidence: 55
+    min_relevance: 60
+  weird_but_important:
+    min_interest: 85
+    min_relevance: 65
+
+hard_exclusions:
+  - correspondence_or_editorial
+  - protocol_or_design_paper
+  - retracted_or_flagged
+  - title_primary_relevance_failed
+  - missing_qualifying_event
+
+evidence_governance:
+  allowed_support_states:
+    - SUPPORTED
+    - PARTIAL
+    - CONFLICT
+    - UNVERIFIED
+  required_claim_fields:
+    - claim_text
+    - support_state
+    - source_url
+    - locator
+    - transformation_provenance
+    - terminology_and_unit_review
+  required_numeric_fields:
+    - value
+    - sign
+    - unit
+    - direction
+    - comparator
+    - semantic_surface
+    - locator
+  unverified_claims_forbidden_in_conclusions: true
+  human_semantic_adjudication_required_for_conflict: true

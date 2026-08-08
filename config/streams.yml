@@ -1,9 +1,48 @@
-lookback_days: 3
-per_query: 40
+execution:
+  owner: chatgpt_work
+  retrieval: live_web_search_and_direct_source_read
+  query_strings_are_navigation_guidance: true
+  search_snippets_are_not_evidence: true
+  current_run_source_read_required: true
+
+window:
+  lookback_days: 3
+  rolling_hours: 72
+
+source_catalog:
+  pubmed:
+    role: biomedical_discovery_and_index_event
+    preferred_domain: pubmed.ncbi.nlm.nih.gov
+  europe_pmc:
+    role: biomedical_fulltext_and_repository_event
+    preferred_domain: europepmc.org
+  publisher:
+    role: version_event_and_final_claim_verification
+  openalex:
+    role: broad_discovery_only
+    preferred_domain: openalex.org
+  arxiv:
+    role: preprint_discovery_and_version_identity
+    preferred_domain: arxiv.org
+  openreview:
+    role: formal_review_and_venue_identity
+    preferred_domain: openreview.net
+  acl_anthology:
+    role: formal_acl_publication_identity
+    preferred_domain: aclanthology.org
+  pmlr:
+    role: formal_proceedings_identity
+    preferred_domain: proceedings.mlr.press
+  formal_proceedings_or_publisher:
+    role: final_event_and_claim_verification
+
+candidate_guidance:
+  suggested_max_per_query: 40
+  hard_max_per_category: 30
 
 streams:
   clinical_medicine:
-    sources: [pubmed]
+    sources: [pubmed, europe_pmc, publisher]
     relevance_terms:
       - randomized controlled trial
       - systematic review
@@ -24,7 +63,7 @@ streams:
       - '(("N Engl J Med"[Journal] OR Lancet[Journal] OR JAMA[Journal] OR BMJ[Journal] OR "Ann Intern Med"[Journal] OR "Nat Med"[Journal]) AND (clinical trial[Publication Type] OR randomized controlled trial[Publication Type] OR meta-analysis[Publication Type] OR systematic review[Publication Type]) NOT (protocol[Title] OR letter[Publication Type] OR editorial[Publication Type]))'
 
   sport_science:
-    sources: [pubmed]
+    sources: [pubmed, europe_pmc, publisher]
     relevance_terms:
       - exercise physiology
       - resistance training
@@ -43,7 +82,7 @@ streams:
       - '((exercise[Title] OR athlete*[Title] OR sport*[Title] OR muscle[Title] OR training[Title]) AND (fatigue[Title/Abstract] OR recovery[Title/Abstract] OR strength[Title/Abstract] OR power[Title/Abstract] OR adaptation[Title/Abstract]) NOT (protocol[Title] OR letter[Publication Type] OR editorial[Publication Type] OR comment[Publication Type]))'
 
   sport_nutrition:
-    sources: [pubmed]
+    sources: [pubmed, europe_pmc, publisher]
     relevance_terms:
       - sports nutrition
       - carbohydrate availability
@@ -61,7 +100,7 @@ streams:
       - '((athlete*[Title] OR sport*[Title] OR exercise[Title] OR training[Title] OR performance[Title] OR recovery[Title]) AND (protein[Title] OR carbohydrate*[Title] OR creatine[Title] OR hydration[Title] OR rehydration[Title] OR supplement*[Title] OR nutrition*[Title] OR diet*[Title]) NOT (protocol[Title] OR letter[Publication Type] OR editorial[Publication Type]))'
 
   fitness_health:
-    sources: [pubmed]
+    sources: [pubmed, europe_pmc, publisher]
     relevance_terms:
       - physical fitness
       - physical activity
@@ -79,7 +118,7 @@ streams:
       - '((("physical activity"[Title] OR exercise[Title] OR walking[Title] OR sarcopenia[Title]) AND (mortality[Title/Abstract] OR aging[Title/Abstract] OR "dose-response"[Title/Abstract] OR health[Title/Abstract])) NOT (protocol[Title] OR letter[Publication Type] OR editorial[Publication Type]))'
 
   llm_l1_model_behavior:
-    sources: [openalex]
+    sources: [openalex, arxiv, openreview, acl_anthology, pmlr, formal_proceedings_or_publisher]
     relevance_terms:
       - instruction following
       - sycophancy
@@ -94,7 +133,7 @@ streams:
       - 'large language model hallucination robustness jailbreak alignment evaluation'
 
   llm_l2_context_inference:
-    sources: [openalex]
+    sources: [openalex, arxiv, openreview, acl_anthology, pmlr, formal_proceedings_or_publisher]
     relevance_terms:
       - long context
       - context selection
@@ -109,7 +148,7 @@ streams:
       - 'large language model test-time compute reasoning verification self-reflection'
 
   llm_l3_retrieval_grounding:
-    sources: [openalex]
+    sources: [openalex, arxiv, openreview, acl_anthology, pmlr, formal_proceedings_or_publisher]
     relevance_terms:
       - retrieval
       - query rewriting
@@ -125,7 +164,7 @@ streams:
       - 'retrieval augmented generation citation verification source authority safety'
 
   llm_l4_memory_personalization:
-    sources: [openalex]
+    sources: [openalex, arxiv, openreview, acl_anthology, pmlr, formal_proceedings_or_publisher]
     relevance_terms:
       - working memory
       - episodic memory
@@ -143,7 +182,7 @@ streams:
       - 'large language model personalization user model longitudinal adaptation memory'
 
   llm_l5_agents_decision:
-    sources: [openalex]
+    sources: [openalex, arxiv, openreview, acl_anthology, pmlr, formal_proceedings_or_publisher]
     relevance_terms:
       - planning
       - tool use
@@ -161,7 +200,7 @@ streams:
       - 'language model browser computer use autonomous execution agent safety'
 
   llm_l6_multi_agent:
-    sources: [openalex]
+    sources: [openalex, arxiv, openreview, acl_anthology, pmlr, formal_proceedings_or_publisher]
     relevance_terms:
       - multi-agent
       - coordination
@@ -178,7 +217,7 @@ streams:
       - 'language model agents debate cooperation collective failure emergent behavior'
 
   llm_l7_systems_runtime:
-    sources: [openalex]
+    sources: [openalex, arxiv, openreview, acl_anthology, pmlr, formal_proceedings_or_publisher]
     relevance_terms:
       - serving
       - inference systems
@@ -196,7 +235,7 @@ streams:
       - 'large language model tool runtime protocol model context protocol sandbox observability'
 
   llm_l8_training_architecture:
-    sources: [openalex]
+    sources: [openalex, arxiv, openreview, acl_anthology, pmlr, formal_proceedings_or_publisher]
     relevance_terms:
       - pretraining
       - post-training
@@ -214,7 +253,7 @@ streams:
       - 'large language model architecture mixture of experts PEFT synthetic data curriculum'
 
   llm_l9_evaluation_measurement:
-    sources: [openalex]
+    sources: [openalex, arxiv, openreview, acl_anthology, pmlr, formal_proceedings_or_publisher]
     relevance_terms:
       - benchmark design
       - contamination
@@ -230,7 +269,7 @@ streams:
       - 'LLM as a judge agent retrieval benchmark longitudinal ecological evaluation'
 
   human_h1_llm_relationship:
-    sources: [openalex]
+    sources: [openalex, arxiv, openreview, acl_anthology, pmlr, formal_proceedings_or_publisher]
     relevance_terms:
       - AI companion
       - human-LLM relationship
@@ -249,7 +288,7 @@ streams:
       - 'chatbot anthropomorphism emotional dependence social connection longitudinal relationship'
 
   human_h2_ai_hci:
-    sources: [openalex]
+    sources: [openalex, arxiv, openreview, acl_anthology, pmlr, formal_proceedings_or_publisher]
     relevance_terms:
       - human-AI interaction
       - interaction design
