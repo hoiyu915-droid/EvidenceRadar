@@ -1046,27 +1046,31 @@ def main() -> int:
     from .html_report import render_html
 
     html_path = args.output_dir / f"{stem}.html"
-    html_path.write_text(
-        render_html(
-            generated_at,
-            featured,
-            candidate_pool,
-            category_order=category_module.CATEGORY_ORDER,
-            category_titles=category_module.CATEGORY_TITLES,
-            window_hours=window_hours,
-            cutoff=cutoff,
-            retrieved_count=retrieved_count,
-            event_qualified_count=event_qualified_count,
-            warnings=warnings,
-        ),
-        encoding="utf-8",
+    html_document = render_html(
+        generated_at,
+        featured,
+        candidate_pool,
+        category_order=category_module.CATEGORY_ORDER,
+        category_titles=category_module.CATEGORY_TITLES,
+        window_hours=window_hours,
+        cutoff=cutoff,
+        retrieved_count=retrieved_count,
+        event_qualified_count=event_qualified_count,
+        warnings=warnings,
     )
+    html_path.write_text(html_document, encoding="utf-8")
+
+    # Stable, space-free alias used for the user-facing rendered preview.
+    # The timestamped HTML remains the immutable archival report.
+    preview_path = args.output_dir / "EvidenceRadar_latest.html"
+    preview_path.write_text(html_document, encoding="utf-8")
 
     if not args.no_raw:
         write_raw_snapshot(args.raw_dir / f"{stem}.json", unique_papers)
 
     print(output_path)
     print(html_path)
+    print(preview_path)
     if warnings:
         print("Warnings:", *warnings, sep="\n- ", file=sys.stderr)
     return 0

@@ -10,6 +10,9 @@ output:
   filename_pattern: "%Y%m%d %H%M.Rader.md"
   example_filename: "20260712 0630.Rader.md"
   html_example_filename: "20260712 0630.Rader.html"
+  rendered_preview_alias: "EvidenceRadar_latest.html"
+  primary_user_delivery: "rendered_html_preview"
+  github_blob_is_not_a_preview: true
   rolling_window_hours: 72
 
 selection:
