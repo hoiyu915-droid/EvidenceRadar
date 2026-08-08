@@ -3,7 +3,7 @@ name: Daily Evidence Radar
 on:
   workflow_dispatch:
   schedule:
-    - cron: "*/5 * * * *"
+    - cron: "2 10 * * *"
       timezone: "Asia/Tokyo"
   push:
     branches:
@@ -16,7 +16,7 @@ permissions:
 
 concurrency:
   group: daily-evidence-radar
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   generate:
