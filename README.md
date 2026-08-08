@@ -142,6 +142,7 @@ Codex may be used separately as maintainer tooling for repository inspection, is
 - Security reports: [`SECURITY.md`](SECURITY.md)
 - Roadmap: [`ROADMAP.md`](ROADMAP.md)
 - Public-release audit: [`PUBLIC_RELEASE_AUDIT.md`](PUBLIC_RELEASE_AUDIT.md)
+- Maintenance CI: [`.github/workflows/public-release.yml`](.github/workflows/public-release.yml) validates repository hygiene, examples, and tests; it is not the radar runtime.
 
 ## Adoption and impact
 
