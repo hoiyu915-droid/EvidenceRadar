@@ -21,7 +21,15 @@ class ProtocolSurfaceTests(unittest.TestCase):
         self.assertFalse((ROOT / ".manual-run").exists())
         workflow_dir = ROOT / ".github" / "workflows"
         workflows = list(workflow_dir.glob("*.yml")) + list(workflow_dir.glob("*.yaml"))
-        self.assertEqual([], workflows)
+        self.assertEqual(["public-release.yml"], sorted(path.name for path in workflows))
+
+        maintenance = workflows[0].read_text(encoding="utf-8")
+        self.assertIn("python tools/validate_public_release.py", maintenance)
+        self.assertIn("contents: read", maintenance)
+        self.assertNotIn("schedule:", maintenance)
+        self.assertNotIn("workflow_dispatch:", maintenance)
+        self.assertNotIn("python src/run.py", maintenance)
+        self.assertNotIn("contents: write", maintenance)
 
     def test_legacy_runtime_is_separated_from_active_surface(self) -> None:
         self.assertFalse((ROOT / "src").exists())
