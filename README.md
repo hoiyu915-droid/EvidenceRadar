@@ -16,7 +16,9 @@ LLM Research 再依正式研究問題分成 L1–L9；Human–AI Research 分成
 
 - 格式：同步產生 Markdown (`.md`) 與 self-contained HTML (`.html`)
 - 目錄：`daily/`
-- 檔名：`YYYYMMDD HHMM.Rader.md`
+- 歸檔檔名：`YYYYMMDD HHMM.Rader.md`、`YYYYMMDD HHMM.Rader.html`
+- 直接顯示入口：`daily/EvidenceRadar_latest.html`（每輪原子覆寫，內容與該輪歸檔 HTML 完全相同）
+- 對使用者交付時以可直接渲染的 HTML artifact 為主；GitHub `blob`／raw 原始碼頁只能作 repository 位置，不得冒充預覽
 - 時區：`Asia/Tokyo`
 - 每類 Featured：目標 5–8 篇；不足時不硬湊
 - 每類 Candidate Pool：最多 30 篇，包含 Featured
@@ -71,7 +73,7 @@ PubMed (pdat + edat + mdat) + OpenAlex
 → 五類獨立 Candidate Pool
 → AI 類方向保留 + 跨方向價值排序
 → Europe PMC 補 OA、PMCID 與 DOI
-→ Markdown + self-contained HTML
+→ Markdown + timestamped self-contained HTML + rendered-preview alias
 → literature registry + run history
 → workflow commit / push `daily/` 與 `state/`
 ```
