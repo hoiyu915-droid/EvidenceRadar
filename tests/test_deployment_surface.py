@@ -83,7 +83,7 @@ class GithubDeploymentSurfaceTests(unittest.TestCase):
             self.assertIn(artifact, self.workflow)
         self.assertIn("Verify four EvidenceRadar artifacts", self.workflow)
         self.assertIn("python tools/validate_gpt_work_artifacts.py", self.workflow)
-        self.assertIn("uses: actions/upload-artifact@v4", self.workflow)
+        self.assertIn("uses: actions/upload-artifact@v7.0.1", self.workflow)
         self.assertIn("if-no-files-found: error", self.workflow)
         self.assertIn("cmp --silent", self.workflow)
 
