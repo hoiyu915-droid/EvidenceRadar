@@ -122,3 +122,37 @@ Run 狀態只可使用：
 ## 下游邊界
 
 EvidenceRadar 的終點是核實過的研究封包。除非使用者另行要求，不啟動 TA／TP03 或圖像生成。醫療決策、跨來源數字比較、來源衝突與正式交付必須保留 governed 狀態，不得降級成未核實的 Quick 內容。
+
+## Why EvidenceRadar matters
+
+Research monitoring is not merely a search problem. A reusable radar must distinguish discovery dates from publication events, preserve publication identity across versions, expose source gaps, prevent repeated notifications, and keep every reported claim tied to readable evidence. EvidenceRadar makes those decisions explicit through versioned protocols, schemas, validators, governed status values, and portable state.
+
+## Runtime and maintainer tooling
+
+ChatGPT Work is the formal EvidenceRadar execution environment described above. Codex is **not** part of the radar runtime and is not required by downstream users.
+
+Codex may be used separately as maintainer tooling for repository inspection, issue and pull-request work, schema and validator changes, regression repair, documentation, release preparation, and public-source auditing. The primary maintainer reviews every change and remains responsible for evidence policy, licensing, security, and merge decisions.
+
+## Open-source maintenance
+
+- Primary maintainer: `hoiyu915-droid`
+- Maintained line: `main`
+- Governance: [`GOVERNANCE.md`](GOVERNANCE.md)
+- Contributions: [`CONTRIBUTING.md`](CONTRIBUTING.md)
+- Security reports: [`SECURITY.md`](SECURITY.md)
+- Roadmap: [`ROADMAP.md`](ROADMAP.md)
+- Public-release audit: [`PUBLIC_RELEASE_AUDIT.md`](PUBLIC_RELEASE_AUDIT.md)
+
+## Adoption and impact
+
+EvidenceRadar is intended for researchers, clinicians, evidence communicators, and tool builders who need auditable recent-literature triage rather than an unqualified list of search results. No unverified stars, downloads, users, or deployment figures are claimed. Public integrations, citations, issues, and downstream repositories may be recorded as verifiable evidence of impact.
+
+## License
+
+Executable workflow material, schemas, validators, source code, tests, templates, and legacy runtime code are licensed under Apache-2.0. Original documentation, original report prose and layout, and original compilation or arrangement of structured records are licensed under CC BY 4.0.
+
+Article titles, authors, identifiers, publisher metadata, quoted excerpts, linked pages, and trademarks are not relicensed. See [`LICENSE`](LICENSE), [`LICENSE-CONTENT.md`](LICENSE-CONTENT.md), and [`NOTICE.md`](NOTICE.md).
+
+## Citation
+
+Use [`CITATION.cff`](CITATION.cff) and cite the exact commit or release used.
