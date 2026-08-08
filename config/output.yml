@@ -1,11 +1,18 @@
 execution:
-  owner: chatgpt_work
-  method: live_web_search_and_direct_source_read
+  owners: [chatgpt_work, github_actions]
+  lanes:
+    chatgpt_work:
+      method: live_web_search_and_direct_source_read
+      trigger: user_launched
+      repository_writeback: false
+    github_actions:
+      method: automated_discovery_and_source_access_audit
+      trigger: scheduled_or_workflow_dispatch
+      repository_writeback: generated_artifacts_and_canonical_state
   mcp: false
   external_server: false
   codex: false
-  github_actions: false
-  repository_writeback: false
+  github_actions: true
 
 window:
   timezone: Asia/Tokyo
@@ -48,6 +55,21 @@ state_rules:
   missing_or_invalid_prior_state_status: STATE_HISTORY_INCOMPLETE
   advance_only_after_artifact_validation: true
   never_notify_unverified_events: true
+  canonical_repository_path: state/current/EvidenceRadar_State.json
+  merge_tool: tools/merge_radar_state.py
+  concurrent_runs_require_deterministic_merge: true
+
+provenance:
+  required_for_new_runs:
+    - execution_lane
+    - protocol_commit
+    - base_state_sha256
+    - parent_run_ids
+  execution_lanes: [chatgpt_work, github_actions]
+
+publisher_output:
+  settings_file: config/deployment.yml
+  output_unit: accessible_publisher_or_source_page_audit_record
 
 selection:
   scope: per_category

@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://evidenceradar.local/schemas/evidence-radar-run.schema.json",
-  "title": "EvidenceRadar GPT Work run artifact",
-  "description": "Auditable search, verification, coverage and output ledger for one GPT Work run.",
+  "title": "EvidenceRadar run artifact",
+  "description": "Auditable search, verification, coverage, provenance and output ledger for one execution lane run.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -105,6 +105,29 @@
     },
     "notes": {
       "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "execution_lane": {
+      "type": "string",
+      "enum": [
+        "github_actions",
+        "chatgpt_work"
+      ]
+    },
+    "protocol_commit": {
+      "type": "string",
+      "minLength": 1
+    },
+    "base_state_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{64}$"
+    },
+    "parent_run_ids": {
+      "type": "array",
+      "uniqueItems": true,
       "items": {
         "type": "string",
         "minLength": 1

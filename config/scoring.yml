@@ -1,8 +1,12 @@
 execution:
-  evaluator: chatgpt_work
-  deterministic_code_required: false
+  evaluators: [chatgpt_work, github_actions]
+  lane_capabilities:
+    chatgpt_work: evidence_and_relevance_review
+    github_actions: deterministic_candidate_ranking_only
+  deterministic_code_required_for_github_actions: true
   explain_scores: true
   rank_only_after_event_gate: true
+  metadata_must_not_be_promoted_to_claims: true
 
 selection:
   candidate_min_score: 45

@@ -8,22 +8,23 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class ProtocolSurfaceTests(unittest.TestCase):
-    def test_active_runtime_is_chatgpt_work_only(self) -> None:
+    def test_active_runtime_has_two_explicit_lanes(self) -> None:
         output = (ROOT / "config/output.yml").read_text(encoding="utf-8")
-        self.assertIn("owner: chatgpt_work", output)
+        self.assertIn("owners: [chatgpt_work, github_actions]", output)
+        self.assertIn("chatgpt_work:", output)
+        self.assertIn("github_actions:", output)
+        self.assertIn("github_actions: true", output)
         self.assertIn("mcp: false", output)
         self.assertIn("external_server: false", output)
         self.assertIn("codex: false", output)
-        self.assertIn("github_actions: false", output)
-        self.assertIn("repository_writeback: false", output)
 
-    def test_github_execution_triggers_are_absent(self) -> None:
+    def test_github_execution_has_daily_and_manual_triggers(self) -> None:
         self.assertFalse((ROOT / ".manual-run").exists())
         workflow_dir = ROOT / ".github" / "workflows"
         workflows = list(workflow_dir.glob("*.yml")) + list(workflow_dir.glob("*.yaml"))
-        self.assertEqual(["public-release.yml"], sorted(path.name for path in workflows))
+        self.assertEqual(["daily-radar.yml", "public-release.yml"], sorted(path.name for path in workflows))
 
-        maintenance = workflows[0].read_text(encoding="utf-8")
+        maintenance = (workflow_dir / "public-release.yml").read_text(encoding="utf-8")
         self.assertIn("python tools/validate_public_release.py", maintenance)
         self.assertIn("contents: read", maintenance)
         self.assertNotIn("schedule:", maintenance)
@@ -31,11 +32,39 @@ class ProtocolSurfaceTests(unittest.TestCase):
         self.assertNotIn("python src/run.py", maintenance)
         self.assertNotIn("contents: write", maintenance)
 
-    def test_legacy_runtime_is_separated_from_active_surface(self) -> None:
+        daily = (workflow_dir / "daily-radar.yml").read_text(encoding="utf-8")
+        self.assertIn("schedule:", daily)
+        self.assertIn("workflow_dispatch:", daily)
+        self.assertIn("contents: write", daily)
+        self.assertIn("python tools/run_github_radar.py", daily)
+
+    def test_new_runner_is_separate_from_archived_runtime(self) -> None:
         self.assertFalse((ROOT / "src").exists())
-        self.assertFalse((ROOT / "requirements.txt").exists())
+        self.assertTrue((ROOT / "requirements.txt").exists())
+        self.assertTrue((ROOT / "tools" / "run_github_radar.py").exists())
         self.assertTrue((ROOT / "legacy" / "python-runtime" / "src" / "run.py").exists())
         self.assertTrue((ROOT / "legacy" / "python-runtime" / "requirements.txt").exists())
+
+        runner = (ROOT / "tools" / "run_github_radar.py").read_text(encoding="utf-8")
+        self.assertNotIn("legacy/python-runtime", runner)
+
+    def test_public_deployment_settings_pin_publisher_budget(self) -> None:
+        deployment = (ROOT / "config" / "deployment.yml").read_text(encoding="utf-8")
+        self.assertIn("target_min_per_run: 10", deployment)
+        self.assertIn("hard_max_per_run: 15", deployment)
+        self.assertIn("per_domain_hard_max: 2", deployment)
+        self.assertIn("stop_domain_on_http_status: [401, 403, 429]", deployment)
+        self.assertIn("padding_forbidden: true", deployment)
+        self.assertIn("OPENALEX_API_KEY:", deployment)
+        self.assertIn("missing_behavior: record_source_gap", deployment)
+
+    def test_state_merge_and_work_pack_are_public_surfaces(self) -> None:
+        self.assertTrue((ROOT / "tools" / "merge_radar_state.py").exists())
+        self.assertTrue((ROOT / "tools" / "build_work_pack.py").exists())
+        self.assertTrue((ROOT / "release" / "work-pack-manifest.json").exists())
+        self.assertTrue((ROOT / "docs" / "GITHUB_DEPLOYMENT.md").exists())
+        self.assertTrue((ROOT / "docs" / "WORK_SETUP.md").exists())
+        self.assertTrue((ROOT / "docs" / "MIGRATION_DUAL_LANE_1.0.md").exists())
 
     def test_protocol_declares_required_artifacts_and_statuses(self) -> None:
         protocol = (ROOT / "EVIDENCE_RADAR_PROTOCOL.md").read_text(encoding="utf-8")
@@ -54,6 +83,13 @@ class ProtocolSurfaceTests(unittest.TestCase):
             "NO_QUALIFYING_ITEMS",
         ):
             self.assertIn(status, protocol)
+        for provenance in (
+            "execution_lane",
+            "protocol_commit",
+            "base_state_sha256",
+            "parent_run_ids",
+        ):
+            self.assertIn(provenance, protocol)
 
     def test_historical_outputs_remain_present(self) -> None:
         self.assertTrue((ROOT / "daily" / "20260808 1013.Rader.md").exists())
