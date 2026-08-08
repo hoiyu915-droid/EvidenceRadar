@@ -1009,8 +1009,9 @@ def main() -> int:
     )
     candidate_pool = select_candidate_pool(event_papers, scoring_config)
 
+    with ThreadPoolExecutor(max_workers=min(4, max(1, len(candidate_pool)))) as executor:
+        list(executor.map(enrich_europe_pmc, candidate_pool))
     for paper in candidate_pool:
-        enrich_europe_pmc(paper)
         paper.one_line_reason = build_reason(paper)
 
     featured = select_featured(candidate_pool, scoring_config)
