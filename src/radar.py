@@ -20,6 +20,7 @@ import sys
 import time
 import unicodedata
 import xml.etree.ElementTree as ET
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict, dataclass, field
 from datetime import date, datetime, time, timedelta
 from pathlib import Path
@@ -889,6 +890,59 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def fetch_query_groups(
+    tasks: list[tuple[int, str, str, str]],
+    start_date: date,
+    end_date: date,
+    per_query: int,
+) -> tuple[dict[int, list[Paper]], list[tuple[int, str]]]:
+    """Fetch independent queries concurrently without changing result order.
+
+    PubMed stays serial to respect its unauthenticated rate limit. OpenAlex
+    queries use bounded concurrency because they are independent and dominate
+    the daily scan's wall-clock time.
+    """
+    grouped: dict[str, list[tuple[int, str, str]]] = {}
+    for index, source, stream, query in tasks:
+        grouped.setdefault(source, []).append((index, stream, query))
+
+    def fetch_group(
+        source: str, source_tasks: list[tuple[int, str, str]]
+    ) -> tuple[dict[int, list[Paper]], list[tuple[int, str]]]:
+        fetcher = fetch_pubmed if source == "pubmed" else fetch_openalex
+        max_workers = 1 if source == "pubmed" else min(4, len(source_tasks))
+        results: dict[int, list[Paper]] = {}
+        failures: list[tuple[int, str]] = []
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {
+                executor.submit(fetcher, query, stream, start_date, end_date, per_query): (
+                    index,
+                    stream,
+                )
+                for index, stream, query in source_tasks
+            }
+            for future in as_completed(futures):
+                index, stream = futures[future]
+                try:
+                    results[index] = future.result()
+                except (RadarError, ValueError, ET.ParseError) as exc:
+                    failures.append((index, f"{source}/{stream}: {exc}"))
+        return results, failures
+
+    results: dict[int, list[Paper]] = {}
+    failures: list[tuple[int, str]] = []
+    with ThreadPoolExecutor(max_workers=max(1, len(grouped))) as executor:
+        futures = {
+            executor.submit(fetch_group, source, source_tasks): source
+            for source, source_tasks in grouped.items()
+        }
+        for future in as_completed(futures):
+            group_results, group_failures = future.result()
+            results.update(group_results)
+            failures.extend(group_failures)
+    return results, sorted(failures)
+
+
 def main() -> int:
     args = parse_args()
     generated_at = args.end_at or datetime.now(ZoneInfo(TIMEZONE))
@@ -916,19 +970,22 @@ def main() -> int:
     warnings: list[str] = []
     relevance_lookup: dict[str, list[str]] = {}
 
+    query_tasks: list[tuple[int, str, str, str]] = []
     for stream, config in stream_defs.items():
         relevance_lookup[stream] = list(config.get("relevance_terms", []))
         for source in config.get("sources", []):
             for query in config.get("queries", []):
-                try:
-                    if source == "pubmed":
-                        papers.extend(fetch_pubmed(query, stream, start_date, end_date, per_query))
-                    elif source == "openalex":
-                        papers.extend(fetch_openalex(query, stream, start_date, end_date, per_query))
-                    else:
-                        warnings.append(f"Unknown source `{source}` for `{stream}`")
-                except (RadarError, ValueError, ET.ParseError) as exc:
-                    warnings.append(f"{source}/{stream}: {exc}")
+                if source in {"pubmed", "openalex"}:
+                    query_tasks.append((len(query_tasks), source, stream, query))
+                else:
+                    warnings.append(f"Unknown source `{source}` for `{stream}`")
+
+    fetched, fetch_warnings = fetch_query_groups(
+        query_tasks, start_date, end_date, per_query
+    )
+    for index in range(len(query_tasks)):
+        papers.extend(fetched.get(index, []))
+    warnings.extend(message for _, message in fetch_warnings)
 
     retrieved_count = len(papers)
     for paper in papers:
