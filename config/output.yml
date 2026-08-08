@@ -1,19 +1,53 @@
-output:
-  formats:
-    - markdown
-    - self_contained_html
-  extensions:
-    - ".md"
-    - ".html"
-  directory: "daily"
-  timezone: "Asia/Tokyo"
-  filename_pattern: "%Y%m%d %H%M.Rader.md"
-  example_filename: "20260712 0630.Rader.md"
-  html_example_filename: "20260712 0630.Rader.html"
-  rendered_preview_alias: "EvidenceRadar_latest.html"
-  primary_user_delivery: "rendered_html_preview"
-  github_blob_is_not_a_preview: true
-  rolling_window_hours: 72
+execution:
+  owner: chatgpt_work
+  method: live_web_search_and_direct_source_read
+  mcp: false
+  external_server: false
+  codex: false
+  github_actions: false
+  repository_writeback: false
+
+window:
+  timezone: Asia/Tokyo
+  rolling_hours: 72
+  exclude_date_only_cutoff_day: true
+
+artifacts:
+  primary_delivery:
+    filename: EvidenceRadar_Report.html
+    format: self_contained_html
+    requirements:
+      - source_coverage_matrix
+      - concise_conclusions
+      - category_sections
+      - event_evidence
+      - claim_support
+      - caveats
+      - identifiers
+      - direct_links
+      - conflicts_and_gaps
+  state:
+    filename: EvidenceRadar_State.json
+    schema: schemas/evidence-radar-state.schema.json
+  evidence:
+    filename: EvidenceRadar_Evidence.json
+    schema: schemas/evidence-radar-evidence.schema.json
+  run:
+    filename: EvidenceRadar_Run.json
+    schema: schemas/evidence-radar-run.schema.json
+
+run_statuses:
+  - COMPLETE
+  - PARTIAL_SOURCE_COVERAGE
+  - SOURCE_ACCESS_GAP
+  - STATE_HISTORY_INCOMPLETE
+  - NO_QUALIFYING_ITEMS
+
+state_rules:
+  prior_state_optional_on_first_run: true
+  missing_or_invalid_prior_state_status: STATE_HISTORY_INCOMPLETE
+  advance_only_after_artifact_validation: true
+  never_notify_unverified_events: true
 
 selection:
   scope: per_category
@@ -33,58 +67,11 @@ selection:
   allow_below_minimum_when_insufficient: true
   padding_forbidden: true
 
-sections:
-  anchor_evidence:
-    hard_max_per_category: 8
-  strong_watch:
-    hard_max_per_category: 8
-  weird_but_important:
-    hard_max_per_category: 2
-
-candidate_fields:
-  - title
-  - authors
-  - journal_or_venue
-  - publication_date
-  - category
-  - stream
-  - study_design
-  - evidence_tier
-  - relevance_score
-  - interest_score
-  - open_access
-  - doi
-  - pmid
-  - pmcid
-  - openalex_id
-  - one_line_reason
-  - research_directions
-  - history_status
-  - qualifying_events
-  - fulltext_urls
-
-streams:
-  - clinical_medicine
-  - sport_science
-  - sport_nutrition
-  - fitness_health
-  - llm_l1_model_behavior
-  - llm_l2_context_inference
-  - llm_l3_retrieval_grounding
-  - llm_l4_memory_personalization
-  - llm_l5_agents_decision
-  - llm_l6_multi_agent
-  - llm_l7_systems_runtime
-  - llm_l8_training_architecture
-  - llm_l9_evaluation_measurement
-  - human_h1_llm_relationship
-  - human_h2_ai_hci
-
 rendering:
-  language: "zh-TW"
+  language: zh-TW
   preserve_original_title: true
-  include_abstract_summary: true
   include_main_caveat: true
   include_identifiers: true
-  candidate_pool_detail: compact
-  auto_triage_label: true
+  include_source_locators: true
+  include_numeric_surface: true
+  github_blob_is_not_a_preview: true

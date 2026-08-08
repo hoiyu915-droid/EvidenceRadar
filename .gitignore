@@ -4,3 +4,8 @@ __pycache__/
 .env
 .venv/
 data/raw/
+/artifacts/
+/EvidenceRadar_Report.html
+/EvidenceRadar_State.json
+/EvidenceRadar_Evidence.json
+/EvidenceRadar_Run.json

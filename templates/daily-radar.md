@@ -1,71 +1,64 @@
-# Evidence Radar — {{ generated_at }}
+# EvidenceRadar — {{ generated_at }}
 
-- Generated: `{{ generated_at_iso }}`
-- Timezone: `{{ timezone }}`
-- Featured: `{{ featured_total }}` across four independent categories
-- Candidate Pool: `{{ candidate_total }}` total; maximum `30` per category
-- Status: `AUTO-TRIAGE` — 尚未完成全文與引用核實
+- **Run status:** `{{ run_status }}`
+- **Window:** {{ cutoff_at }} → {{ end_at }}（{{ window_hours }} hours, {{ timezone }}）
+- **State continuity:** {{ state_continuity }}
+- **Candidate count:** {{ candidate_total }}
+- **Reported count:** {{ reported_total }}
+
+## Source coverage
+
+| Category | Planned source | Query/read time | Result | Notes |
+|---|---|---|---|---|
+{{ source_coverage_rows }}
+
+> `NO_QUALIFYING_ITEMS` is valid only when all required source coverage is complete.
+
+## 今日結論
+
+{{ concise_conclusions }}
+
+## Categories
 
 {{#categories}}
-## {{ category_title }}
+### {{ category_title }}
 
-- Featured: `{{ category_featured_count }}`
-- Candidate Pool: `{{ category_candidate_count }}`（包含 Featured）
+- Candidate Pool: {{ category_candidate_count }}
+- Reported: {{ category_reported_count }}
+- Direction coverage: {{ direction_coverage }}
 
-> 每類獨立排序與截斷；其他類別不得吃掉本類配額。
-
-### Anchor Evidence
-
-{{ anchor_items }}
-
-### Strong Watch
-
-{{ strong_watch_items }}
-
-### Weird but Important
-
-{{ weird_items }}
-
-### Candidate Pool
-
-> 本類最多 30 篇，以下不重複列出 Featured；入池不代表已通過完整證據審核。
-
-{{ candidate_items }}
-
-{{/categories}}
-
-## Featured item format
-
-```markdown
+{{#reported_items}}
 #### {{ rank }}. [{{ title }}]({{ primary_url }})
 
-- **Tags:** `[{{ evidence_tier }}]` `[{{ stream }}]` `[{{ study_design }}]` `{{ oa_tag }}`
-- **Source:** {{ journal_or_venue }} · {{ publication_date }}
-- **Authors:** {{ authors }}
-- **Why flagged:** {{ one_line_reason }}
-- **Abstract signal:** {{ abstract_signal }}
-- **Main caveat:** {{ main_caveat }}
-- **Scores:** total `{{ total_score }}` · evidence `{{ evidence_score }}` · relevance `{{ relevance_score }}` · interest `{{ interest_score }}` · practical `{{ practical_score }}`
-- **IDs:** {{ identifiers }}
-```
+- **Identity:** {{ identifiers }}
+- **Venue/date:** {{ journal_or_venue }} · {{ publication_date }}
+- **Qualifying event:** {{ event_type }} · {{ event_at }}
+- **Event evidence:** [{{ event_source }} · {{ event_source_field }}]({{ event_url }}) · {{ event_precision }} · {{ event_confidence }}
+- **Design:** {{ study_design }}
+- **Claim:** `{{ support_state }}` — {{ claim_text }}
+- **Numeric surface:** {{ numeric_surface }}
+- **Locator:** {{ locator }}
+- **Caveat:** {{ main_caveat }}
+- **Correction/retraction check:** {{ correction_status }}
+{{/reported_items}}
 
-## Candidate item format
+{{#candidate_only_items}}
+- `UNVERIFIED` [{{ title }}]({{ primary_url }}) — {{ audit_reason }}
+{{/candidate_only_items}}
+{{/categories}}
 
-```markdown
-1. **[{{ title }}]({{ primary_url }})**
-   - `[{{ evidence_tier }}]` `[{{ stream }}]` `[{{ study_design }}]` `{{ oa_tag }}` · score `{{ total_score }}`
-   - {{ journal_or_venue }} · {{ publication_date }}
-   - {{ one_line_reason }}
-   - {{ identifiers }}
-```
+## Conflicts and gaps
 
-## Run Notes
+{{ conflicts_and_gaps }}
 
-- Retrieved: `{{ retrieved_count }}`
-- Deduplicated: `{{ deduplicated_count }}`
-- Excluded before category pools: `{{ excluded_count }}`
+## Run notes
+
+- Queries executed: {{ query_count }}
+- Sources read: {{ source_read_count }}
+- Same-run duplicates: {{ same_run_duplicates }}
+- Cross-run duplicates: {{ cross_run_duplicates }}
 - Warnings: {{ warnings }}
 
-## Interpretation Guardrail
+## Interpretation guardrail
 
-> 本檔是發現與分流層，不是最終證據審核。正式引用前仍須完成 DOI/PMID 存在性、全文、校正／撤稿、方法與斷言核對。
+> 本報告是來源連結的研究發現與分流層，不是個別醫療建議。正式引用或決策前仍須核對全文、方法、版本、校正／撤稿、claim 與 locator。
