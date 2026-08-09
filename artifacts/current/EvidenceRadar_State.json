@@ -1,6 +1,6 @@
 {
   "artifact_type": "EvidenceRadar_State",
-  "base_state_sha256": "7cdf8c0e2e0f0d4872f3333b146d989dbe2badc610feed55cadceba652883301",
+  "base_state_sha256": "4d7b322f6e2e219af749a8f08280d0f459be284b600dac95b23b7986dab9200e",
   "dedupe_priority": [
     "doi",
     "pmid",
@@ -11,67 +11,19 @@
     "normalized_title"
   ],
   "execution_lane": "github_actions",
-  "generated_at": "2026-08-09T10:03:09.137644+09:00",
+  "generated_at": "2026-08-09T14:26:54.038112+09:00",
   "history_note": "Canonical prior state was loaded.",
   "history_status": "STATE_HISTORY_INCOMPLETE",
-  "last_run_id": "github-actions-20260809T100233+0900",
+  "last_run_id": "github-actions-20260809T142115+0900",
   "notes": [
     "Automated GitHub lane records only event candidates whose source page was accessible."
   ],
   "notified_events": [
     {
-      "confidence": "publisher_supplied_citation",
-      "event_id": "event:268333a2e2cfbd277572ac1091689c989608903b2fb654401c31f82c8b257afd",
-      "event_type": "version_of_record_first_online",
-      "notified_at": "2026-08-09T09:21:54.070002+09:00",
-      "occurred_at": "2026-08-07",
-      "precision": "date",
-      "source": "PubMed",
-      "source_field": "Article/ArticleDate",
-      "source_url": "https://pubmed.ncbi.nlm.nih.gov/42566718/",
-      "work_id": "doi:10.2196/89215"
-    },
-    {
-      "confidence": "provider_metadata",
-      "event_id": "event:630f7a15f26d8d1c4e27c565b8257419031790167968d0154fe93490b34f38cb",
-      "event_type": "first_formal_indexing",
-      "notified_at": "2026-08-09T10:03:09.137644+09:00",
-      "occurred_at": "2026-08-08",
-      "precision": "date",
-      "source": "PubMed",
-      "source_field": "PubMedData/History[pubmed]",
-      "source_url": "https://pubmed.ncbi.nlm.nih.gov/42567275/",
-      "work_id": "doi:10.1016/j.jtct.2026.07.024"
-    },
-    {
-      "confidence": "provider_metadata",
-      "event_id": "event:94554ff98bbc881a4f75472e78ed05d1dd83221500a7dc84f052cb0fb480556c",
-      "event_type": "first_formal_indexing",
-      "notified_at": "2026-08-09T10:03:09.137644+09:00",
-      "occurred_at": "2026-08-07",
-      "precision": "date",
-      "source": "PubMed",
-      "source_field": "PubMedData/History[pubmed]",
-      "source_url": "https://pubmed.ncbi.nlm.nih.gov/42562204/",
-      "work_id": "doi:10.1016/j.arth.2026.05.038"
-    },
-    {
-      "confidence": "publisher_supplied_citation",
-      "event_id": "event:abb130421e50e372237c9700e9b96e42e38da9dbe8fe0c5743efdb9326c50ff3",
-      "event_type": "version_of_record_first_online",
-      "notified_at": "2026-08-09T09:21:54.070002+09:00",
-      "occurred_at": "2026-08-07",
-      "precision": "date",
-      "source": "PubMed",
-      "source_field": "Article/ArticleDate",
-      "source_url": "https://pubmed.ncbi.nlm.nih.gov/42565815/",
-      "work_id": "doi:10.2196/89321"
-    },
-    {
       "confidence": "provider_metadata",
       "event_id": "event:dbe8f42489cadce21730a5f84bfe6d3aa854a88186547d8461e562194c6efbe9",
       "event_type": "first_formal_indexing",
-      "notified_at": "2026-08-09T10:03:09.137644+09:00",
+      "notified_at": "2026-08-09T14:26:54.038112+09:00",
       "occurred_at": "2026-08-07",
       "precision": "date",
       "source": "PubMed",
@@ -83,7 +35,7 @@
       "confidence": "provider_metadata",
       "event_id": "event:f2523418e629494b813d38a3a2de9120b57b06f0021cbe363a46e8aafd813a72",
       "event_type": "first_formal_indexing",
-      "notified_at": "2026-08-09T09:21:54.070002+09:00",
+      "notified_at": "2026-08-09T14:25:40.089016+09:00",
       "occurred_at": "2026-08-07",
       "precision": "date",
       "source": "PubMed",
@@ -93,69 +45,21 @@
     }
   ],
   "parent_run_ids": [
-    "github-actions-20260809T092119+0900"
+    "github-actions-20260809T142115+0900"
   ],
-  "protocol_commit": "e64629fea01243482af1ab89a95ffb6c1ddf3b92",
+  "protocol_commit": "fbd50cb9126d3e5bf8d50892fef1b5f171b3518e",
   "schema_version": "1.0",
   "timezone": "Asia/Tokyo",
   "works": [
     {
-      "category": "sport_science",
-      "first_seen_at": "2026-08-09T10:03:09.137644+09:00",
-      "identifiers": {
-        "doi": "10.1016/j.arth.2026.05.038",
-        "pmid": "42562204"
-      },
-      "is_preprint": false,
-      "last_seen_at": "2026-08-09T10:03:09.137644+09:00",
-      "normalized_title": "sensor based gait recovery analysis after total hip and knee arthroplasty a one year follow up study integrating muscle strength and patient reported outcomes",
-      "notified_event_ids": [
-        "event:94554ff98bbc881a4f75472e78ed05d1dd83221500a7dc84f052cb0fb480556c"
-      ],
-      "open_access": false,
-      "seen_count": 1,
-      "source_urls": [
-        "https://linkinghub.elsevier.com/retrieve/pii/S0883540326005541"
-      ],
-      "streams": [
-        "sport_science"
-      ],
-      "title": "Sensor-Based Gait Recovery Analysis After Total Hip and Knee Arthroplasty: A One-Year Follow-Up Study Integrating Muscle Strength and Patient-Reported Outcomes.",
-      "work_id": "doi:10.1016/j.arth.2026.05.038"
-    },
-    {
-      "category": "sport_science",
-      "first_seen_at": "2026-08-09T10:03:09.137644+09:00",
-      "identifiers": {
-        "doi": "10.1016/j.jtct.2026.07.024",
-        "pmid": "42567275"
-      },
-      "is_preprint": false,
-      "last_seen_at": "2026-08-09T10:03:09.137644+09:00",
-      "normalized_title": "the role of physical therapy across the transplant trajectory in allogeneic hematopoietic stem cell transplantation a systematic review and clinical framework",
-      "notified_event_ids": [
-        "event:630f7a15f26d8d1c4e27c565b8257419031790167968d0154fe93490b34f38cb"
-      ],
-      "open_access": false,
-      "seen_count": 1,
-      "source_urls": [
-        "https://linkinghub.elsevier.com/retrieve/pii/S2666636726005798"
-      ],
-      "streams": [
-        "sport_science"
-      ],
-      "title": "The role of physical therapy across the transplant trajectory in allogeneic hematopoietic stem cell transplantation, a systematic review and clinical framework.",
-      "work_id": "doi:10.1016/j.jtct.2026.07.024"
-    },
-    {
       "category": "clinical_medicine",
-      "first_seen_at": "2026-08-09T10:03:09.137644+09:00",
+      "first_seen_at": "2026-08-09T14:26:54.038112+09:00",
       "identifiers": {
         "doi": "10.1097/md.0000000000050023",
         "pmid": "42566592"
       },
       "is_preprint": false,
-      "last_seen_at": "2026-08-09T10:03:09.137644+09:00",
+      "last_seen_at": "2026-08-09T14:26:54.038112+09:00",
       "normalized_title": "efficacy and safety of first line immune checkpoint inhibitors combinations for extensive stage small cell lung cancer a systematic review and network meta analysis",
       "notified_event_ids": [
         "event:dbe8f42489cadce21730a5f84bfe6d3aa854a88186547d8461e562194c6efbe9"
@@ -173,13 +77,13 @@
     },
     {
       "category": "clinical_medicine",
-      "first_seen_at": "2026-08-09T09:21:54.070002+09:00",
+      "first_seen_at": "2026-08-09T14:25:40.089016+09:00",
       "identifiers": {
         "doi": "10.1097/md.0000000000050133",
         "pmid": "42566610"
       },
       "is_preprint": false,
-      "last_seen_at": "2026-08-09T09:21:54.070002+09:00",
+      "last_seen_at": "2026-08-09T14:25:40.089016+09:00",
       "normalized_title": "efficacy and safety of acupuncture treatment for depression a systematic review and meta analysis",
       "notified_event_ids": [
         "event:f2523418e629494b813d38a3a2de9120b57b06f0021cbe363a46e8aafd813a72"
@@ -194,54 +98,6 @@
       ],
       "title": "Efficacy and safety of acupuncture treatment for depression: A systematic review and meta-analysis.",
       "work_id": "doi:10.1097/md.0000000000050133"
-    },
-    {
-      "category": "clinical_medicine",
-      "first_seen_at": "2026-08-09T09:21:54.070002+09:00",
-      "identifiers": {
-        "doi": "10.2196/89215",
-        "pmid": "42566718"
-      },
-      "is_preprint": false,
-      "last_seen_at": "2026-08-09T09:21:54.070002+09:00",
-      "normalized_title": "effectiveness of a brief internet based workplace training program to support help seeking for mental ill health cluster randomized controlled trial",
-      "notified_event_ids": [
-        "event:268333a2e2cfbd277572ac1091689c989608903b2fb654401c31f82c8b257afd"
-      ],
-      "open_access": false,
-      "seen_count": 1,
-      "source_urls": [
-        "https://www.jmir.org/2026/1/e89215"
-      ],
-      "streams": [
-        "clinical_medicine"
-      ],
-      "title": "Effectiveness of a Brief Internet-Based Workplace Training Program to Support Help Seeking for Mental Ill-Health: Cluster Randomized Controlled Trial.",
-      "work_id": "doi:10.2196/89215"
-    },
-    {
-      "category": "clinical_medicine",
-      "first_seen_at": "2026-08-09T09:21:54.070002+09:00",
-      "identifiers": {
-        "doi": "10.2196/89321",
-        "pmid": "42565815"
-      },
-      "is_preprint": false,
-      "last_seen_at": "2026-08-09T09:21:54.070002+09:00",
-      "normalized_title": "effectiveness of interactive remote rehabilitation after total knee arthroplasty systematic review and meta analysis of randomized controlled trials",
-      "notified_event_ids": [
-        "event:abb130421e50e372237c9700e9b96e42e38da9dbe8fe0c5743efdb9326c50ff3"
-      ],
-      "open_access": false,
-      "seen_count": 1,
-      "source_urls": [
-        "https://www.jmir.org/2026/1/e89321"
-      ],
-      "streams": [
-        "clinical_medicine"
-      ],
-      "title": "Effectiveness of Interactive Remote Rehabilitation After Total Knee Arthroplasty: Systematic Review and Meta-Analysis of Randomized Controlled Trials.",
-      "work_id": "doi:10.2196/89321"
     }
   ]
 }
