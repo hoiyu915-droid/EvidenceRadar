@@ -1,0 +1,123 @@
+{
+  "artifact_type": "EvidenceRadar_Evidence",
+  "claims": [],
+  "coverage": {
+    "notes": [
+      "GitHub Actions is an automated discovery/source-access lane; claim verification remains a ChatGPT Work or human-review task."
+    ],
+    "requested_sources": [
+      "acl_anthology",
+      "arxiv",
+      "europe_pmc",
+      "formal_proceedings_or_publisher",
+      "openalex",
+      "openreview",
+      "pmlr",
+      "publisher",
+      "pubmed"
+    ],
+    "searched_sources": [
+      "publisher",
+      "pubmed"
+    ],
+    "unavailable_sources": [
+      "acl_anthology",
+      "arxiv",
+      "europe_pmc",
+      "formal_proceedings_or_publisher",
+      "openalex",
+      "openreview",
+      "pmlr",
+      "publisher"
+    ]
+  },
+  "coverage_status": "SOURCE_ACCESS_GAP",
+  "generated_at": "2026-08-09T09:21:54.070002+09:00",
+  "notes": [
+    "An empty claims ledger is intentional: metadata and snippets are not scientific conclusions."
+  ],
+  "run_id": "github-actions-20260809T092119+0900",
+  "schema_version": "1.0",
+  "sources": [
+    {
+      "access_status": "METADATA",
+      "accessed_at": "2026-08-09T09:21:19.519698+09:00",
+      "locator": "Publisher landing page; automated access check only",
+      "notes": [
+        "No substantive claim was promoted without ChatGPT Work or human source review."
+      ],
+      "publisher": "Medicine",
+      "source_id": "publisher-source-001",
+      "source_type": "publisher",
+      "title": "Efficacy and safety of acupuncture treatment for depression: A systematic review and meta-analysis.",
+      "url": "https://www.ovid.com/jnls/md-journal/fulltext/10.1097/md.0000000000050133~efficacy-and-safety-of-acupuncture-treatment-for-depression"
+    },
+    {
+      "access_status": "METADATA",
+      "accessed_at": "2026-08-09T09:21:19.519698+09:00",
+      "locator": "Publisher landing page; automated access check only",
+      "notes": [
+        "No substantive claim was promoted without ChatGPT Work or human source review."
+      ],
+      "publisher": "Journal of medical Internet research",
+      "source_id": "publisher-source-002",
+      "source_type": "publisher",
+      "title": "Effectiveness of Interactive Remote Rehabilitation After Total Knee Arthroplasty: Systematic Review and Meta-Analysis of Randomized Controlled Trials.",
+      "url": "https://www.jmir.org/2026/1/e89321"
+    },
+    {
+      "access_status": "METADATA",
+      "accessed_at": "2026-08-09T09:21:19.519698+09:00",
+      "locator": "Publisher landing page; automated access check only",
+      "notes": [
+        "No substantive claim was promoted without ChatGPT Work or human source review."
+      ],
+      "publisher": "Journal of medical Internet research",
+      "source_id": "publisher-source-003",
+      "source_type": "publisher",
+      "title": "Effectiveness of a Brief Internet-Based Workplace Training Program to Support Help Seeking for Mental Ill-Health: Cluster Randomized Controlled Trial.",
+      "url": "https://www.jmir.org/2026/1/e89215"
+    }
+  ],
+  "works": [
+    {
+      "category": "clinical_medicine",
+      "identifiers": {
+        "doi": "10.1097/md.0000000000050133",
+        "pmid": "42566610"
+      },
+      "limitations": [
+        "Automated lane verified page access and event metadata, not the paper's substantive claims."
+      ],
+      "stream": "clinical_medicine",
+      "title": "Efficacy and safety of acupuncture treatment for depression: A systematic review and meta-analysis.",
+      "work_id": "doi:10.1097/md.0000000000050133"
+    },
+    {
+      "category": "clinical_medicine",
+      "identifiers": {
+        "doi": "10.2196/89321",
+        "pmid": "42565815"
+      },
+      "limitations": [
+        "Automated lane verified page access and event metadata, not the paper's substantive claims."
+      ],
+      "stream": "clinical_medicine",
+      "title": "Effectiveness of Interactive Remote Rehabilitation After Total Knee Arthroplasty: Systematic Review and Meta-Analysis of Randomized Controlled Trials.",
+      "work_id": "doi:10.2196/89321"
+    },
+    {
+      "category": "clinical_medicine",
+      "identifiers": {
+        "doi": "10.2196/89215",
+        "pmid": "42566718"
+      },
+      "limitations": [
+        "Automated lane verified page access and event metadata, not the paper's substantive claims."
+      ],
+      "stream": "clinical_medicine",
+      "title": "Effectiveness of a Brief Internet-Based Workplace Training Program to Support Help Seeking for Mental Ill-Health: Cluster Randomized Controlled Trial.",
+      "work_id": "doi:10.2196/89215"
+    }
+  ]
+}
