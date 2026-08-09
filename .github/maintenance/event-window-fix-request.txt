@@ -1,0 +1,1 @@
+Apply the bounded 72-hour event-gate and report-explanation producer fix.
