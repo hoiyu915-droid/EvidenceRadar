@@ -13,6 +13,9 @@ on:
       - "EVIDENCE_RADAR_PROTOCOL.md"
       - "requirements.txt"
       - ".github/workflows/daily-radar.yml"
+      # Operational control path: changing only this request file starts a
+      # formal Radar run without mutating producer/runtime source.
+      - ".github/evidenceradar-run-request.json"
   # 06:17 in Asia/Tokyo.  The non-zero minute avoids the busiest top-of-hour
   # scheduling window while retaining a stable daily handoff.
   schedule:
