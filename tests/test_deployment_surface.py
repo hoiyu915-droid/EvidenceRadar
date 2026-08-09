@@ -156,11 +156,32 @@ class GithubDeploymentSurfaceTests(unittest.TestCase):
 
     def test_public_release_validates_the_canonical_current_bundle(self) -> None:
         self.assertIn("fetch-depth: 0", self.public_release_workflow)
-        self.assertIn("Validate canonical delivery bundle", self.public_release_workflow)
-        self.assertIn("--bundle artifacts/current", self.public_release_workflow)
-        self.assertIn("--canonical-state state/current/EvidenceRadar_State.json", self.public_release_workflow)
+        self.assertIn(
+            "Validate committed canonical bundle against its recorded producer",
+            self.public_release_workflow,
+        )
+        self.assertIn("EvidenceRadar_Run.json", self.public_release_workflow)
+        self.assertIn('git cat-file -e "$protocol_commit^{commit}"', self.public_release_workflow)
+        self.assertIn("git worktree add --detach", self.public_release_workflow)
+        self.assertIn(
+            'python "$producer_root/tools/validate_delivery_bundle.py"',
+            self.public_release_workflow,
+        )
+        self.assertIn(
+            '--bundle "$GITHUB_WORKSPACE/artifacts/current"',
+            self.public_release_workflow,
+        )
+        self.assertIn(
+            '--canonical-state "$GITHUB_WORKSPACE/state/current/EvidenceRadar_State.json"',
+            self.public_release_workflow,
+        )
         self.assertIn("--require-current-producer", self.public_release_workflow)
         self.assertIn("--require-semantic-contract-v3", self.public_release_workflow)
+        tests_index = self.public_release_workflow.index("Run standard-library tests")
+        bundle_index = self.public_release_workflow.index(
+            "Validate committed canonical bundle against its recorded producer"
+        )
+        self.assertLess(tests_index, bundle_index)
 
     def test_pages_deploys_only_a_validated_bundle_and_emits_links(self) -> None:
         for marker in (

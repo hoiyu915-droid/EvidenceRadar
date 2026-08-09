@@ -1,6 +1,18 @@
 name: EvidenceRadar daily (GitHub Actions lane)
 
 on:
+  # Producer/schema changes should immediately publish a fresh bundle.
+  # Generated artifact writeback touches only artifacts/state/runs, so it
+  # cannot recursively retrigger this path-scoped push event.
+  push:
+    branches: [main]
+    paths:
+      - "tools/**"
+      - "schemas/**"
+      - "config/**"
+      - "EVIDENCE_RADAR_PROTOCOL.md"
+      - "requirements.txt"
+      - ".github/workflows/daily-radar.yml"
   # 06:17 in Asia/Tokyo.  The non-zero minute avoids the busiest top-of-hour
   # scheduling window while retaining a stable daily handoff.
   schedule:

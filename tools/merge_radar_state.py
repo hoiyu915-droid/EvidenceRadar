@@ -483,6 +483,8 @@ def _merge_work(records: Sequence[Mapping[str, Any]], tokens: Sequence[Mapping[s
         "download_urls",
         "oa_evidence",
         "topic_alignments",
+        "provider_publication_types",
+        "study_designs",
     )
     for field in list_fields:
         values = [value for record in records for value in (record.get(field) or [])]
@@ -495,6 +497,15 @@ def _merge_work(records: Sequence[Mapping[str, Any]], tokens: Sequence[Mapping[s
         values = [record[field] for record in records if isinstance(record.get(field), bool)]
         if values:
             merged[field] = any(values)
+    for field in ("document_type", "document_type_basis", "study_design_basis"):
+        informative = [
+            record
+            for record in records
+            if record.get(field) not in (None, "", "unknown", "UNKNOWN")
+        ]
+        value = _latest_value(informative or records, field)
+        if value is not None:
+            merged[field] = value
 
     # OA is a publication/repository property and must never be inferred from
     # whether this particular run could open the full text.  Preserve a

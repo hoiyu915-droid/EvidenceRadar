@@ -777,7 +777,32 @@
           "uniqueItems": true,
           "items": { "$ref": "#/$defs/topic_alignment" }
         },
-        "is_preprint": { "type": "boolean" }
+        "is_preprint": { "type": "boolean" },
+        "provider_publication_types": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "document_type": {
+          "type": "string",
+          "enum": ["journal_article", "preprint", "conference_paper", "protocol", "guideline", "other", "unknown"]
+        },
+        "document_type_basis": {
+          "type": "string",
+          "enum": ["PROVIDER_METADATA", "TITLE_EXPLICIT", "PROVIDER_METADATA_AND_TITLE", "SOURCE_CLASS", "UNKNOWN"]
+        },
+        "study_designs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "enum": ["randomized_controlled_trial", "clinical_trial", "systematic_review", "meta_analysis", "scoping_review", "review", "cohort_study", "case_control_study", "cross_sectional_study", "case_report", "qualitative_study", "observational_study", "animal_study", "in_vitro_study", "computational_study", "protocol"]
+          }
+        },
+        "study_design_basis": {
+          "type": "string",
+          "enum": ["PROVIDER_METADATA", "TITLE_EXPLICIT", "PROVIDER_METADATA_AND_TITLE", "SOURCE_CLASS", "UNKNOWN"]
+        }
       }
     },
     "oa_evidence": {

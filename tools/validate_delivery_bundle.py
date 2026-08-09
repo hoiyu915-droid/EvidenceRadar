@@ -67,6 +67,10 @@ FULLTEXT_ACCESS_STATUSES = {
 }
 FULLTEXT_KINDS = {"PDF", "HTML", "REPOSITORY", "ABSTRACT_ONLY", "UNKNOWN"}
 OA_STATUSES = {"YES", "NO", "UNKNOWN"}
+DOCUMENT_TYPES = {"journal_article", "preprint", "conference_paper", "protocol", "guideline", "other", "unknown"}
+STUDY_DESIGNS = {"randomized_controlled_trial", "clinical_trial", "systematic_review", "meta_analysis", "scoping_review", "review", "cohort_study", "case_control_study", "cross_sectional_study", "case_report", "qualitative_study", "observational_study", "animal_study", "in_vitro_study", "computational_study", "protocol"}
+CLASSIFICATION_BASES = {"PROVIDER_METADATA", "TITLE_EXPLICIT", "PROVIDER_METADATA_AND_TITLE", "SOURCE_CLASS", "UNKNOWN"}
+STUDY_CLASSIFICATION_PARITY_FIELDS = ("provider_publication_types", "document_type", "document_type_basis", "study_designs", "study_design_basis")
 STATE_RUN_PARITY_FIELDS = (
     "identity_status",
     "oa_status",
@@ -104,6 +108,8 @@ class DeliveryHtmlParser(HTMLParser):
         self.claim_ids: list[str] = []
         self.content_roles: list[str] = []
         self.html_languages: list[str] = []
+        self.document_types: dict[str, str] = {}
+        self.study_designs: dict[str, str] = {}
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         values = {str(key).casefold(): value for key, value in attrs}
@@ -121,6 +127,10 @@ class DeliveryHtmlParser(HTMLParser):
                 self.featured_flags[work_id_text] = featured_text
                 if featured_text == "true":
                     self.featured_ids.append(work_id_text)
+            if values.get("data-document-type") is not None:
+                self.document_types[work_id_text] = str(values.get("data-document-type") or "")
+            if values.get("data-study-designs") is not None:
+                self.study_designs[work_id_text] = str(values.get("data-study-designs") or "")
         claim_id = values.get("data-evidenceradar-claim-id")
         if claim_id:
             self.claim_ids.append(str(claim_id))
@@ -149,6 +159,48 @@ def _modern_contract(run: Mapping[str, Any]) -> bool:
 
 def _v3_contract(run: Mapping[str, Any]) -> bool:
     return _contract_marker(run, "SEMANTIC_CONTRACT_V3")
+
+
+def _study_classification_contract(run: Mapping[str, Any]) -> bool:
+    return _contract_marker(run, "STUDY_CLASSIFICATION_V1")
+
+
+def _study_classification_errors(item: Mapping[str, Any], index: int) -> list[str]:
+    errors: list[str] = []
+    prefix = f"Run.candidates[{index}]"
+    provider_types = item.get("provider_publication_types")
+    if not isinstance(provider_types, list) or any(not isinstance(value, str) or not value.strip() for value in provider_types):
+        errors.append(f"{prefix}.provider_publication_types must be a list of non-empty strings")
+    elif len(provider_types) != len(set(provider_types)):
+        errors.append(f"{prefix}.provider_publication_types must be unique")
+    document_type = item.get("document_type")
+    if document_type not in DOCUMENT_TYPES:
+        errors.append(f"{prefix}.document_type is invalid")
+    document_basis = item.get("document_type_basis")
+    if document_basis not in CLASSIFICATION_BASES:
+        errors.append(f"{prefix}.document_type_basis is invalid")
+    if document_type not in (None, "unknown") and document_basis == "UNKNOWN":
+        errors.append(f"{prefix}.document_type requires a non-UNKNOWN basis")
+    study_designs = item.get("study_designs")
+    if not isinstance(study_designs, list):
+        errors.append(f"{prefix}.study_designs must be a list")
+    else:
+        if len(study_designs) != len(set(study_designs)):
+            errors.append(f"{prefix}.study_designs must be unique")
+        invalid = sorted({str(value) for value in study_designs if not isinstance(value, str) or value not in STUDY_DESIGNS})
+        if invalid:
+            errors.append(f"{prefix}.study_designs contains invalid values: {invalid!r}")
+    study_basis = item.get("study_design_basis")
+    if study_basis not in CLASSIFICATION_BASES:
+        errors.append(f"{prefix}.study_design_basis is invalid")
+    if isinstance(study_designs, list):
+        if study_designs and study_basis == "UNKNOWN":
+            errors.append(f"{prefix}.study_designs requires a non-UNKNOWN basis")
+        if not study_designs and study_basis not in {"UNKNOWN", None}:
+            errors.append(f"{prefix}.empty study_designs must use UNKNOWN basis")
+    if item.get("is_preprint") is True and document_type != "preprint":
+        errors.append(f"{prefix}.is_preprint=true requires document_type=preprint")
+    return errors
 
 
 def _load_object(path: Path, errors: list[str]) -> dict[str, Any] | None:
@@ -202,6 +254,8 @@ def _candidate_errors(run: Mapping[str, Any], report_html: str) -> list[str]:
             errors.append(f"Run.candidates[{index}].work_id must be non-empty")
             continue
         work_ids.append(work_id)
+        if _study_classification_contract(run):
+            errors.extend(_study_classification_errors(item, index))
         if item.get("displayed_in_report") is True:
             displayed_ids.append(work_id)
             if item.get("summary_language") != "zh-TW":
@@ -302,6 +356,19 @@ def _candidate_errors(run: Mapping[str, Any], report_html: str) -> list[str]:
             + (f"; missing={missing[:5]!r}" if missing else "")
             + (f"; extra={extra[:5]!r}" if extra else "")
         )
+    if _study_classification_contract(run):
+        by_work_id = {
+            str(item.get("work_id")): item
+            for item in candidates
+            if isinstance(item, Mapping) and item.get("displayed_in_report") is True
+        }
+        for work_id, item in by_work_id.items():
+            expected_document = str(item.get("document_type") or "unknown")
+            expected_designs = "|".join(str(value) for value in item.get("study_designs", []))
+            if parser.document_types.get(work_id) != expected_document:
+                errors.append(f"Report study binding for {work_id} has document_type={parser.document_types.get(work_id)!r}; expected {expected_document!r}")
+            if parser.study_designs.get(work_id) != expected_designs:
+                errors.append(f"Report study binding for {work_id} has study_designs={parser.study_designs.get(work_id)!r}; expected {expected_designs!r}")
     modern = _modern_contract(run)
     if modern:
         featured_count = _require_integer(counts, "featured_candidates", errors)
@@ -866,6 +933,8 @@ def _state_run_parity_errors(
             for field in STATE_RUN_PARITY_FIELDS
             if field not in {"identity_status", "access_depth", "access_outcome", "topic_alignments"}
         )
+        if _study_classification_contract(run):
+            parity_fields = (*parity_fields, *STUDY_CLASSIFICATION_PARITY_FIELDS)
         for field in parity_fields:
             if field not in candidate:
                 errors.append(f"Run.candidates[{index}] is missing State parity field {field!r}")

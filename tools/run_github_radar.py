@@ -111,6 +111,223 @@ class RadarRuntimeError(RuntimeError):
     """Raised when a run cannot produce a structurally valid bundle."""
 
 
+DOCUMENT_TYPES = {
+    "journal_article",
+    "preprint",
+    "conference_paper",
+    "protocol",
+    "guideline",
+    "other",
+    "unknown",
+}
+STUDY_DESIGNS = {
+    "randomized_controlled_trial",
+    "clinical_trial",
+    "systematic_review",
+    "meta_analysis",
+    "scoping_review",
+    "review",
+    "cohort_study",
+    "case_control_study",
+    "cross_sectional_study",
+    "case_report",
+    "qualitative_study",
+    "observational_study",
+    "animal_study",
+    "in_vitro_study",
+    "computational_study",
+    "protocol",
+}
+CLASSIFICATION_BASES = {
+    "PROVIDER_METADATA",
+    "TITLE_EXPLICIT",
+    "PROVIDER_METADATA_AND_TITLE",
+    "SOURCE_CLASS",
+    "UNKNOWN",
+}
+
+_TITLE_STUDY_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
+    (
+        "randomized_controlled_trial",
+        re.compile(
+            r"\b(?:randomi[sz]ed\s+(?:controlled|clinical)\s+trial|"
+            r"cluster[- ]randomi[sz]ed(?:\s+controlled)?\s+trial|"
+            r"pragmatic\s+randomi[sz]ed(?:\s+controlled)?\s+trial)\b",
+            re.IGNORECASE,
+        ),
+    ),
+    ("systematic_review", re.compile(r"\bsystematic\s+review\b", re.IGNORECASE)),
+    ("meta_analysis", re.compile(r"\bmeta[- ]analys(?:is|es)\b", re.IGNORECASE)),
+    ("scoping_review", re.compile(r"\bscoping\s+review\b", re.IGNORECASE)),
+    ("cohort_study", re.compile(r"\b(?:prospective\s+|retrospective\s+)?cohort\s+stud(?:y|ies)\b", re.IGNORECASE)),
+    ("case_control_study", re.compile(r"\bcase[- ]control(?:led)?\s+stud(?:y|ies)\b", re.IGNORECASE)),
+    ("cross_sectional_study", re.compile(r"\bcross[- ]sectional\s+stud(?:y|ies)\b", re.IGNORECASE)),
+    ("case_report", re.compile(r"\bcase\s+(?:report|series)\b", re.IGNORECASE)),
+    ("qualitative_study", re.compile(r"\bqualitative\s+(?:study|research|analysis)\b", re.IGNORECASE)),
+    ("animal_study", re.compile(r"\b(?:animal|murine|mouse|mice|rat)\s+(?:study|model|experiment)\b", re.IGNORECASE)),
+    ("in_vitro_study", re.compile(r"\bin[- ]vitro\b", re.IGNORECASE)),
+    ("computational_study", re.compile(r"\bcomputational\s+(?:study|analysis|model(?:ing|ling)?)\b", re.IGNORECASE)),
+    (
+        "protocol",
+        re.compile(
+            r"\b(?:study|trial|review|research)\s+protocol\b|"
+            r"\bprotocol\s+(?:for|of)\b|\bprotocol\s*:",
+            re.IGNORECASE,
+        ),
+    ),
+)
+
+
+def _publication_label(value: object) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", str(value or "").casefold()).strip()
+
+
+def _stable_publication_types(values: Iterable[object]) -> list[str]:
+    observed: dict[str, str] = {}
+    for value in values:
+        text = re.sub(r"\s+", " ", str(value or "")).strip()
+        if not text:
+            continue
+        key = text.casefold()
+        if key not in observed or text < observed[key]:
+            observed[key] = text
+    return [observed[key] for key in sorted(observed)]
+
+
+def _provider_study_designs(publication_types: Iterable[str]) -> set[str]:
+    designs: set[str] = set()
+    for raw in publication_types:
+        label = _publication_label(raw)
+        if not label:
+            continue
+        if "randomized controlled trial" in label or "randomised controlled trial" in label:
+            designs.add("randomized_controlled_trial")
+        elif "clinical trial" in label and "protocol" not in label:
+            designs.add("clinical_trial")
+        if "systematic review" in label:
+            designs.add("systematic_review")
+        if "meta analysis" in label:
+            designs.add("meta_analysis")
+        if "scoping review" in label:
+            designs.add("scoping_review")
+        elif label in {"review", "review article"}:
+            designs.add("review")
+        if "cohort study" in label:
+            designs.add("cohort_study")
+        if "case control" in label:
+            designs.add("case_control_study")
+        if "cross sectional" in label:
+            designs.add("cross_sectional_study")
+        if label in {"case reports", "case report"}:
+            designs.add("case_report")
+        if "qualitative" in label:
+            designs.add("qualitative_study")
+        if "observational study" in label:
+            designs.add("observational_study")
+        if "protocol" in label:
+            designs.add("protocol")
+    return designs
+
+
+def _title_study_designs(title: str) -> set[str]:
+    return {
+        design
+        for design, pattern in _TITLE_STUDY_PATTERNS
+        if pattern.search(title or "")
+    }
+
+
+def classify_publication(
+    *,
+    title: str,
+    source: str,
+    is_preprint: bool,
+    provider_publication_types: Iterable[str],
+) -> dict[str, Any]:
+    """Return a conservative two-axis publication/study classification.
+
+    Version 1 intentionally uses provider metadata and explicit title phrases
+    only.  It never infers a study design from an abstract, model guess, venue
+    reputation, or topic.  Unresolved items remain ``unknown`` / empty.
+    """
+
+    publication_types = _stable_publication_types(provider_publication_types)
+    labels = [_publication_label(value) for value in publication_types]
+    provider_designs = _provider_study_designs(publication_types)
+    title_designs = _title_study_designs(title)
+    designs = sorted(provider_designs | title_designs)
+    if provider_designs and title_designs:
+        study_basis = "PROVIDER_METADATA_AND_TITLE"
+    elif provider_designs:
+        study_basis = "PROVIDER_METADATA"
+    elif title_designs:
+        study_basis = "TITLE_EXPLICIT"
+    else:
+        study_basis = "UNKNOWN"
+
+    source_key = re.sub(r"[^a-z0-9]+", " ", source.casefold()).strip()
+    title_protocol = "protocol" in title_designs
+    title_guideline = bool(
+        re.search(r"\b(?:clinical\s+practice\s+)?guidelines?\b", title or "", re.IGNORECASE)
+    )
+    provider_preprint = any(label in {"preprint", "posted content"} for label in labels)
+    provider_protocol = any("protocol" in label for label in labels)
+    provider_guideline = any("guideline" in label for label in labels)
+    provider_conference = any(
+        label in {"proceedings article", "conference paper", "conference proceedings"}
+        for label in labels
+    )
+    provider_journal = any(
+        label in {"journal article", "article", "research article"}
+        for label in labels
+    )
+
+    if provider_preprint:
+        document_type, document_basis = "preprint", "PROVIDER_METADATA"
+    elif is_preprint:
+        document_type, document_basis = "preprint", "SOURCE_CLASS"
+    elif provider_protocol:
+        document_type, document_basis = "protocol", "PROVIDER_METADATA"
+    elif provider_guideline:
+        document_type, document_basis = "guideline", "PROVIDER_METADATA"
+    elif provider_conference:
+        document_type, document_basis = "conference_paper", "PROVIDER_METADATA"
+    elif title_protocol:
+        document_type, document_basis = "protocol", "TITLE_EXPLICIT"
+    elif title_guideline:
+        document_type, document_basis = "guideline", "TITLE_EXPLICIT"
+    elif source_key in {"acl anthology", "pmlr"}:
+        document_type, document_basis = "conference_paper", "SOURCE_CLASS"
+    elif provider_journal:
+        document_type, document_basis = "journal_article", "PROVIDER_METADATA"
+    elif source_key in {"pubmed", "europe pmc"}:
+        document_type, document_basis = "journal_article", "SOURCE_CLASS"
+    else:
+        document_type, document_basis = "unknown", "UNKNOWN"
+
+    return {
+        "document_type": document_type,
+        "document_type_basis": document_basis,
+        "provider_publication_types": publication_types,
+        "study_designs": designs,
+        "study_design_basis": study_basis,
+    }
+
+
+def _apply_candidate_classification(candidate: "Candidate") -> None:
+    classified = classify_publication(
+        title=candidate.title,
+        source=candidate.source,
+        is_preprint=bool(candidate.is_preprint),
+        provider_publication_types=candidate.provider_publication_types,
+    )
+    candidate.document_type = str(classified["document_type"])
+    candidate.document_type_basis = str(classified["document_type_basis"])
+    candidate.provider_publication_types = list(classified["provider_publication_types"])
+    candidate.study_designs = list(classified["study_designs"])
+    candidate.study_design_basis = str(classified["study_design_basis"])
+
+
 @dataclass
 class Candidate:
     title: str
@@ -132,6 +349,11 @@ class Candidate:
     oa_status: str = "UNKNOWN"
     oa_evidence: list[dict[str, Any]] = field(default_factory=list)
     is_preprint: bool = False
+    provider_publication_types: list[str] = field(default_factory=list)
+    document_type: str = "unknown"
+    document_type_basis: str = "UNKNOWN"
+    study_designs: list[str] = field(default_factory=list)
+    study_design_basis: str = "UNKNOWN"
     events: list[dict[str, Any]] = field(default_factory=list)
     event_class: str = "OTHER"
     score: int = 0
@@ -155,6 +377,7 @@ class Candidate:
         self.oa_evidence = _stable_object_union(
             [*(self.oa_evidence or []), *_provider_oa_evidence(self)]
         )
+        _apply_candidate_classification(self)
 
     @property
     def normalized_title(self) -> str:
@@ -829,6 +1052,10 @@ def fetch_pubmed(
             _text(node) for node in article.findall("Abstract/AbstractText") if _text(node)
         )
         doi = normalize_doi(identifiers.get("doi", ""))
+        publication_types = _stable_publication_types(
+            _text(node) for node in article.findall("PublicationTypeList/PublicationType")
+            if _text(node)
+        )
         candidates.append(
             Candidate(
                 title=title,
@@ -844,6 +1071,7 @@ def fetch_pubmed(
                 pmcid=identifiers.get("pmc", ""),
                 landing_url=f"https://doi.org/{quote(doi, safe='/')}" if doi else "",
                 open_access=True if identifiers.get("pmc") else None,
+                provider_publication_types=publication_types,
                 events=events,
             )
         )
@@ -954,6 +1182,7 @@ def fetch_openalex(
                     else (item.get("open_access") or {}).get("is_oa")
                 ),
                 is_preprint=work_type.casefold() in {"preprint", "posted-content"},
+                provider_publication_types=[work_type] if work_type else [],
                 events=events,
             )
         )
@@ -1111,6 +1340,14 @@ def fetch_europe_pmc(
             ]
         journal_info = item.get("journalInfo") or {}
         journal = journal_info.get("journal") or {}
+        raw_publication_types = item.get("pubTypeList") or item.get("pubType") or []
+        if isinstance(raw_publication_types, dict):
+            raw_publication_types = raw_publication_types.get("pubType", [])
+        if isinstance(raw_publication_types, str):
+            raw_publication_types = [raw_publication_types]
+        if not isinstance(raw_publication_types, list):
+            raw_publication_types = []
+        publication_types = _stable_publication_types(raw_publication_types)
         candidates.append(
             Candidate(
                 title=title,
@@ -1145,6 +1382,7 @@ def fetch_europe_pmc(
                         )
                     )
                 ),
+                provider_publication_types=publication_types,
                 events=events,
             )
         )
@@ -1898,6 +2136,10 @@ def _merge_candidate_observations(target: Candidate, incoming: Candidate) -> Non
             *_provider_oa_evidence(target),
         ]
     )
+    target.provider_publication_types = _stable_publication_types(
+        [*(target.provider_publication_types or []), *(incoming.provider_publication_types or [])]
+    )
+    _apply_candidate_classification(target)
 
 
 def deduplicate(candidates: Iterable[Candidate]) -> list[Candidate]:
@@ -2882,6 +3124,11 @@ def build_candidate_ledger(
             "displayed_in_report": candidate.work_id in displayed_work_ids,
             "topic_alignments": topic_alignments,
             "is_preprint": candidate.is_preprint,
+            "provider_publication_types": list(candidate.provider_publication_types),
+            "document_type": candidate.document_type,
+            "document_type_basis": candidate.document_type_basis,
+            "study_designs": list(candidate.study_designs),
+            "study_design_basis": candidate.study_design_basis,
         }
         if candidate.venue:
             record["venue"] = candidate.venue
@@ -2971,6 +3218,11 @@ def build_state(
                 "event_class": candidate.event_class,
                 "topic_alignments": current_alignments,
                 "is_preprint": candidate.is_preprint,
+                "provider_publication_types": list(candidate.provider_publication_types),
+                "document_type": candidate.document_type,
+                "document_type_basis": candidate.document_type_basis,
+                "study_designs": list(candidate.study_designs),
+                "study_design_basis": candidate.study_design_basis,
             }
             if candidate.open_access is not None:
                 work["open_access"] = candidate.open_access
@@ -3023,6 +3275,11 @@ def build_state(
                 for stream_id in sorted(set(work.get("streams", [])))
             ]
             work["is_preprint"] = bool(work.get("is_preprint")) or candidate.is_preprint
+            work["provider_publication_types"] = list(candidate.provider_publication_types)
+            work["document_type"] = candidate.document_type
+            work["document_type_basis"] = candidate.document_type_basis
+            work["study_designs"] = list(candidate.study_designs)
+            work["study_design_basis"] = candidate.study_design_basis
         prior_works[candidate.work_id] = work
 
     for candidate, event, access in selected:
@@ -3099,6 +3356,7 @@ def build_state(
         "parent_run_ids": parent_ids,
         "notes": [
             "SEMANTIC_CONTRACT_V3",
+            "STUDY_CLASSIFICATION_V1",
             "All deduplicated discovery candidates are retained in State; notification events remain source-access gated."
         ],
     }
@@ -4093,6 +4351,33 @@ def render_report(
         "REVIEW_REQUIRED": "需人工檢查",
         "LOWER_PRIORITY": "延伸候選",
     }
+    document_type_labels = {
+        "journal_article": "期刊論文",
+        "preprint": "預印本",
+        "conference_paper": "會議論文",
+        "protocol": "Protocol",
+        "guideline": "Guideline",
+        "other": "其他文獻",
+        "unknown": "類型待確認",
+    }
+    study_design_labels = {
+        "randomized_controlled_trial": "RCT",
+        "clinical_trial": "Clinical trial",
+        "systematic_review": "系統性回顧",
+        "meta_analysis": "Meta-analysis",
+        "scoping_review": "Scoping review",
+        "review": "Review",
+        "cohort_study": "Cohort",
+        "case_control_study": "Case-control",
+        "cross_sectional_study": "Cross-sectional",
+        "case_report": "Case report",
+        "qualitative_study": "Qualitative",
+        "observational_study": "Observational",
+        "animal_study": "Animal",
+        "in_vitro_study": "In vitro",
+        "computational_study": "Computational",
+        "protocol": "Protocol",
+    }
     summary_labels = {
         "TRANSLATED_ABSTRACT_EXCERPT_ZH_TW": "AI 輔助繁中摘要",
         "PROVIDER_ABSTRACT_ZH_TW": "來源繁中摘要節錄",
@@ -4167,6 +4452,13 @@ def render_report(
             classification = str(item.get("event_class") or "OTHER")
             oa_status = str(item.get("oa_status") or "UNKNOWN")
             access_status = str(item.get("access_status") or "NOT_CHECKED")
+            document_type = str(item.get("document_type") or "unknown")
+            document_type_basis = str(item.get("document_type_basis") or "UNKNOWN")
+            study_designs = [str(value) for value in item.get("study_designs", [])]
+            study_design_basis = str(item.get("study_design_basis") or "UNKNOWN")
+            provider_publication_types = [
+                str(value) for value in item.get("provider_publication_types", [])
+            ]
             oa_label = {"YES": "OA：是", "NO": "OA：否", "UNKNOWN": "OA：未知"}.get(
                 oa_status, f"OA：{oa_status}"
             )
@@ -4187,6 +4479,17 @@ def render_report(
                 f'<span class="source-chip">{html.escape(value)}</span>'
                 for value in discovery_sources
             )
+            study_badges: list[str] = []
+            if document_type != "unknown":
+                study_badges.append(
+                    f'<span class="study-chip document-type">{html.escape(document_type_labels.get(document_type, document_type))}</span>'
+                )
+            study_badges.extend(
+                f'<span class="study-chip study-design">{html.escape(study_design_labels.get(value, value))}</span>'
+                for value in study_designs
+            )
+            study_badges_html = "".join(study_badges)
+            study_type_values = [document_type, *study_designs]
             triage_status = str(item["triage_status"])
             triage_class = triage_status.casefold().replace("_", "-")
             search_value = " ".join(
@@ -4198,6 +4501,8 @@ def render_report(
                     identifiers,
                     category,
                     " ".join(discovery_sources),
+                    " ".join(study_design_labels.get(value, value) for value in study_designs),
+                    document_type_labels.get(document_type, document_type),
                 ]
             )
             detail_id = f"candidate-{rank:04d}"
@@ -4211,6 +4516,9 @@ def render_report(
                 f'data-event-class="{html.escape(str(item.get("event_class") or "OTHER"), quote=True)}" '
                 f'data-oa-status="{html.escape(str(item.get("oa_status") or "UNKNOWN"), quote=True)}" '
                 f'data-access-status="{html.escape(str(item.get("access_status") or "NOT_CHECKED"), quote=True)}" '
+                f'data-document-type="{html.escape(document_type, quote=True)}" '
+                f'data-study-designs="{html.escape("|".join(study_designs), quote=True)}" '
+                f'data-study-types="{html.escape("|".join(study_type_values), quote=True)}" '
                 f'data-source="{html.escape("|".join(discovery_sources), quote=True)}" '
                 f'data-search="{html.escape(search_value, quote=True)}">'
                 '<div class="card-kicker">'
@@ -4220,6 +4528,7 @@ def render_report(
                 f'<span class="access-chip oa-{html.escape(oa_status.casefold())}">{html.escape(oa_label)}</span>'
                 f'<span class="access-chip access-{html.escape(access_status.casefold())}">{html.escape(access_label)}</span>'
                 f'<span class="access-chip event-{html.escape(classification.casefold())}">{html.escape(event_class_label)}</span>'
+                f'{study_badges_html}'
                 f'<span class="score">排序分數 {int(item["routing_score"])}</span>'
                 '</div>'
                 f'<h3>{title_html}</h3>'
@@ -4243,6 +4552,9 @@ def render_report(
                 f'<dt>Identifiers</dt><dd>{html.escape(identifiers) if identifiers else "未提供"}</dd>'
                 f'<dt>Event</dt><dd><code>{html.escape(event_text)}</code></dd>'
                 f'<dt>Event class</dt><dd><code>{html.escape(classification)}</code></dd>'
+                f'<dt>Document type</dt><dd><code>{html.escape(document_type)}</code> · basis <code>{html.escape(document_type_basis)}</code></dd>'
+                f'<dt>Study design</dt><dd>{html.escape(", ".join(study_design_labels.get(value, value) for value in study_designs)) if study_designs else "未可靠分類"} · basis <code>{html.escape(study_design_basis)}</code></dd>'
+                f'<dt>Provider publication types</dt><dd>{html.escape(", ".join(provider_publication_types)) if provider_publication_types else "未提供"}</dd>'
                 f'<dt>Publisher access</dt><dd><code>{html.escape(str(item["publisher_access_status"]))}</code> '
                 f'{html.escape(str(item["publisher_access_reason"]))}</dd>'
                 f'<dt>OA status</dt><dd><code>{html.escape(oa_status)}</code>；證據 {html.escape(oa_evidence_text)}</dd>'
@@ -4409,7 +4721,7 @@ h1{margin:.1rem 0 .45rem;font-size:clamp(2rem,5vw,3.5rem);line-height:1.08;lette
 .metric{padding:14px 16px;border:1px solid rgba(255,255,255,.18);border-radius:14px;background:rgba(255,255,255,.1);backdrop-filter:blur(6px)}
 .metric strong{display:block;font-size:1.75rem;line-height:1.15}.metric span{font-size:.82rem;color:#dbeafe}
 .jump-links{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px}.jump-links a{color:#fff;text-decoration:none;border:1px solid rgba(255,255,255,.25);border-radius:999px;padding:6px 11px;font-size:.86rem}.jump-links a:hover{background:rgba(255,255,255,.12)}
-.controls{position:sticky;top:0;z-index:20;display:grid;grid-template-columns:minmax(220px,2fr) repeat(5,minmax(130px,1fr)) auto;gap:10px;align-items:end;margin:0 0 18px;padding:14px;border:1px solid var(--line);border-radius:16px;background:rgba(255,255,255,.96);box-shadow:0 8px 24px rgba(15,23,42,.09);backdrop-filter:blur(10px)}
+.controls{position:sticky;top:0;z-index:20;display:grid;grid-template-columns:minmax(220px,2fr) repeat(6,minmax(130px,1fr)) auto;gap:10px;align-items:end;margin:0 0 18px;padding:14px;border:1px solid var(--line);border-radius:16px;background:rgba(255,255,255,.96);box-shadow:0 8px 24px rgba(15,23,42,.09);backdrop-filter:blur(10px)}
 .control label{display:block;margin:0 0 4px;font-size:.74rem;font-weight:800;color:var(--muted);letter-spacing:.04em}.control input,.control select{width:100%;min-height:42px;border:1px solid #b9c5d3;border-radius:9px;padding:8px 10px;color:var(--ink);background:#fff;font:inherit}.control input:focus,.control select:focus{outline:3px solid #bae6fd;border-color:#0284c7}
 .control-actions{display:flex;gap:6px;flex-wrap:wrap}.button{min-height:42px;border:1px solid #b9c5d3;border-radius:9px;padding:7px 11px;background:#fff;color:var(--ink);font-weight:700;cursor:pointer}.button:hover{background:#f1f5f9}.button.primary{border-color:#0369a1;background:#0369a1;color:#fff}.result-count{grid-column:1/-1;margin:0;color:var(--muted);font-size:.88rem}
 .panel,.category{margin:14px 0;border:1px solid var(--line);border-radius:16px;background:var(--paper);box-shadow:0 4px 16px rgba(15,23,42,.04);overflow:hidden}
@@ -4422,7 +4734,7 @@ h1{margin:.1rem 0 .45rem;font-size:clamp(2rem,5vw,3.5rem);line-height:1.08;lette
 .paper-card{display:flex;flex-direction:column;min-width:0;padding:18px;border:1px solid var(--line);border-radius:14px;background:#fff}.paper-card:hover{border-color:#9fb2c7;box-shadow:0 9px 24px rgba(15,23,42,.08)}.featured-heading{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:0 16px 10px;color:var(--brand)}.featured-heading span{color:var(--muted);font-size:.82rem}.full-pool{margin:0 16px 18px;border:1px dashed #b7c4d3;border-radius:12px;background:#fbfdff}.full-pool>summary{display:flex;justify-content:space-between;gap:12px;cursor:pointer;padding:11px 13px;color:var(--brand);font-weight:800}.full-pool .paper-grid{padding:12px}.empty-inline{grid-column:1/-1;margin:0;padding:18px;color:var(--muted)}
 .card-kicker{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:9px}.rank{font-variant-numeric:tabular-nums;color:#64748b;font-weight:800}.score{margin-left:auto;color:#64748b;font-size:.76rem}
 .paper-card h3{margin:0 0 9px;font-size:1.12rem;line-height:1.38;letter-spacing:-.012em}.paper-card h3 a{color:#0f2942}
-.source-chips{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:12px}.source-chip{padding:2px 7px;border-radius:999px;background:var(--brand-soft);color:var(--brand);font-size:.7rem;font-weight:800}
+.source-chips{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:12px}.source-chip{padding:2px 7px;border-radius:999px;background:var(--brand-soft);color:var(--brand);font-size:.7rem;font-weight:800}.study-chip{display:inline-flex;align-items:center;width:max-content;border-radius:999px;padding:3px 8px;font-size:.72rem;font-weight:850;letter-spacing:.025em;color:var(--violet);background:var(--violet-soft)}
 .content-preview{margin:0 0 13px;padding:13px 14px;border-left:4px solid #0ea5e9;border-radius:0 10px 10px 0;background:#f0f9ff}.preview-heading{display:flex;justify-content:space-between;gap:12px;margin-bottom:5px;font-size:.77rem;font-weight:850;color:#075985}.preview-heading span{font-weight:600;color:#64748b}.content-preview p{margin:0;color:#1e3a4f;line-height:1.65}
 .paper-meta{display:grid;grid-template-columns:.75fr 1.5fr .9fr;gap:8px;margin-top:auto}.paper-meta span{min-width:0;color:#475569;font-size:.82rem}.paper-meta b{display:block;color:#64748b;font-size:.68rem;text-transform:uppercase;letter-spacing:.04em}.authors{margin:10px 0 0;color:#52606d;font-size:.82rem}
 .audit-details{margin-top:13px;padding-top:11px;border-top:1px solid #e7edf3}.audit-details>summary{cursor:pointer;color:var(--brand);font-weight:750;font-size:.84rem}.audit-grid{display:grid;grid-template-columns:130px minmax(0,1fr);gap:8px 12px;margin:13px 0 0;padding:12px;border-radius:10px;background:#f8fafc;font-size:.82rem}.audit-grid dt{color:#64748b;font-weight:750}.audit-grid dd{min-width:0;margin:0;overflow-wrap:anywhere}.source-links{display:flex;gap:6px;flex-wrap:wrap}.source-button{display:inline-flex;padding:3px 8px;border:1px solid #bfdbfe;border-radius:7px;text-decoration:none}.audit-note{margin:10px 0 0;color:#7c2d12;font-size:.76rem}.inline-alert{margin:9px 0 0;padding:8px;border-radius:8px;color:var(--bad);background:var(--bad-soft);font-size:.78rem}.muted{color:var(--muted)}
@@ -4444,6 +4756,7 @@ h1{margin:.1rem 0 .45rem;font-size:clamp(2rem,5vw,3.5rem);line-height:1.08;lette
   const eventClass = document.getElementById('event-filter');
   const oaStatus = document.getElementById('oa-filter');
   const accessStatus = document.getElementById('access-filter');
+  const studyType = document.getElementById('study-type-filter');
   const resultCount = document.getElementById('result-count');
   const emptyState = document.getElementById('empty-state');
   const normalize = value => (value || '').toLocaleLowerCase();
@@ -4456,7 +4769,8 @@ h1{margin:.1rem 0 .45rem;font-size:clamp(2rem,5vw,3.5rem);line-height:1.08;lette
     const eventValue = eventClass.value;
     const oaValue = oaStatus.value;
     const accessValue = accessStatus.value;
-    const filtering = Boolean(query || categoryValue || triageValue || sourceValue || eventValue || oaValue || accessValue);
+    const studyValue = studyType.value;
+    const filtering = Boolean(query || categoryValue || triageValue || sourceValue || eventValue || oaValue || accessValue || studyValue);
     let visible = 0;
     cards.forEach(card => {
       const sourceValues = (card.dataset.source || '').split('|');
@@ -4466,7 +4780,8 @@ h1{margin:.1rem 0 .45rem;font-size:clamp(2rem,5vw,3.5rem);line-height:1.08;lette
         (!sourceValue || sourceValues.includes(sourceValue)) &&
         (!eventValue || card.dataset.eventClass === eventValue) &&
         (!oaValue || card.dataset.oaStatus === oaValue) &&
-        (!accessValue || card.dataset.accessStatus === accessValue);
+        (!accessValue || card.dataset.accessStatus === accessValue) &&
+        (!studyValue || (card.dataset.studyTypes || "").split("|").includes(studyValue));
       card.hidden = !match;
       if (match) visible += 1;
     });
@@ -4486,7 +4801,7 @@ h1{margin:.1rem 0 .45rem;font-size:clamp(2rem,5vw,3.5rem);line-height:1.08;lette
     emptyState.hidden = visible !== 0;
   }
 
-  [search, category, triage, source, eventClass, oaStatus, accessStatus].forEach(control => {
+  [search, category, triage, source, eventClass, oaStatus, accessStatus, studyType].forEach(control => {
     control.addEventListener(control === search ? 'input' : 'change', applyFilters);
   });
   document.getElementById('reset-filters').addEventListener('click', () => {
@@ -4497,6 +4812,7 @@ h1{margin:.1rem 0 .45rem;font-size:clamp(2rem,5vw,3.5rem);line-height:1.08;lette
     eventClass.value = '';
     oaStatus.value = '';
     accessStatus.value = '';
+    studyType.value = '';
     applyFilters();
     search.focus();
   });
@@ -4520,6 +4836,7 @@ h1{margin:.1rem 0 .45rem;font-size:clamp(2rem,5vw,3.5rem);line-height:1.08;lette
 <meta name="evidenceradar-displayed-candidates" content="{len(displayed)}">
 <meta name="evidenceradar-featured-candidates" content="{len(featured_work_ids)}">
 <meta name="evidenceradar-claim-count" content="{len(claims)}">
+<meta name="evidenceradar-study-classification" content="v1">
 <title>EvidenceRadar｜近期研究候選報告</title>
 <style>{style}</style>
 </head>
@@ -4529,7 +4846,7 @@ h1{margin:.1rem 0 .45rem;font-size:clamp(2rem,5vw,3.5rem);line-height:1.08;lette
 <header class="hero">
 <p class="eyebrow">EvidenceRadar · automated discovery lane</p>
 <h1>近期研究候選報告</h1>
-<p class="lede">先讀每類今日精選，再按需展開完整候選池。OA 狀態與本輪全文存取分開顯示；被擋的 OA 來源仍保留為 OA，且 DOI／摘要頁不會被算成全文成功。</p>
+<p class="lede">先讀每類今日精選，再按需展開完整候選池。文獻／研究類型採來源 metadata 與題名明示的保守分類；不確定就留白。OA 狀態與本輪全文存取分開顯示；被擋的 OA 來源仍保留為 OA，且 DOI／摘要頁不會被算成全文成功。</p>
 <div class="run-line">
 <span>產生時間：{html.escape(generated_at.isoformat())}</span>
 <span>觀測窗：{html.escape(start.isoformat())} → {html.escape(end.isoformat())}</span>
@@ -4557,6 +4874,7 @@ h1{margin:.1rem 0 .45rem;font-size:clamp(2rem,5vw,3.5rem);line-height:1.08;lette
 <div class="control"><label for="event-filter">事件分流</label><select id="event-filter"><option value="">全部事件</option>{event_options}</select></div>
 <div class="control"><label for="oa-filter">OA 狀態</label><select id="oa-filter"><option value="">全部 OA</option><option value="YES">OA：是</option><option value="NO">OA：否</option><option value="UNKNOWN">OA：未知</option></select></div>
 <div class="control"><label for="access-filter">全文存取</label><select id="access-filter"><option value="">全部存取狀態</option><option value="ACCESSIBLE">全文：可存取</option><option value="BLOCKED">全文：受阻</option><option value="PAYWALLED">全文：付費</option><option value="FAILED">全文：檢查失敗</option><option value="NOT_CHECKED">全文：未檢查</option></select></div>
+<div class="control"><label for="study-type-filter">文獻／研究類型</label><select id="study-type-filter"><option value="">全部類型</option><option value="randomized_controlled_trial">RCT</option><option value="systematic_review">系統性回顧</option><option value="meta_analysis">Meta-analysis</option><option value="clinical_trial">Clinical trial</option><option value="cohort_study">Cohort</option><option value="case_control_study">Case-control</option><option value="cross_sectional_study">Cross-sectional</option><option value="case_report">Case report</option><option value="qualitative_study">Qualitative</option><option value="protocol">Protocol</option><option value="review">Review</option><option value="preprint">預印本</option><option value="conference_paper">會議論文</option></select></div>
 <div class="control-actions"><button class="button primary" id="reset-filters" type="button">清除篩選</button><button class="button" id="expand-all" type="button">展開類別</button><button class="button" id="collapse-all" type="button">收合類別</button></div>
 <p class="result-count" id="result-count" aria-live="polite">顯示 {len(displayed)} / {len(displayed)} 項候選</p>
 </section>
@@ -5297,6 +5615,7 @@ def execute(
         "notes": [
             "SEMANTIC_CONTRACT_V2",
             "SEMANTIC_CONTRACT_V3",
+            "STUDY_CLASSIFICATION_V1",
             "GitHub Actions retains every deduplicated candidate in the Run ledger; publisher access limits network probes, not candidate visibility or value.",
             "The automated lane does not promote unreviewed scientific claims."
         ],
