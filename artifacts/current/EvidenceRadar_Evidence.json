@@ -32,16 +32,16 @@
     ]
   },
   "coverage_status": "SOURCE_ACCESS_GAP",
-  "generated_at": "2026-08-09T10:03:09.137644+09:00",
+  "generated_at": "2026-08-09T14:26:54.038112+09:00",
   "notes": [
     "An empty claims ledger is intentional: metadata and snippets are not scientific conclusions."
   ],
-  "run_id": "github-actions-20260809T100233+0900",
+  "run_id": "github-actions-20260809T142115+0900",
   "schema_version": "1.0",
   "sources": [
     {
       "access_status": "METADATA",
-      "accessed_at": "2026-08-09T10:02:33.510443+09:00",
+      "accessed_at": "2026-08-09T14:21:15+09:00",
       "locator": "Publisher landing page; automated access check only",
       "notes": [
         "No substantive claim was promoted without ChatGPT Work or human source review."
@@ -51,32 +51,6 @@
       "source_type": "publisher",
       "title": "Efficacy and safety of first-line immune checkpoint inhibitors combinations for extensive-stage small-cell lung cancer: A systematic review and network meta-analysis.",
       "url": "https://www.ovid.com/jnls/md-journal/fulltext/10.1097/md.0000000000050023~efficacy-and-safety-of-first-line-immune-checkpoint"
-    },
-    {
-      "access_status": "METADATA",
-      "accessed_at": "2026-08-09T10:02:33.510443+09:00",
-      "locator": "Publisher landing page; automated access check only",
-      "notes": [
-        "No substantive claim was promoted without ChatGPT Work or human source review."
-      ],
-      "publisher": "The Journal of arthroplasty",
-      "source_id": "publisher-source-002",
-      "source_type": "publisher",
-      "title": "Sensor-Based Gait Recovery Analysis After Total Hip and Knee Arthroplasty: A One-Year Follow-Up Study Integrating Muscle Strength and Patient-Reported Outcomes.",
-      "url": "https://linkinghub.elsevier.com/retrieve/pii/S0883540326005541"
-    },
-    {
-      "access_status": "METADATA",
-      "accessed_at": "2026-08-09T10:02:33.510443+09:00",
-      "locator": "Publisher landing page; automated access check only",
-      "notes": [
-        "No substantive claim was promoted without ChatGPT Work or human source review."
-      ],
-      "publisher": "Transplantation and cellular therapy",
-      "source_id": "publisher-source-003",
-      "source_type": "publisher",
-      "title": "The role of physical therapy across the transplant trajectory in allogeneic hematopoietic stem cell transplantation, a systematic review and clinical framework.",
-      "url": "https://linkinghub.elsevier.com/retrieve/pii/S2666636726005798"
     }
   ],
   "works": [
@@ -92,32 +66,6 @@
       "stream": "clinical_medicine",
       "title": "Efficacy and safety of first-line immune checkpoint inhibitors combinations for extensive-stage small-cell lung cancer: A systematic review and network meta-analysis.",
       "work_id": "doi:10.1097/md.0000000000050023"
-    },
-    {
-      "category": "sport_science",
-      "identifiers": {
-        "doi": "10.1016/j.arth.2026.05.038",
-        "pmid": "42562204"
-      },
-      "limitations": [
-        "Automated lane verified page access and event metadata, not the paper's substantive claims."
-      ],
-      "stream": "sport_science",
-      "title": "Sensor-Based Gait Recovery Analysis After Total Hip and Knee Arthroplasty: A One-Year Follow-Up Study Integrating Muscle Strength and Patient-Reported Outcomes.",
-      "work_id": "doi:10.1016/j.arth.2026.05.038"
-    },
-    {
-      "category": "sport_science",
-      "identifiers": {
-        "doi": "10.1016/j.jtct.2026.07.024",
-        "pmid": "42567275"
-      },
-      "limitations": [
-        "Automated lane verified page access and event metadata, not the paper's substantive claims."
-      ],
-      "stream": "sport_science",
-      "title": "The role of physical therapy across the transplant trajectory in allogeneic hematopoietic stem cell transplantation, a systematic review and clinical framework.",
-      "work_id": "doi:10.1016/j.jtct.2026.07.024"
     }
   ]
 }
