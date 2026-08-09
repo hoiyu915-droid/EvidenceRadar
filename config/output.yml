@@ -75,6 +75,12 @@ delivery_validation:
   require_candidate_ledger_html_parity: true
   require_state_run_provenance_parity: true
   require_current_producer_for_publication: true
+  semantic_contract: SEMANTIC_CONTRACT_V3
+  require_executor_retrieval_receipts: true
+  require_stable_source_and_claim_registries: true
+  require_gap_bound_followups: true
+  require_claim_source_locator_bindings: true
+  require_canonical_html_byte_parity: true
 
 publisher_output:
   settings_file: config/deployment.yml
@@ -108,6 +114,8 @@ selection:
   padding_forbidden: true
 
 rendering:
+  canonical_renderer: tools/render_report_from_artifacts.py
+  manual_substantive_html_edits_forbidden: true
   language: zh-TW
   preserve_original_title: true
   include_candidate_content_summary: true

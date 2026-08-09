@@ -58,6 +58,7 @@ def build_pages_site(
         bundle,
         canonical_state=canonical_state,
         require_current_producer=require_current_producer,
+        require_semantic_contract_v3=True,
         reject_dirty=True,
     )
     if errors:

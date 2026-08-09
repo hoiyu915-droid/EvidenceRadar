@@ -127,6 +127,7 @@ jobs:
             --expected-lane "$EXECUTION_LANE" \
             --expected-protocol-commit "$GITHUB_SHA" \
             --require-current-producer \
+            --require-semantic-contract-v3 \
             --reject-dirty
           cmp --silent \
             "$RADAR_OUTPUT_DIR/EvidenceRadar_State.json" \

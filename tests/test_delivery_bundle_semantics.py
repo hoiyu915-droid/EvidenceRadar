@@ -35,6 +35,13 @@ class DeliveryBundleSemanticTests(unittest.TestCase):
     def _validate(self, bundle: Path, canonical: Path):
         return validate_delivery_bundle(ROOT, bundle, canonical_state=canonical)
 
+    def _as_v2(self, run: dict) -> None:
+        """Keep legacy semantic fixtures focused on the V2 rule they mutate."""
+
+        run["notes"] = [
+            note for note in run.get("notes", []) if note != "SEMANTIC_CONTRACT_V3"
+        ]
+
     def _manifest(self, root: Path, relative: str) -> Path:
         payload = b"manifest path fixture\n"
         target = root / "safe.txt"
@@ -189,6 +196,7 @@ class DeliveryBundleSemanticTests(unittest.TestCase):
             }
             candidate.update(semantic_fields)
             state["works"][0].update(semantic_fields)
+            self._as_v2(run)
             run["counts"].update(
                 {"oa_yes": 1, "oa_unknown": 0, "fulltext_blocked": 1, "fulltext_not_checked": 0}
             )
@@ -230,8 +238,20 @@ class DeliveryBundleSemanticTests(unittest.TestCase):
             candidate["publisher_http_status"] = 403
             self._save(bundle, "EvidenceRadar_Run.json", run)
             errors, _run = self._validate(bundle, canonical)
-            self.assertTrue(any("SUCCESS cannot carry HTTP 403" in error for error in errors), errors)
+            self.assertTrue(any("SUCCESS requires HTTP 2xx/3xx" in error for error in errors), errors)
             self.assertTrue(any("SUCCESS requires result_count" in error for error in errors), errors)
+
+    def test_publisher_success_rejects_server_error_http_status(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            bundle, canonical = create_bundle(Path(directory))
+            run = self._load(bundle, "EvidenceRadar_Run.json")
+            access = next(item for item in run["source_access"] if item.get("provider") == "publisher")
+            access["http_status"] = 500
+            candidate = run["candidates"][0]
+            candidate["publisher_http_status"] = 500
+            self._save(bundle, "EvidenceRadar_Run.json", run)
+            errors, _run = self._validate(bundle, canonical)
+            self.assertTrue(any("SUCCESS requires HTTP 2xx/3xx" in error for error in errors), errors)
 
     def test_publisher_source_access_rejects_discovery_status_values(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -280,6 +300,7 @@ class DeliveryBundleSemanticTests(unittest.TestCase):
             )
             work_id = run["candidates"][0]["work_id"]
             run["candidates"][0]["review_status"] = "VERIFIED"
+            self._as_v2(run)
             run["counts"].update({"claims": 1, "verified_works": 1, "review_pending": 0})
             evidence["claims"] = [
                 {
@@ -318,6 +339,7 @@ class DeliveryBundleSemanticTests(unittest.TestCase):
             )
             work_id = run["candidates"][0]["work_id"]
             run["candidates"][0]["review_status"] = "VERIFIED"
+            self._as_v2(run)
             run["counts"].update({"claims": 1, "verified_works": 1, "review_pending": 0})
             evidence["claims"] = [
                 {
@@ -351,6 +373,7 @@ class DeliveryBundleSemanticTests(unittest.TestCase):
             )
             work_id = run["candidates"][0]["work_id"]
             run["candidates"][0]["review_status"] = "VERIFIED"
+            self._as_v2(run)
             run["counts"].update({"claims": 1, "verified_works": 1, "review_pending": 0})
             evidence["claims"] = [
                 {
@@ -385,6 +408,7 @@ class DeliveryBundleSemanticTests(unittest.TestCase):
             )
             work_id = run["candidates"][0]["work_id"]
             run["candidates"][0]["review_status"] = "VERIFIED"
+            self._as_v2(run)
             run["counts"].update({"claims": 1, "verified_works": 1, "review_pending": 0})
             evidence["claims"] = [
                 {
@@ -434,6 +458,7 @@ class DeliveryBundleSemanticTests(unittest.TestCase):
                     "locator": "results",
                 }
             ]
+            self._as_v2(run)
             self._save(bundle, "EvidenceRadar_Run.json", run)
             self._save(bundle, "EvidenceRadar_Evidence.json", evidence)
             errors, _run = self._validate(bundle, canonical)
@@ -472,6 +497,7 @@ class DeliveryBundleSemanticTests(unittest.TestCase):
                     "locator": "full text",
                 }
             ]
+            self._as_v2(run)
             self._save(bundle, "EvidenceRadar_Run.json", run)
             self._save(bundle, "EvidenceRadar_Evidence.json", evidence)
             errors, _run = self._validate(bundle, canonical)

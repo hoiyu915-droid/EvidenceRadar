@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+import fcntl
 import hashlib
 import html
 import json
@@ -19,6 +20,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 import time
 import unicodedata
 import xml.etree.ElementTree as ET
@@ -27,7 +29,7 @@ from datetime import date, datetime, time as datetime_time, timedelta, timezone 
 from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import Any, Callable, Iterable, Iterator
-from urllib.parse import quote, urljoin, urlparse
+from urllib.parse import parse_qsl, quote, urlencode, urljoin, urlparse
 from zoneinfo import ZoneInfo
 
 import requests
@@ -2254,24 +2256,54 @@ def load_prior_state(
     *,
     schema_path: Path | None = None,
 ) -> tuple[dict[str, Any] | None, str]:
-    if not path.is_file():
-        return None, sha256_bytes(b"")
+    state, canonical_hash, _file_fingerprint = load_prior_state_snapshot(
+        path, schema_path=schema_path
+    )
+    return state, canonical_hash
+
+
+def _state_file_fingerprint(path: Path) -> str:
+    """Fingerprint presence and exact bytes for local compare-and-swap."""
+
     try:
-        state = json.loads(path.read_bytes())
-    except (OSError, json.JSONDecodeError):
-        return None, sha256_bytes(b"")
+        payload = path.read_bytes()
+    except FileNotFoundError:
+        return sha256_bytes(b"MISSING\0")
+    except OSError as exc:
+        raise RadarRuntimeError(f"cannot read canonical State for CAS: {exc}") from exc
+    return sha256_bytes(b"PRESENT\0" + payload)
+
+
+def load_prior_state_snapshot(
+    path: Path,
+    *,
+    schema_path: Path | None = None,
+) -> tuple[dict[str, Any] | None, str, str]:
+    """Read one exact State snapshot and return semantic and byte identities."""
+
+    try:
+        payload = path.read_bytes()
+    except FileNotFoundError:
+        return None, sha256_bytes(b""), sha256_bytes(b"MISSING\0")
+    except OSError as exc:
+        raise RadarRuntimeError(f"cannot read canonical State: {exc}") from exc
+    file_fingerprint = sha256_bytes(b"PRESENT\0" + payload)
+    try:
+        state = json.loads(payload)
+    except json.JSONDecodeError:
+        return None, sha256_bytes(b""), file_fingerprint
     if not isinstance(state, dict) or state.get("artifact_type") != "EvidenceRadar_State":
-        return None, sha256_bytes(b"")
+        return None, sha256_bytes(b""), file_fingerprint
     if schema_path is not None:
         try:
             sys.path.insert(0, str(schema_path.parent.parent))
             from tools.validate_gpt_work_artifacts import load_json, validate_document
 
             if validate_document(state, load_json(schema_path)):
-                return None, sha256_bytes(b"")
+                return None, sha256_bytes(b""), file_fingerprint
         except (OSError, json.JSONDecodeError):
-            return None, sha256_bytes(b"")
-    return state, state_sha256(state)
+            return None, sha256_bytes(b""), file_fingerprint
+    return state, state_sha256(state), file_fingerprint
 
 
 def _event_id(work_id: str, event: dict[str, Any]) -> str:
@@ -2524,6 +2556,32 @@ def candidate_content_summary(
     return _zh_tw_metadata_summary(candidate, max_chars=max_chars), basis
 
 
+def _candidate_access_depth(
+    candidate: Candidate,
+    access_metadata: dict[str, Any],
+    access_record: dict[str, Any] | None = None,
+) -> str:
+    """Return the deepest content actually reached, never the URL's promise.
+
+    Merely knowing a direct PDF/repository URL does not mean that its content
+    was opened.  OA status, intended full-text kind and observed access depth
+    intentionally remain independent axes.
+    """
+
+    locations = access_metadata.get("fulltext_locations") or []
+    if any(
+        isinstance(location, dict)
+        and location.get("access_status") == "ACCESSIBLE"
+        for location in locations
+    ):
+        return "FULL_TEXT"
+    if candidate.abstract.strip():
+        return "ABSTRACT"
+    if isinstance(access_record, dict) and access_record.get("status") == "SUCCESS":
+        return "LANDING_PAGE"
+    return "METADATA"
+
+
 def _response_output_text(payload: dict[str, Any]) -> str:
     for output in payload.get("output", []):
         if not isinstance(output, dict):
@@ -2771,8 +2829,30 @@ def build_candidate_ledger(
                 )
                 if event.get(key) not in (None, "")
             }
+        alignment_status = {
+            "PRIORITY": "DIRECT",
+            "REVIEW_REQUIRED": "UNCERTAIN",
+            "LOWER_PRIORITY": "PARTIAL",
+        }.get(str(candidate.triage_status or ""), "UNCERTAIN")
+        alignment_reason = {
+            "DIRECT": "Matched the configured stream query and relevance routing threshold.",
+            "PARTIAL": "Matched the configured query but was routed below the priority threshold.",
+            "UNCERTAIN": "Matched the configured query but requires review before topical fit is asserted.",
+        }[alignment_status]
+        topic_alignments = [
+            {
+                "criterion_id": f"stream:{stream_id}",
+                "status": alignment_status,
+                "basis": "RULE",
+                "reason": alignment_reason,
+            }
+            for stream_id in sorted(
+                set(candidate.observed_streams or [candidate.stream])
+            )
+        ]
         record: dict[str, Any] = {
             "work_id": candidate.work_id,
+            "identity_status": "RESOLVED" if candidate.identifiers else "UNRESOLVED",
             "title": candidate.title,
             "category": candidate.category,
             "streams": sorted(set(candidate.observed_streams or [candidate.stream])),
@@ -2795,9 +2875,12 @@ def build_candidate_ledger(
             "publisher_access_status": publisher_status,
             "publisher_access_reason": publisher_reason,
             **access_metadata,
+            "access_depth": _candidate_access_depth(candidate, access_metadata, access),
+            "access_outcome": str(access_metadata.get("access_status") or "NOT_CHECKED"),
             "review_status": "UNREVIEWED",
             "source_urls": source_urls,
             "displayed_in_report": candidate.work_id in displayed_work_ids,
+            "topic_alignments": topic_alignments,
             "is_preprint": candidate.is_preprint,
         }
         if candidate.venue:
@@ -2847,9 +2930,31 @@ def build_state(
             ]
         )
         access_metadata = fulltext_metadata(candidate)
+        alignment_status = {
+            "PRIORITY": "DIRECT",
+            "REVIEW_REQUIRED": "UNCERTAIN",
+            "LOWER_PRIORITY": "PARTIAL",
+        }.get(str(candidate.triage_status or ""), "UNCERTAIN")
+        alignment_reason = {
+            "DIRECT": "Matched the configured stream query and relevance routing threshold.",
+            "PARTIAL": "Matched the configured query but was routed below the priority threshold.",
+            "UNCERTAIN": "Matched the configured query but requires review before topical fit is asserted.",
+        }[alignment_status]
+        current_alignments = [
+            {
+                "criterion_id": f"stream:{stream_id}",
+                "status": alignment_status,
+                "basis": "RULE",
+                "reason": alignment_reason,
+            }
+            for stream_id in sorted(
+                set(candidate.observed_streams or [candidate.stream])
+            )
+        ]
         if work is None:
             work = {
                 "work_id": candidate.work_id,
+                "identity_status": "RESOLVED" if candidate.identifiers else "UNRESOLVED",
                 "title": candidate.title,
                 "normalized_title": candidate.normalized_title,
                 "identifiers": candidate.identifiers,
@@ -2861,7 +2966,10 @@ def build_state(
                 "streams": sorted(set(candidate.observed_streams or [candidate.stream])),
                 "source_urls": observed_urls,
                 **access_metadata,
+                "access_depth": _candidate_access_depth(candidate, access_metadata),
+                "access_outcome": str(access_metadata.get("access_status") or "NOT_CHECKED"),
                 "event_class": candidate.event_class,
+                "topic_alignments": current_alignments,
                 "is_preprint": candidate.is_preprint,
             }
             if candidate.open_access is not None:
@@ -2872,6 +2980,9 @@ def build_state(
             work["last_seen_at"] = now
             work["seen_count"] = int(work.get("seen_count", 0)) + 1
             work["identifiers"] = {**work.get("identifiers", {}), **candidate.identifiers}
+            work["identity_status"] = (
+                "RESOLVED" if work["identifiers"] else "UNRESOLVED"
+            )
             work["category"] = candidate.category
             work["streams"] = sorted(
                 set(work.get("streams", []))
@@ -2883,7 +2994,34 @@ def build_state(
             if candidate.open_access is True:
                 work["open_access"] = True
             work.update(merge_fulltext_metadata(work, access_metadata))
+            work["access_depth"] = max(
+                str(work.get("access_depth") or "NONE"),
+                _candidate_access_depth(candidate, access_metadata),
+                key=lambda value: {
+                    "NONE": 0,
+                    "METADATA": 1,
+                    "LANDING_PAGE": 2,
+                    "ABSTRACT": 3,
+                    "FULL_TEXT": 4,
+                }.get(value, -1),
+            )
+            work["access_outcome"] = str(work.get("access_status") or "NOT_CHECKED")
             work["event_class"] = candidate.event_class
+            current_by_criterion = {
+                str(item["criterion_id"]): item for item in current_alignments
+            }
+            work["topic_alignments"] = [
+                current_by_criterion.get(
+                    f"stream:{stream_id}",
+                    {
+                        "criterion_id": f"stream:{stream_id}",
+                        "status": "UNCERTAIN",
+                        "basis": "RULE",
+                        "reason": "Historical stream match was not reassessed in this run.",
+                    },
+                )
+                for stream_id in sorted(set(work.get("streams", [])))
+            ]
             work["is_preprint"] = bool(work.get("is_preprint")) or candidate.is_preprint
         prior_works[candidate.work_id] = work
 
@@ -2891,6 +3029,20 @@ def build_state(
         work = prior_works[candidate.work_id]
         event_id = _event_id(candidate.work_id, event)
         work.update(merge_fulltext_metadata(work, fulltext_metadata(candidate, access)))
+        work["access_depth"] = max(
+            str(work.get("access_depth") or "NONE"),
+            _candidate_access_depth(
+                candidate, fulltext_metadata(candidate, access), access
+            ),
+            key=lambda value: {
+                "NONE": 0,
+                "METADATA": 1,
+                "LANDING_PAGE": 2,
+                "ABSTRACT": 3,
+                "FULL_TEXT": 4,
+            }.get(value, -1),
+        )
+        work["access_outcome"] = str(work.get("access_status") or "NOT_CHECKED")
         work["event_class"] = candidate.event_class
         access_url = str(access.get("url") or "")
         if access_url:
@@ -2946,6 +3098,7 @@ def build_state(
         "base_state_sha256": base_state_sha256,
         "parent_run_ids": parent_ids,
         "notes": [
+            "SEMANTIC_CONTRACT_V3",
             "All deduplicated discovery candidates are retained in State; notification events remain source-access gated."
         ],
     }
@@ -3046,59 +3199,757 @@ def build_source_coverage(
     }
 
 
+def _canonical_json_sha256(value: Any) -> str:
+    payload = json.dumps(
+        value, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
+def _v3_id(prefix: str, *parts: Any) -> str:
+    digest = _canonical_json_sha256([str(part) for part in parts])[:24]
+    return f"{prefix}-{digest}"
+
+
+def _canonical_source_url(value: str) -> str:
+    parsed = urlparse(str(value or "").strip())
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        return ""
+    filtered_query = sorted(
+        (key, item)
+        for key, item in parse_qsl(parsed.query, keep_blank_values=True)
+        if not key.casefold().startswith("utm_")
+        and key.casefold() not in {"fbclid", "gclid"}
+    )
+    normalized = parsed._replace(
+        scheme=parsed.scheme.casefold(),
+        netloc=parsed.netloc.casefold(),
+        query=urlencode(filtered_query, doseq=True),
+        fragment="",
+    ).geturl()
+    if parsed.path and parsed.path != "/":
+        normalized = normalized.rstrip("/")
+    return normalized
+
+
+def _source_type_for_url(url: str) -> str:
+    host = urlparse(url).netloc.casefold().removeprefix("www.")
+    if host == "doi.org" or host.endswith(".doi.org"):
+        return "publisher"
+    if host == "pubmed.ncbi.nlm.nih.gov":
+        return "pubmed"
+    if host in {"europepmc.org", "pmc.ncbi.nlm.nih.gov"} or host.endswith(".ebi.ac.uk"):
+        return "europe_pmc"
+    if host == "arxiv.org" or host.endswith(".arxiv.org"):
+        return "arxiv"
+    if host == "openreview.net" or host.endswith(".openreview.net"):
+        return "openreview"
+    if host in {"aclanthology.org", "proceedings.mlr.press"}:
+        return "conference_proceedings"
+    if host == "openalex.org" or host.endswith(".openalex.org"):
+        return "other"
+    return "publisher"
+
+
+def _source_role_for_url(url: str, source_type: str) -> str:
+    host = urlparse(url).netloc.casefold().removeprefix("www.")
+    path = urlparse(url).path.casefold()
+    if source_type in {"pubmed", "other"}:
+        return "DISCOVERY_ONLY"
+    if source_type == "europe_pmc":
+        return "PRIMARY_RESEARCH" if "/articles/pmc" in path else "DISCOVERY_ONLY"
+    if source_type == "arxiv":
+        return "PRIMARY_RESEARCH" if path.startswith(("/pdf/", "/html/")) else "DISCOVERY_ONLY"
+    if source_type == "openreview":
+        return "PRIMARY_RESEARCH" if path.startswith("/pdf") else "DISCOVERY_ONLY"
+    if source_type == "conference_proceedings":
+        return "FORMAL_PUBLICATION"
+    if host == "doi.org" or source_type == "publisher":
+        return "FORMAL_PUBLICATION"
+    return "OTHER"
+
+
+def _actual_provider_query(
+    source_id: str, requested_query: str, start: datetime, end: datetime
+) -> str:
+    if source_id == "europe_pmc":
+        return _europe_pmc_query(requested_query, start.date(), end.date())
+    if source_id == "arxiv":
+        return _arxiv_search_query(requested_query, start.date(), end.date())
+    return requested_query
+
+
+def build_retrieval_ledger(
+    *,
+    run_id: str,
+    queries: list[dict[str, Any]],
+    source_access: list[dict[str, Any]],
+    source_coverage: dict[str, Any],
+    candidate_records: list[dict[str, Any]],
+    start: datetime,
+    end: datetime,
+    per_query_limit: int,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Derive executor receipts from the actual query/access ledgers.
+
+    Receipts never claim that a request occurred when status is NOT_ATTEMPTED.
+    The request fingerprint contains only sanitized structural parameters, not
+    credentials or provider response bodies.
+    """
+
+    access_by_id = {
+        str(item.get("source_id")): item
+        for item in source_access
+        if isinstance(item, dict) and item.get("source_id")
+    }
+    attempts: list[dict[str, Any]] = []
+    expansions: list[dict[str, Any]] = []
+    represented_access_ids: set[str] = set()
+    for query in queries:
+        query_id = str(query.get("query_id") or "")
+        requested = str(query.get("query") or "")
+        for source_id in sorted(str(value) for value in query.get("source_ids", [])):
+            expected_access_id = f"{query_id}-{source_id}"
+            access = access_by_id.get(expected_access_id, {})
+            if not access:
+                access = next(
+                    (
+                        item
+                        for item in source_access
+                        if str(item.get("source_id") or "") not in represented_access_ids
+                        and (
+                            str(item.get("provider") or "") == source_id
+                            or source_id in str(item.get("source_id") or "")
+                        )
+                    ),
+                    {},
+                )
+            source_access_id = str(access.get("source_id") or expected_access_id)
+            if access:
+                represented_access_ids.add(source_access_id)
+            status = str(query.get("status") or access.get("status") or "NOT_ATTEMPTED")
+            actual = _actual_provider_query(source_id, requested, start, end)
+            work_ids = sorted(
+                str(item.get("work_id"))
+                for item in candidate_records
+                if query_id in item.get("query_ids", [])
+                and source_id in item.get("discovery_sources", [])
+                and item.get("work_id")
+            )
+            fingerprint_value = {
+                "endpoint": str(access.get("url") or SOURCE_ENDPOINTS.get(source_id, "")),
+                "source_id": source_id,
+                "actual_query": actual,
+                "window": [start.isoformat(), end.isoformat()],
+                "limit": per_query_limit,
+            }
+            attempt_id = _v3_id("attempt", run_id, "DISCOVERY", query_id, source_id)
+            attempt: dict[str, Any] = {
+                "attempt_id": attempt_id,
+                "stage": "DISCOVERY",
+                "source_id": source_id,
+                **({"source_access_id": source_access_id} if source_access_id else {}),
+                "query_id": query_id,
+                "attempted_at": str(query.get("searched_at") or access.get("accessed_at") or end.isoformat()),
+                "status": status,
+                "endpoint": str(access.get("url") or SOURCE_ENDPOINTS.get(source_id, "unknown")),
+                "requested_query": requested,
+                "actual_query": actual,
+                "request_limit": per_query_limit,
+                "request_fingerprint": _canonical_json_sha256(fingerprint_value),
+                "receipt_origin": "EXECUTOR",
+                "result_count": int(query.get("result_count") or 0),
+                "result_ids_sha256": _canonical_json_sha256(work_ids),
+                "pagination": {
+                    "pages_requested": 0 if status == "NOT_ATTEMPTED" else 1,
+                    "pages_received": 1 if status in {"SUCCESS", "NO_RESULTS", "PARTIAL"} else 0,
+                },
+                "limit_reached": int(query.get("result_count") or 0) >= per_query_limit,
+            }
+            if status in {"FAILED", "NOT_ATTEMPTED"}:
+                attempt["error_class"] = (
+                    "PROVIDER_REQUEST_FAILED"
+                    if status == "FAILED"
+                    else "REQUEST_NOT_ATTEMPTED"
+                )
+            attempts.append(attempt)
+            if actual != requested:
+                expansions.append(
+                    {
+                        "expansion_id": _v3_id("expansion", query_id, source_id, actual),
+                        "query_id": query_id,
+                        "source_id": source_id,
+                        "original_query": requested,
+                        "expanded_query": actual,
+                        "reason": "Provider-specific controlled translation with the run date window.",
+                    }
+                )
+
+    for access in source_access:
+        access_id = str(access.get("source_id") or "")
+        if not access_id or access_id in represented_access_ids:
+            continue
+        provider = str(access.get("provider") or "")
+        if not provider:
+            provider = next(
+                (source for source in SOURCE_ENDPOINTS if source in access_id),
+                "unknown",
+            )
+        is_content_fetch = provider in VERIFICATION_SOURCES or provider in {"formal", "publisher"}
+        status = str(access.get("status") or "NOT_ATTEMPTED")
+        work_id = str(access.get("work_id") or "")
+        result_ids = [work_id] if work_id else []
+        attempts.append(
+            {
+                "attempt_id": _v3_id(
+                    "attempt", run_id, "CONTENT_FETCH" if is_content_fetch else "DISCOVERY", access_id
+                ),
+                "stage": "CONTENT_FETCH" if is_content_fetch else "DISCOVERY",
+                "source_id": provider,
+                "source_access_id": access_id,
+                **({"work_id": work_id} if work_id else {}),
+                "attempted_at": str(access.get("accessed_at") or end.isoformat()),
+                "status": status,
+                "endpoint": str(access.get("url") or SOURCE_ENDPOINTS.get(provider, "unknown")),
+                "request_fingerprint": _canonical_json_sha256(
+                    {"url": str(access.get("url") or ""), "provider": provider, "work_id": work_id}
+                ),
+                "receipt_origin": "EXECUTOR",
+                "result_count": int(access.get("result_count") or 0),
+                "result_ids_sha256": _canonical_json_sha256(result_ids),
+                "pagination": {
+                    "pages_requested": 0 if status == "NOT_ATTEMPTED" else 1,
+                    "pages_received": (
+                        1 if status in {"SUCCESS", "NO_RESULTS", "PARTIAL"} else 0
+                    ),
+                },
+                "limit_reached": False,
+                **(
+                    {
+                        "error_class": (
+                            "ACCESS_BLOCKED_OR_FAILED"
+                            if status == "FAILED"
+                            else "REQUEST_NOT_ATTEMPTED"
+                        )
+                    }
+                    if status in {"FAILED", "NOT_ATTEMPTED"}
+                    else {}
+                ),
+            }
+        )
+
+    represented_sources = {str(item["source_id"]) for item in attempts}
+    for check in source_coverage.get("checks", []):
+        source_id = str(check.get("source_id") or "")
+        if not source_id or source_id in represented_sources:
+            continue
+        status = str(check.get("status") or "NOT_ATTEMPTED")
+        attempts.append(
+            {
+                "attempt_id": _v3_id("attempt", run_id, "CHECK", source_id),
+                "stage": (
+                    "CONTENT_FETCH"
+                    if str(check.get("stage") or "") == "bounded_verification"
+                    else "DISCOVERY"
+                ),
+                "source_id": source_id,
+                "attempted_at": str(check.get("checked_at") or end.isoformat()),
+                "status": status,
+                "endpoint": str(check.get("url") or SOURCE_ENDPOINTS.get(source_id, "unknown")),
+                "request_fingerprint": _canonical_json_sha256(
+                    {"source_id": source_id, "status": status, "stage": check.get("stage")}
+                ),
+                "receipt_origin": "EXECUTOR",
+                "result_count": int(check.get("result_count") or 0),
+                "result_ids_sha256": _canonical_json_sha256([]),
+                "pagination": {
+                    "pages_requested": 0 if status == "NOT_ATTEMPTED" else 1,
+                    "pages_received": 1 if status in {"SUCCESS", "NO_RESULTS"} else 0,
+                },
+                "limit_reached": False,
+                **({"error_class": "ADAPTER_UNAVAILABLE"} if status in {"FAILED", "NOT_ATTEMPTED"} else {}),
+            }
+        )
+    return (
+        sorted(attempts, key=lambda item: str(item["attempt_id"])),
+        sorted(expansions, key=lambda item: str(item["expansion_id"])),
+    )
+
+
+def build_source_registry(
+    *,
+    candidate_records: list[dict[str, Any]],
+    source_access: list[dict[str, Any]],
+    retrieval_attempts: list[dict[str, Any]],
+    prior_state: dict[str, Any] | None,
+    run_id: str,
+    generated_at: datetime,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    access_by_url = {
+        _canonical_source_url(str(item.get("url") or "")): item
+        for item in source_access
+        if _canonical_source_url(str(item.get("url") or ""))
+    }
+    attempt_by_access_id = {
+        str(item.get("source_access_id")): item
+        for item in retrieval_attempts
+        if item.get("source_access_id")
+    }
+    attempts_by_query_source = {
+        (str(item.get("query_id")), str(item.get("source_id"))): item
+        for item in retrieval_attempts
+        if item.get("query_id")
+    }
+    current_registry: dict[str, dict[str, Any]] = {}
+    current_observations: dict[str, dict[str, Any]] = {}
+    for candidate in candidate_records:
+        location_by_url = {
+            _canonical_source_url(str(item.get("url") or "")): item
+            for item in candidate.get("fulltext_locations", [])
+            if isinstance(item, dict) and _canonical_source_url(str(item.get("url") or ""))
+        }
+        for raw_url in candidate.get("source_urls", []):
+            url = _canonical_source_url(str(raw_url))
+            if not url:
+                continue
+            source_type = _source_type_for_url(url)
+            source_id = _v3_id("src", url)
+            registry_entry = {
+                "source_id": source_id,
+                "work_id": str(candidate.get("work_id") or ""),
+                "canonical_url": url,
+                "source_type": source_type,
+                "source_role": _source_role_for_url(url, source_type),
+                "identifiers": copy.deepcopy(candidate.get("identifiers") or {}),
+                "first_seen_run": run_id,
+                "last_seen_run": run_id,
+            }
+            existing_entry = current_registry.get(source_id)
+            if (
+                existing_entry is not None
+                and existing_entry.get("work_id") != registry_entry.get("work_id")
+            ):
+                raise RadarRuntimeError(
+                    "one canonical source URL resolved to multiple work identities: "
+                    f"{url}"
+                )
+            current_registry[source_id] = registry_entry
+            location = location_by_url.get(url)
+            access = access_by_url.get(url)
+            if location:
+                access_outcome = str(location.get("access_status") or "NOT_CHECKED")
+                access_depth = (
+                    "FULL_TEXT" if access_outcome == "ACCESSIBLE" else "NONE"
+                )
+            elif source_type in {"pubmed", "arxiv", "openreview", "europe_pmc", "other"}:
+                access_depth = (
+                    "ABSTRACT"
+                    if candidate.get("access_depth") == "ABSTRACT"
+                    else "METADATA"
+                )
+                access_outcome = "ACCESSIBLE"
+            else:
+                access_depth = (
+                    "ABSTRACT"
+                    if candidate.get("access_depth") == "ABSTRACT"
+                    else "METADATA"
+                )
+                access_outcome = "ACCESSIBLE"
+            if access is not None:
+                status = str(access.get("status") or "NOT_ATTEMPTED")
+                http_status = access.get("http_status")
+                if status == "SUCCESS":
+                    access_outcome = "ACCESSIBLE"
+                    if location is None:
+                        access_depth = "LANDING_PAGE"
+                elif http_status == 402:
+                    access_outcome = "PAYWALLED"
+                    access_depth = "NONE"
+                elif http_status in {401, 403, 429}:
+                    access_outcome = "BLOCKED"
+                    access_depth = "NONE"
+                elif status == "FAILED":
+                    access_outcome = "FAILED"
+                    access_depth = "NONE"
+                elif status == "NOT_ATTEMPTED":
+                    access_outcome = "NOT_ATTEMPTED"
+                    access_depth = "NONE" if location is not None else access_depth
+            attempt = None
+            if access is not None:
+                attempt = attempt_by_access_id.get(str(access.get("source_id") or ""))
+            if attempt is None:
+                for query_id in candidate.get("query_ids", []):
+                    for provider in candidate.get("discovery_sources", []):
+                        attempt = attempts_by_query_source.get((str(query_id), str(provider)))
+                        if attempt is not None:
+                            break
+                    if attempt is not None:
+                        break
+            if attempt is None:
+                continue
+            observation_id = _v3_id("obs", source_id, run_id, attempt["attempt_id"])
+            observation: dict[str, Any] = {
+                "observation_id": observation_id,
+                "source_id": source_id,
+                "run_id": run_id,
+                "attempt_id": str(attempt["attempt_id"]),
+                "observed_at": str(attempt["attempted_at"]),
+                "access_depth": access_depth,
+                "access_outcome": access_outcome,
+                "url": url,
+            }
+            if access is not None and isinstance(access.get("http_status"), int):
+                observation["http_status"] = int(access["http_status"])
+            current_observations[observation_id] = observation
+
+    registry = {
+        str(item.get("source_id")): copy.deepcopy(item)
+        for item in (prior_state or {}).get("source_registry", [])
+        if isinstance(item, dict) and item.get("source_id")
+    }
+    for source_id, item in current_registry.items():
+        if source_id in registry:
+            previous = registry[source_id]
+            # Identity upgrades are represented as explicit work relations;
+            # the current registry points at the current canonical work while
+            # retaining when this source itself first appeared.
+            item["first_seen_run"] = str(previous.get("first_seen_run") or run_id)
+            item["identifiers"] = {
+                **copy.deepcopy(previous.get("identifiers") or {}),
+                **copy.deepcopy(item.get("identifiers") or {}),
+            }
+        registry[source_id] = item
+    observations = {
+        str(item.get("observation_id")): copy.deepcopy(item)
+        for item in (prior_state or {}).get("source_observations", [])
+        if isinstance(item, dict) and item.get("observation_id")
+    }
+    observations.update(current_observations)
+    return (
+        [registry[key] for key in sorted(registry)],
+        [observations[key] for key in sorted(observations)],
+    )
+
+
+def build_gap_backlog(
+    *,
+    prior_state: dict[str, Any] | None,
+    run_id: str,
+    generated_at: datetime,
+    source_coverage: dict[str, Any],
+    source_access: list[dict[str, Any]],
+    retrieval_attempts: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    prior_gaps = {
+        str(item.get("gap_id")): copy.deepcopy(item)
+        for item in (prior_state or {}).get("gaps", [])
+        if isinstance(item, dict) and item.get("gap_id")
+    }
+    attempt_by_source: dict[str, list[dict[str, Any]]] = {}
+    attempt_by_access_id: dict[str, dict[str, Any]] = {}
+    for attempt in retrieval_attempts:
+        attempt_by_source.setdefault(str(attempt.get("source_id") or ""), []).append(attempt)
+        if attempt.get("source_access_id"):
+            attempt_by_access_id[str(attempt["source_access_id"])] = attempt
+    followups: list[dict[str, Any]] = []
+
+    def update_gap(
+        *, gap_id: str, gap_type: str, scope_type: str, scope_id: str,
+        attempts: list[dict[str, Any]], resolution_criteria: str, is_gap: bool,
+        allow_resolution: bool,
+    ) -> None:
+        previous = prior_gaps.get(gap_id)
+        actual = [item for item in attempts if item.get("status") != "NOT_ATTEMPTED"]
+        followup_actual = [
+            item for item in actual if item.get("stage") == "FOLLOWUP"
+        ]
+        successful = (
+            next(
+                (
+                    item
+                    for item in actual
+                    if item.get("status") in {"SUCCESS", "NO_RESULTS"}
+                ),
+                None,
+            )
+            if allow_resolution
+            else None
+        )
+        receipt_ids = sorted(
+            set((previous or {}).get("receipt_ids", []))
+            | {str(item["attempt_id"]) for item in attempts}
+        )
+        # Routine all-source discovery remains useful resolution evidence but
+        # is not a gap-driven follow-up.  Only an explicitly scheduled
+        # FOLLOWUP receipt consumes the bounded attempt budget or appears in
+        # Run.followup_attempts.
+        attempt_count = int((previous or {}).get("attempt_count", 0)) + len(
+            followup_actual
+        )
+        status = "RESOLVED" if successful is not None else (
+            "UNRESOLVABLE" if is_gap and attempt_count >= int((previous or {}).get("max_attempts", 3)) else "OPEN"
+        )
+        if not is_gap and previous is None:
+            return
+        if not is_gap and successful is None:
+            return
+        item: dict[str, Any] = {
+            "gap_id": gap_id,
+            "gap_type": gap_type,
+            "scope_type": scope_type,
+            "scope_id": scope_id,
+            "first_seen_run": str((previous or {}).get("first_seen_run") or run_id),
+            "last_attempt_run": run_id if actual else str((previous or {}).get("last_attempt_run") or run_id),
+            "attempt_count": attempt_count,
+            "status": status,
+            "max_attempts": int((previous or {}).get("max_attempts", 3)),
+            "resolution_criteria": resolution_criteria,
+            "receipt_ids": receipt_ids,
+        }
+        if status == "RESOLVED" and successful is not None:
+            item["resolution_receipt_id"] = str(successful["attempt_id"])
+        elif status == "OPEN":
+            if followup_actual:
+                item["cooldown_until"] = (
+                    generated_at + timedelta(days=1)
+                ).isoformat()
+            elif (previous or {}).get("cooldown_until"):
+                item["cooldown_until"] = str(previous["cooldown_until"])
+        prior_gaps[gap_id] = item
+        if (
+            previous is not None
+            and previous.get("status") == "OPEN"
+            and followup_actual
+        ):
+            chosen = next(
+                (
+                    entry
+                    for entry in followup_actual
+                    if entry.get("status") in {"SUCCESS", "NO_RESULTS"}
+                ),
+                followup_actual[-1],
+            )
+            trigger_by_gap_type = {
+                "SOURCE_UNAVAILABLE": "PRIMARY_SOURCE_MISSING",
+                "CONTENT_INACCESSIBLE": "FULLTEXT_MISSING",
+                "IDENTITY_UNRESOLVED": "IDENTIFIER_CONFLICT",
+                "CLAIM_UNVERIFIED": "CLAIM_CONTRADICTION",
+                "NUMERIC_CONFLICT": "NUMERIC_CONFLICT",
+            }
+            followups.append(
+                {
+                    "followup_id": _v3_id("followup", gap_id, chosen["attempt_id"]),
+                    "gap_id": gap_id,
+                    "trigger": trigger_by_gap_type[gap_type],
+                    "scope_type": scope_type,
+                    "scope_id": scope_id,
+                    **(
+                        {"parent_candidate_id": scope_id}
+                        if scope_type == "WORK"
+                        else {}
+                    ),
+                    "attempt_id": str(chosen["attempt_id"]),
+                    "query": str(
+                        chosen.get("actual_query")
+                        or chosen.get("requested_query")
+                        or chosen.get("endpoint")
+                        or scope_id
+                    ),
+                    "source_backend": str(chosen.get("source_id") or "unknown"),
+                    "attempted_at": str(chosen.get("attempted_at") or generated_at.isoformat()),
+                    "result": str(chosen.get("status") or "FAILED"),
+                    "resolved_gap_ids": [gap_id] if successful is not None else [],
+                    "outcome": "RESOLVED" if successful is not None else "STILL_OPEN",
+                }
+            )
+
+    for check in source_coverage.get("checks", []):
+        source_id = str(check.get("source_id") or "")
+        attempts = attempt_by_source.get(source_id, [])
+        gap_id = _v3_id("gap", "SOURCE_UNAVAILABLE", source_id)
+        update_gap(
+            gap_id=gap_id,
+            gap_type="SOURCE_UNAVAILABLE",
+            scope_type="SOURCE_SYSTEM",
+            scope_id=source_id,
+            attempts=attempts,
+            resolution_criteria="The aggregate source CHECK is SUCCESS or NO_RESULTS and has a matching executor receipt.",
+            is_gap=str(check.get("status") or "") in {"FAILED", "NOT_ATTEMPTED"},
+            allow_resolution=str(check.get("status") or "") in {"SUCCESS", "NO_RESULTS"},
+        )
+    for access in source_access:
+        provider = str(access.get("provider") or "")
+        work_id = str(access.get("work_id") or "")
+        if provider not in VERIFICATION_SOURCES | {"formal"} or not work_id:
+            continue
+        attempt = attempt_by_access_id.get(str(access.get("source_id") or ""))
+        attempts = [attempt] if attempt is not None else []
+        gap_id = _v3_id("gap", "CONTENT_INACCESSIBLE", work_id)
+        update_gap(
+            gap_id=gap_id,
+            gap_type="CONTENT_INACCESSIBLE",
+            scope_type="WORK",
+            scope_id=work_id,
+            attempts=attempts,
+            resolution_criteria="A direct content-fetch receipt records SUCCESS for this work.",
+            is_gap=str(access.get("status") or "") == "FAILED",
+            allow_resolution=str(access.get("status") or "") == "SUCCESS",
+        )
+    return (
+        [prior_gaps[key] for key in sorted(prior_gaps)],
+        sorted(followups, key=lambda item: str(item["followup_id"])),
+    )
+
+
+def derive_work_relations(
+    prior_state: dict[str, Any] | None,
+    candidate_records: list[dict[str, Any]],
+    *,
+    run_id: str,
+) -> list[dict[str, Any]]:
+    relations = {
+        str(item.get("relation_id")): copy.deepcopy(item)
+        for item in (prior_state or {}).get("work_relations", [])
+        if isinstance(item, dict) and item.get("relation_id")
+    }
+    current_ids = {str(item.get("work_id")) for item in candidate_records}
+    current_by_title = {
+        re.sub(r"\s+", " ", re.sub(r"[^\w\s]", " ", str(item.get("title") or "").casefold())).strip(): item
+        for item in candidate_records
+    }
+    for prior_work in (prior_state or {}).get("works", []):
+        if not isinstance(prior_work, dict):
+            continue
+        prior_id = str(prior_work.get("work_id") or "")
+        if not prior_id or prior_id in current_ids:
+            continue
+        title_key = str(prior_work.get("normalized_title") or "")
+        current = current_by_title.get(title_key)
+        if current is None:
+            continue
+        current_identifiers = current.get("identifiers") or {}
+        prior_identifiers = prior_work.get("identifiers") or {}
+        relation_type = (
+            "PREPRINT_TO_VOR"
+            if current_identifiers.get("doi") and prior_identifiers.get("arxiv_id")
+            else "NEW_VERSION"
+        )
+        relation_id = _v3_id("workrel", prior_id, current.get("work_id"), relation_type)
+        relations[relation_id] = {
+            "relation_id": relation_id,
+            "from_work_id": prior_id,
+            "to_work_id": str(current.get("work_id")),
+            "relation_type": relation_type,
+            "comparison_basis": (
+                "Normalized title continuity plus newly observed formal/repository identifiers."
+            ),
+            "review_status": "AUTO_DETECTED",
+            "observed_run_id": run_id,
+        }
+    return [relations[key] for key in sorted(relations)]
+
+
 def build_evidence(
-    selected: list[tuple[Candidate, dict[str, Any], dict[str, Any]]],
+    candidate_records: list[dict[str, Any]],
     *,
     generated_at: datetime,
     run_id: str,
     source_coverage: dict[str, Any],
     coverage_status: str,
+    source_registry: list[dict[str, Any]],
+    source_observations: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    def evidence_source_type(url: str) -> str:
-        host = urlparse(url).netloc.casefold()
-        if "arxiv.org" in host:
-            return "arxiv"
-        if "openreview.net" in host:
-            return "openreview"
-        if "europepmc.org" in host or "ebi.ac.uk" in host:
-            return "europe_pmc"
-        if "pubmed.ncbi.nlm.nih.gov" in host:
-            return "pubmed"
-        if "aclanthology.org" in host or "proceedings.mlr.press" in host:
-            return "conference_proceedings"
-        return "publisher"
-
-    sources = []
-    works = []
-    for index, (candidate, _event, access) in enumerate(selected, start=1):
-        source_id = f"publisher-source-{index:03d}"
-        sources.append(
-            {
-                "source_id": source_id,
-                "url": access["url"],
-                "source_type": evidence_source_type(str(access["url"])),
-                "accessed_at": access["accessed_at"],
-                "access_status": "METADATA",
-                "title": candidate.title,
-                **({"publisher": candidate.venue} if candidate.venue else {}),
-                "locator": "Bounded source landing page; automated access check only",
-                "notes": [
-                    "No substantive claim was promoted without ChatGPT Work or human source review."
-                ],
-            }
+    observations_by_source: dict[str, list[dict[str, Any]]] = {}
+    for observation in source_observations:
+        observations_by_source.setdefault(str(observation.get("source_id") or ""), []).append(observation)
+    candidate_by_work = {
+        str(item.get("work_id")): item for item in candidate_records if item.get("work_id")
+    }
+    sources: list[dict[str, Any]] = []
+    for registry in source_registry:
+        source_id = str(registry.get("source_id") or "")
+        observations = observations_by_source.get(source_id, [])
+        latest = max(observations, key=lambda item: str(item.get("observed_at") or ""), default={})
+        depth = str(latest.get("access_depth") or "NONE")
+        outcome = str(latest.get("access_outcome") or "NOT_CHECKED")
+        if depth == "FULL_TEXT" and outcome == "ACCESSIBLE":
+            legacy_access = "FULL_TEXT"
+        elif depth == "ABSTRACT" and outcome == "ACCESSIBLE":
+            legacy_access = "ABSTRACT"
+        elif depth == "NONE" and outcome in {"FAILED", "BLOCKED", "PAYWALLED"}:
+            legacy_access = "UNAVAILABLE"
+        else:
+            legacy_access = "METADATA"
+        work = candidate_by_work.get(str(registry.get("work_id") or ""), {})
+        url = str(registry.get("canonical_url") or "")
+        known_location = next(
+            (
+                item
+                for item in work.get("fulltext_locations", [])
+                if isinstance(item, dict)
+                and _canonical_source_url(str(item.get("url") or "")) == url
+            ),
+            None,
         )
-        works.append(
-            {
-                "work_id": candidate.work_id,
-                "title": candidate.title,
-                "category": candidate.category,
-                "stream": candidate.stream,
-                "identifiers": candidate.identifiers,
-                "limitations": [
-                    "Automated lane verified page access and event metadata, not the paper's substantive claims."
-                ],
-            }
-        )
+        source: dict[str, Any] = {
+            "source_id": source_id,
+            "url": url,
+            "source_type": str(registry.get("source_type") or "other"),
+            "accessed_at": str(latest.get("observed_at") or generated_at.isoformat()),
+            "access_status": legacy_access,
+            "title": str(work.get("title") or registry.get("work_id") or source_id),
+            "locator": "Executor receipt and source observation; not a substantive claim locator.",
+            "notes": [
+                "Source registry identity, access depth and access outcome are separate observations."
+            ],
+        }
+        if known_location is not None:
+            kind = str(known_location.get("kind") or "HTML")
+            probe_status = outcome if outcome in FULLTEXT_ACCESS_STATUSES else "NOT_CHECKED"
+            source.update(
+                {
+                    "access_probe_status": probe_status,
+                    "fulltext_kind": kind,
+                    "download_urls": [url],
+                    "fulltext_locations": [
+                        {
+                            "url": url,
+                            "kind": kind,
+                            "host_type": (
+                                "REPOSITORY"
+                                if registry.get("source_role") == "PRIMARY_RESEARCH"
+                                else "PUBLISHER"
+                            ),
+                            "access_status": probe_status,
+                            "reason": "Derived from the linked executor observation.",
+                        }
+                    ],
+                }
+            )
+        sources.append(source)
+    works = [
+        {
+            "work_id": str(item.get("work_id")),
+            "identity_status": str(item.get("identity_status") or "UNRESOLVED"),
+            "title": str(item.get("title")),
+            "category": str(item.get("category")),
+            **({"stream": str(item.get("streams", [""])[0])} if item.get("streams") else {}),
+            "identifiers": copy.deepcopy(item.get("identifiers") or {}),
+            "oa_status": str(item.get("oa_status") or "UNKNOWN"),
+            "oa_evidence": copy.deepcopy(item.get("oa_evidence") or []),
+            "access_status": str(item.get("access_status") or "NOT_CHECKED"),
+            "access_depth": str(item.get("access_depth") or "METADATA"),
+            "access_outcome": str(item.get("access_outcome") or "NOT_CHECKED"),
+            "fulltext_kind": str(item.get("fulltext_kind") or "UNKNOWN"),
+            "download_urls": copy.deepcopy(item.get("download_urls") or []),
+            "fulltext_locations": copy.deepcopy(item.get("fulltext_locations") or []),
+            "topic_alignments": copy.deepcopy(item.get("topic_alignments") or []),
+            "limitations": [
+                "Automated lane records retrieval and access observations, not substantive scientific support."
+            ],
+        }
+        for item in candidate_records
+    ]
     return {
         "schema_version": "1.0",
         "artifact_type": "EvidenceRadar_Evidence",
@@ -3115,11 +3966,18 @@ def build_evidence(
                 "GitHub Actions is an automated discovery/source-access lane; claim verification remains a ChatGPT Work or human-review task.",
             ],
         },
-        "sources": sources,
-        "works": works,
+        "source_registry": copy.deepcopy(source_registry),
+        "source_observations": copy.deepcopy(source_observations),
+        "sources": sorted(sources, key=lambda item: str(item["source_id"])),
+        "works": sorted(works, key=lambda item: str(item["work_id"])),
         "claims": [],
+        "citation_bindings": [],
+        "effect_estimates": [],
+        "conflict_groups": [],
+        "inferences": [],
         "notes": [
-            "An empty claims ledger is intentional: metadata and snippets are not scientific conclusions."
+            "SEMANTIC_CONTRACT_V3",
+            "An empty claims ledger is intentional: metadata, snippets and navigation summaries are not scientific conclusions."
         ],
     }
 
@@ -3186,6 +4044,7 @@ def render_report(
     publisher_attempted: int,
     publisher_accessible: int,
     source_coverage: dict[str, Any],
+    evidence: dict[str, Any] | None = None,
     featured_target_per_category: int = 5,
     featured_hard_max_per_category: int = 8,
     featured_excluded_event_classes: set[str] | None = None,
@@ -3348,7 +4207,7 @@ def render_report(
                 '<section class="content-preview" aria-label="內容簡述">'
                 '<div class="preview-heading">內容簡述 '
                 f'<span>{html.escape(summary_labels.get(summary_basis, summary_basis))}</span></div>'
-                f'<p>{html.escape(summary_text)}</p>'
+                f'<p data-content-role="navigation_summary">{html.escape(summary_text)}</p>'
                 '</section>'
                 '<div class="paper-meta">'
                 f'<span><b>日期</b>{html.escape(publication_date)}</span>'
@@ -3427,6 +4286,44 @@ def render_report(
         "</tr>"
         for check in source_coverage.get("checks", [])
     )
+    evidence = evidence or {}
+    claims = [item for item in evidence.get("claims", []) if isinstance(item, dict)]
+    bindings_by_claim: dict[str, list[dict[str, Any]]] = {}
+    for binding in evidence.get("citation_bindings", []):
+        if isinstance(binding, dict):
+            bindings_by_claim.setdefault(str(binding.get("claim_id") or ""), []).append(binding)
+    claim_cards = "".join(
+        (
+            '<article class="paper-card claim-card" '
+            f'data-evidenceradar-claim-id="{html.escape(str(claim.get("claim_id") or ""), quote=True)}" '
+            'data-content-role="substantive_claim">'
+            '<div class="card-kicker">'
+            f'<span class="badge">{html.escape(str(claim.get("status") or "UNVERIFIED"))}</span>'
+            f'<span class="score">{html.escape(str(claim.get("claim_kind") or "OTHER"))}</span>'
+            '</div>'
+            f'<p>{html.escape(str(claim.get("claim_text") or ""))}</p>'
+            '<dl class="audit-grid">'
+            f'<dt>Claim ID</dt><dd><code>{html.escape(str(claim.get("claim_id") or ""))}</code></dd>'
+            f'<dt>Work ID</dt><dd><code>{html.escape(str(claim.get("work_id") or ""))}</code></dd>'
+            f'<dt>Support reason</dt><dd>{html.escape(str(claim.get("support_reason") or claim.get("caveat") or "尚未提供"))}</dd>'
+            '<dt>Citation bindings</dt><dd>'
+            + (
+                " ".join(
+                    f'<a class="source-button" href="{html.escape(str(binding.get("source_url") or ""), quote=True)}" '
+                    'target="_blank" rel="noopener noreferrer">'
+                    f'{html.escape(str(binding.get("extraction_origin") or "binding"))} · '
+                    f'{html.escape(str(binding.get("locator") or "locator"))}</a>'
+                    for binding in sorted(
+                        bindings_by_claim.get(str(claim.get("claim_id") or ""), []),
+                        key=lambda item: str(item.get("binding_id") or ""),
+                    )
+                )
+                or '<span class="muted">沒有 citation binding</span>'
+            )
+            + '</dd></dl></article>'
+        )
+        for claim in sorted(claims, key=lambda item: str(item.get("claim_id") or ""))
+    ) or '<p class="panel-intro">本輪沒有已提升的實質 claim；候選簡述仍只作導航。</p>'
     category_options = "".join(
         f'<option value="{html.escape(category, quote=True)}">'
         f'{html.escape(category_labels.get(category, category))}（{len(items)}）</option>'
@@ -3601,6 +4498,7 @@ h1{margin:.1rem 0 .45rem;font-size:clamp(2rem,5vw,3.5rem);line-height:1.08;lette
 <meta name="evidenceradar-protocol-commit" content="{html.escape(protocol_commit, quote=True)}">
 <meta name="evidenceradar-displayed-candidates" content="{len(displayed)}">
 <meta name="evidenceradar-featured-candidates" content="{len(featured_work_ids)}">
+<meta name="evidenceradar-claim-count" content="{len(claims)}">
 <title>EvidenceRadar｜近期研究候選報告</title>
 <style>{style}</style>
 </head>
@@ -3626,7 +4524,7 @@ h1{margin:.1rem 0 .45rem;font-size:clamp(2rem,5vw,3.5rem);line-height:1.08;lette
 <div class="metric"><strong>{fulltext_blocked_total}</strong><span>全文受阻（不等於非 OA）</span></div>
 </div>
 <nav class="jump-links" aria-label="報告導覽">
-<a href="#candidate-pool">候選池</a><a href="#source-coverage">來源覆蓋</a><a href="#warnings">警告與缺口</a>
+<a href="#candidate-pool">候選池</a><a href="#claim-ledger">實質 Claims</a><a href="#source-coverage">來源覆蓋</a><a href="#warnings">警告與缺口</a>
 </nav>
 </header>
 
@@ -3648,6 +4546,12 @@ h1{margin:.1rem 0 .45rem;font-size:clamp(2rem,5vw,3.5rem);line-height:1.08;lette
 <p class="panel-intro">每類先顯示約 {featured_target_per_category}–{featured_hard_max_per_category} 項精選；完整去重候選仍保留在收合的完整池，可搜尋、展開與依事件分流。分數只協助閱讀順序，不代表研究價值。</p>
 <div id="empty-state" class="empty-state" hidden>沒有符合目前篩選條件的候選。</div>
 {candidate_html}
+</section>
+
+<section id="claim-ledger" aria-labelledby="claim-heading">
+<h2 id="claim-heading">實質 Claim Ledger</h2>
+<p class="panel-intro">只有帶 citation binding、來源角色、存取深度與 locator 的內容會出現在這裡；模型推論另存 inference ledger，不會冒充來源摘錄。</p>
+<div class="paper-grid">{claim_cards}</div>
 </section>
 
 <section id="source-coverage" aria-labelledby="coverage-heading">
@@ -3675,6 +4579,52 @@ h1{margin:.1rem 0 .45rem;font-size:clamp(2rem,5vw,3.5rem);line-height:1.08;lette
 </body>
 </html>
 """
+
+
+def render_report_from_documents(
+    run: dict[str, Any], evidence: dict[str, Any]
+) -> str:
+    """Render the only accepted V3 HTML projection of Run + Evidence.
+
+    ChatGPT Work writes the JSON ledgers first and calls this renderer.  The
+    delivery validator calls the same pure projection and requires byte
+    equality, so prose added by hand cannot become an unbound report claim.
+    """
+
+    rendering = run.get("rendering")
+    window = run.get("window")
+    counts = run.get("counts")
+    if not isinstance(rendering, dict) or not isinstance(window, dict) or not isinstance(counts, dict):
+        raise RadarRuntimeError("V3 canonical rendering requires Run.rendering, window and counts")
+    try:
+        generated_at = datetime.fromisoformat(str(run["finished_at"]))
+        start = datetime.fromisoformat(str(window["start"]))
+        end = datetime.fromisoformat(str(window["end"]))
+    except (KeyError, ValueError, TypeError) as exc:
+        raise RadarRuntimeError(f"V3 canonical rendering has invalid timestamps: {exc}") from exc
+    return render_report(
+        list(run.get("candidates") or []),
+        run_id=str(run.get("run_id") or ""),
+        execution_lane=str(run.get("execution_lane") or ""),
+        protocol_commit=str(run.get("protocol_commit") or ""),
+        generated_at=generated_at,
+        start=start,
+        end=end,
+        run_status=str(run.get("run_status") or ""),
+        coverage_status=str(run.get("coverage_status") or ""),
+        warnings=list(run.get("warnings") or []),
+        publisher_min=int(rendering["publisher_target_min"]),
+        publisher_max=int(rendering["publisher_hard_max"]),
+        publisher_attempted=int(counts.get("publisher_attempted") or 0),
+        publisher_accessible=int(counts.get("publisher_accessible") or 0),
+        source_coverage=dict(run.get("source_coverage") or {}),
+        evidence=evidence,
+        featured_target_per_category=int(rendering["featured_target_per_category"]),
+        featured_hard_max_per_category=int(rendering["featured_hard_max_per_category"]),
+        featured_excluded_event_classes=set(
+            str(value) for value in rendering.get("featured_excluded_event_classes", [])
+        ),
+    )
 
 
 def _protocol_commit(root: Path, supplied: str | None) -> str:
@@ -3711,7 +4661,13 @@ def validate_documents(root: Path, documents: dict[str, dict[str, Any]]) -> None
         raise RadarRuntimeError("artifact validation failed:\n" + "\n".join(errors))
 
 
-def write_bundle(output_dir: Path, report_html: str, documents: dict[str, dict[str, Any]]) -> None:
+def write_bundle(
+    output_dir: Path,
+    report_html: str,
+    documents: dict[str, dict[str, Any]],
+    *,
+    exclude_names: set[str] | None = None,
+) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     payloads: dict[str, str] = {
         "EvidenceRadar_Report.html": report_html,
@@ -3720,18 +4676,60 @@ def write_bundle(output_dir: Path, report_html: str, documents: dict[str, dict[s
             for name, document in documents.items()
         },
     }
+    excluded = exclude_names or set()
     for name, payload in payloads.items():
+        if name in excluded:
+            continue
         temporary = output_dir / f".{name}.tmp"
         temporary.write_text(payload, encoding="utf-8")
         os.replace(temporary, output_dir / name)
 
 
-def write_state_atomic(state_path: Path, state: dict[str, Any]) -> None:
+def write_state_atomic(
+    state_path: Path,
+    state: dict[str, Any],
+    *,
+    expected_file_fingerprint: str | None = None,
+) -> None:
+    """Advance canonical State atomically, failing on a stale read snapshot."""
+
     state_path.parent.mkdir(parents=True, exist_ok=True)
     payload = json.dumps(state, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
-    temporary = state_path.parent / f".{state_path.name}.tmp"
-    temporary.write_text(payload, encoding="utf-8")
-    os.replace(temporary, state_path)
+    lock_digest = sha256_bytes(str(state_path.resolve()).encode("utf-8"))
+    lock_path = Path(tempfile.gettempdir()) / f"evidenceradar-state-{lock_digest}.lock"
+    with lock_path.open("a+b") as lock:
+        fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+        if (
+            expected_file_fingerprint is not None
+            and _state_file_fingerprint(state_path) != expected_file_fingerprint
+        ):
+            raise RadarRuntimeError(
+                "canonical State changed during execution; recovery artifacts were "
+                "preserved and stale State was not written"
+            )
+        temporary_name: str | None = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                encoding="utf-8",
+                dir=state_path.parent,
+                prefix=f".{state_path.name}.",
+                suffix=".tmp",
+                delete=False,
+            ) as temporary:
+                temporary.write(payload)
+                temporary.flush()
+                os.fsync(temporary.fileno())
+                temporary_name = temporary.name
+            os.replace(temporary_name, state_path)
+            temporary_name = None
+        finally:
+            if temporary_name is not None:
+                try:
+                    Path(temporary_name).unlink()
+                except FileNotFoundError:
+                    pass
+            fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
 
 
 def execute(
@@ -3778,6 +4776,45 @@ def execute(
     discovered = discovery.priority_candidates
     queries = discovery.queries
     source_access = discovery.source_access
+    # Custom/legacy discoverers sometimes returned the query ledger without
+    # its parallel source_access record.  Normalize the same executor facts
+    # into the access ledger so coverage, receipts and gaps cannot disagree.
+    for query_record in queries:
+        query_id = str(query_record.get("query_id") or "")
+        for source_id in query_record.get("source_ids", []):
+            source_id = str(source_id)
+            expected_access_id = f"{query_id}-{source_id}"
+            existing_access = next(
+                (
+                    item
+                    for item in source_access
+                    if str(item.get("source_id") or "") == expected_access_id
+                    or (
+                        str(item.get("provider") or "") == source_id
+                        and str(item.get("accessed_at") or "")
+                        == str(query_record.get("searched_at") or "")
+                    )
+                ),
+                None,
+            )
+            if existing_access is not None:
+                existing_access.setdefault("provider", source_id)
+                continue
+            source_access.append(
+                {
+                    "source_id": expected_access_id,
+                    "provider": source_id,
+                    "url": SOURCE_ENDPOINTS.get(source_id, ""),
+                    "accessed_at": str(query_record.get("searched_at") or end_at.isoformat()),
+                    "status": str(query_record.get("status") or "NOT_ATTEMPTED"),
+                    "result_count": int(query_record.get("result_count") or 0),
+                    **(
+                        {"notes": ["Normalized from the executor query ledger."]}
+                        if not query_record.get("notes")
+                        else {"notes": list(query_record.get("notes") or [])}
+                    ),
+                }
+            )
     checked_sources = set(discovery.checked_sources)
     searched_sources = set(discovery.searched_sources)
     unavailable_sources = set(discovery.unavailable_sources)
@@ -3786,7 +4823,7 @@ def execute(
         for stream in streams.get("streams", {}).values()
         for source in stream.get("sources", [])
     }
-    prior_state, base_hash = load_prior_state(
+    prior_state, base_hash, base_file_fingerprint = load_prior_state_snapshot(
         state_path,
         schema_path=root / "schemas" / "evidence-radar-state.schema.json",
     )
@@ -4073,6 +5110,35 @@ def execute(
         )
     commit = _protocol_commit(root, protocol_commit)
     finished_at = max(datetime.now(timezone), end_at)
+    retrieval_attempts, search_expansions = build_retrieval_ledger(
+        run_id=run_id,
+        queries=queries,
+        source_access=source_access,
+        source_coverage=source_coverage,
+        candidate_records=candidate_records,
+        start=start,
+        end=end_at,
+        per_query_limit=int(streams.get("candidate_guidance", {}).get("suggested_max_per_query", 40)),
+    )
+    source_registry, source_observations = build_source_registry(
+        candidate_records=candidate_records,
+        source_access=source_access,
+        retrieval_attempts=retrieval_attempts,
+        prior_state=prior_state,
+        run_id=run_id,
+        generated_at=finished_at,
+    )
+    gaps, followup_attempts = build_gap_backlog(
+        prior_state=prior_state,
+        run_id=run_id,
+        generated_at=finished_at,
+        source_coverage=source_coverage,
+        source_access=source_access,
+        retrieval_attempts=retrieval_attempts,
+    )
+    work_relations = derive_work_relations(
+        prior_state, candidate_records, run_id=run_id
+    )
     state = build_state(
         prior_state,
         all_candidates,
@@ -4083,12 +5149,26 @@ def execute(
         protocol_commit=commit,
         base_state_sha256=base_hash,
     )
+    state["source_registry"] = copy.deepcopy(source_registry)
+    state["source_observations"] = copy.deepcopy(source_observations)
+    state["gaps"] = copy.deepcopy(gaps)
+    state["work_relations"] = copy.deepcopy(work_relations)
+    state["claim_relations"] = sorted(
+        copy.deepcopy((prior_state or {}).get("claim_relations", [])),
+        key=lambda item: str(item.get("relation_id") or ""),
+    )
+    state["claim_registry"] = sorted(
+        copy.deepcopy((prior_state or {}).get("claim_registry", [])),
+        key=lambda item: str(item.get("claim_id") or ""),
+    )
     evidence = build_evidence(
-        selected,
+        candidate_records,
         generated_at=finished_at,
         run_id=run_id,
         source_coverage=source_coverage,
         coverage_status=coverage_status,
+        source_registry=source_registry,
+        source_observations=source_observations,
     )
     run = {
         "schema_version": "1.0",
@@ -4102,8 +5182,13 @@ def execute(
         "history_status": history_status,
         "coverage_status": coverage_status,
         "source_coverage": source_coverage,
-        "queries": queries,
-        "source_access": source_access,
+        "queries": sorted(queries, key=lambda item: str(item.get("query_id") or "")),
+        "source_access": sorted(
+            source_access, key=lambda item: str(item.get("source_id") or "")
+        ),
+        "retrieval_attempts": retrieval_attempts,
+        "search_expansions": search_expansions,
+        "followup_attempts": followup_attempts,
         "candidates": candidate_records,
         "counts": {
             "queries": len(queries),
@@ -4172,6 +5257,14 @@ def execute(
             "run_json": ARTIFACT_NAMES[3],
         },
         "warnings": warnings,
+        "rendering": {
+            "renderer_id": "evidenceradar-html-v3",
+            "featured_target_per_category": featured_target,
+            "featured_hard_max_per_category": featured_hard_max,
+            "featured_excluded_event_classes": sorted(excluded_featured_classes),
+            "publisher_target_min": publisher_min,
+            "publisher_hard_max": publisher_max,
+        },
         "execution_lane": execution_lane,
         "protocol_commit": commit,
         "base_state_sha256": base_hash,
@@ -4182,36 +5275,19 @@ def execute(
         ),
         "notes": [
             "SEMANTIC_CONTRACT_V2",
+            "SEMANTIC_CONTRACT_V3",
             "GitHub Actions retains every deduplicated candidate in the Run ledger; publisher access limits network probes, not candidate visibility or value.",
             "The automated lane does not promote unreviewed scientific claims."
         ],
     }
+    report = render_report_from_documents(run, evidence)
+    run["report_sha256"] = hashlib.sha256(report.encode("utf-8")).hexdigest()
     documents = {
         "EvidenceRadar_State.json": state,
         "EvidenceRadar_Evidence.json": evidence,
         "EvidenceRadar_Run.json": run,
     }
     validate_documents(root, documents)
-    report = render_report(
-        candidate_records,
-        run_id=run_id,
-        execution_lane=execution_lane,
-        protocol_commit=commit,
-        generated_at=finished_at,
-        start=start,
-        end=end_at,
-        run_status=run_status,
-        coverage_status=coverage_status,
-        warnings=warnings,
-        publisher_min=publisher_min,
-        publisher_max=publisher_max,
-        publisher_attempted=publisher_attempted,
-        publisher_accessible=publisher_accessible,
-        source_coverage=source_coverage,
-        featured_target_per_category=featured_target,
-        featured_hard_max_per_category=featured_hard_max,
-        featured_excluded_event_classes=excluded_featured_classes,
-    )
     # The four files form one delivery contract.  Validate cross-file
     # provenance, counts and HTML item markers before writing any current or
     # immutable output, so a structurally valid JSON file cannot hide an empty
@@ -4227,12 +5303,22 @@ def execute(
         run=run,
         expected_lane=execution_lane,
         expected_protocol_commit=commit,
+        require_semantic_contract_v3=True,
     )
     if delivery_errors:
         raise RadarRuntimeError(
             "delivery bundle validation failed:\n" + "\n".join(delivery_errors)
         )
-    write_bundle(output_dir, report, documents)
+    state_in_output = (
+        state_path.resolve()
+        == (output_dir / "EvidenceRadar_State.json").resolve()
+    )
+    write_bundle(
+        output_dir,
+        report,
+        documents,
+        exclude_names={"EvidenceRadar_State.json"} if state_in_output else None,
+    )
     immutable_output: Path | None = None
     if runs_dir is not None:
         safe_run_id = re.sub(r"[^A-Za-z0-9._+-]", "-", run_id).strip(".-")
@@ -4244,8 +5330,11 @@ def execute(
         write_bundle(immutable_output, report, documents)
     # Advance canonical state last, after every other artifact validates and
     # all requested bundles have been written successfully.
-    if state_path.resolve() != (output_dir / "EvidenceRadar_State.json").resolve():
-        write_state_atomic(state_path, state)
+    write_state_atomic(
+        state_path,
+        state,
+        expected_file_fingerprint=base_file_fingerprint,
+    )
     return {
         "run_id": run_id,
         "run_status": run_status,

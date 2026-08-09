@@ -23,6 +23,7 @@ BUNDLE_FILENAMES = (
 
 SHARED_CONTRACT_PATHS = (
     "EVIDENCE_RADAR_PROTOCOL.md",
+    "requirements.txt",
     "config/deployment.yml",
     "config/output.yml",
     "config/scoring.yml",
@@ -30,6 +31,7 @@ SHARED_CONTRACT_PATHS = (
     "schemas/evidence-radar-evidence.schema.json",
     "schemas/evidence-radar-run.schema.json",
     "schemas/evidence-radar-state.schema.json",
+    "docs/SEMANTIC_CONTRACT_V3.md",
 )
 
 GITHUB_PRODUCER_PATHS = SHARED_CONTRACT_PATHS + (
@@ -46,6 +48,8 @@ WORK_PRODUCER_PATHS = SHARED_CONTRACT_PATHS + (
     "tools/delivery_contract.py",
     "tools/merge_radar_state.py",
     "tools/package_work_delivery.py",
+    "tools/render_report_from_artifacts.py",
+    "tools/run_github_radar.py",
     "tools/validate_delivery_bundle.py",
     "tools/validate_gpt_work_artifacts.py",
 )

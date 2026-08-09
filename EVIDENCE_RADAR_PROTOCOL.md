@@ -6,6 +6,12 @@ This file is the canonical execution contract for EvidenceRadar. The same
 policy, configuration, schemas and four-artifact contract apply to two
 independent lanes:
 
+Newly produced bundles implement `SEMANTIC_CONTRACT_V3` in addition to the V2
+OA/full-text rules. The detailed field and transition contract is
+[`docs/SEMANTIC_CONTRACT_V3.md`](docs/SEMANTIC_CONTRACT_V3.md). Validators keep
+legacy V2 bundle compatibility, but a V3 marker enables all V3 fail-closed
+invariants.
+
 | Lane | Trigger | Verification boundary | State handoff |
 |---|---|---|---|
 | `chatgpt_work` | user-launched `daily`, `focused` or `deep_verify` run | live search, direct source reading, event and claim review | imported/exported JSON artifact |
@@ -118,6 +124,24 @@ sources with a failed or not-attempted operation. `all_configured_sources_checke
 is true only when every requested source has its own CHECK summary. These
 coverage fields are audit facts and do not turn metadata into claim evidence.
 
+### Executor receipts and controlled expansion
+
+Every query, source access and CHECK must map to one unique
+`Run.retrieval_attempts` receipt written from the executor's actual operation.
+Receipts separate `DISCOVERY`, `CONTENT_FETCH`, `CLAIM_VERIFY` and `FOLLOWUP`,
+and retain request fingerprint, result ID hash, pagination, result count and
+limit state. A model statement that a search occurred is not a receipt.
+`NO_RESULTS` requires a real successful request with zero results;
+`NOT_ATTEMPTED` requests zero pages. `FAILED` retains no results; an interrupted
+operation that retained results is `PARTIAL`.
+
+When a provider-specific actual query differs from the configured query, write
+one `search_expansions` record with both forms and the reason. State
+`source_registry` assigns one stable ID to each canonical URL, while
+`source_observations` append access depth/outcome linked to a receipt. A known
+PDF URL without a successful direct fetch remains `NONE/NOT_CHECKED` (or the
+observed blocked outcome), never `FULL_TEXT`.
+
 ## 5. Identity and event gate
 
 Deduplicate in this order:
@@ -206,6 +230,35 @@ location and a locator that can be audited. A publisher/discovery URL labelled
 `FULL_TEXT`, a DOI redirect, or a manually asserted status is insufficient.
 `PARTIAL`, `CONFLICT` and `UNVERIFIED` items cannot be counted as verified.
 
+Every V3 claim declares `claim_kind`, `claim_origin`, citation binding IDs and
+support reason. Citation bindings reuse stable source IDs and record canonical
+URL, exact locator, extraction origin, observed access depth and support scope.
+`MODEL_INFERENCE` belongs only in the separate inference ledger; it cannot be
+a citation binding or source-supported claim. Topic alignment remains a
+separate routing judgment and never raises evidence quality.
+
+Numeric claims also reference structured effect estimates. Preserve effect
+measure, population, exposure, comparator, outcome, denominator, timeframe,
+analysis set, estimator, method and uncertainty. Results with incompatible
+definitions remain in `conflict_groups`; do not average or narratively smooth
+them into agreement.
+
+State persists a canonical claim registry and explicit work/claim relations.
+Reusing a claim ID with changed text/kind/origin is invalid. A newly promoted
+`SUPPORTED` claim requires a current-run accessible observation at the depth
+claimed by its binding. A newer version, VOR, correction, retraction or
+contradictory claim creates a relation instead of overwriting history.
+
+### Gap-driven follow-up
+
+Source, content, identity, claim and numeric gaps persist in `State.gaps` with
+bounded attempts, cooldown and resolution criteria. A follow-up is legal only
+for a pre-existing OPEN gap and must bind its trigger, scope/parent candidate,
+actual query, backend, time, executor receipt, result and resolved gap IDs.
+Routine padding or a `NOT_ATTEMPTED` record is not a follow-up. Reaching the
+attempt ceiling produces `UNRESOLVABLE`; a successful receipt is required for
+`RESOLVED`.
+
 ## 9. Source coverage and run status
 
 Run carries a top-level `source_coverage` object with
@@ -277,12 +330,31 @@ pool marker. The complete Run ledger, Featured ID set, displayed subset and the
 HTML marker set must agree before State can advance or a public link can be
 published.
 
+For V3, Work must not hand-author the final HTML. After State, Evidence and Run
+JSON are ready, run:
+
+```sh
+python3 tools/render_report_from_artifacts.py --bundle /path/to/run
+```
+
+The renderer synchronizes the current claim registry and report hash, then
+uses the same pure projection enforced by `validate_delivery_bundle.py`.
+Candidate summaries are navigation-only; every substantive claim is bound to
+an Evidence claim ID. Extra report prose or numbers that are absent from the
+canonical claim ledger make the byte-parity gate fail.
+
 ## 11. State synchronization and concurrency
 
 GitHub Actions serializes its writeback lane with a repository-scoped
 concurrency group. An immutable run bundle is written under `runs/<run_id>/`;
 current delivery lives under `artifacts/current/`; canonical State lives at
 `state/current/EvidenceRadar_State.json`.
+
+The runner snapshots both canonical JSON identity and the exact input file
+bytes. Its final State write is a locked compare-and-swap: if any local lane
+changes that file after the read, the stale run keeps its current/immutable
+recovery bundle, fails visibly and does not replace canonical State. Repository
+branch CAS remains a second, separate guard at publication time.
 
 When a Work State and repository State diverge, union them with the deterministic
 merge tool before accepting repository writeback:
@@ -304,6 +376,12 @@ with `NOT_CHECKED` must not erase an earlier observed access result; mixed
 per-location observations derive an aggregate `MIXED` state rather than letting
 the newest lane silently overwrite the other. Validate the merged artifact
 before replacing canonical State.
+V3 merges also retain stable source registries/observations, remap work-scoped
+gaps after identity upgrades, conservatively merge canonical claim status and
+preserve explicit work/claim relations. Divergent gap receipts consume the
+combined bounded-attempt budget; the latest snapshot controls mutable gap
+status, and reaching the ceiling becomes `UNRESOLVABLE` unless a successful
+resolution receipt exists.
 
 ## 12. Public deployment contract
 
@@ -343,7 +421,12 @@ Do not:
 - claim comprehensive coverage after a source gap;
 - use memory, old output or snippets as current evidence;
 - fabricate a DOI, PMID, date, quote or locator;
+- declare a search receipt without an executor operation;
+- use topic alignment or `MODEL_INFERENCE` as source support;
+- promote a claim without a current verifiable support event;
 - silently drop sign, unit, comparator or direction;
+- collapse incompatible effect measures or unresolved numeric conflicts;
+- hand-edit substantive prose into V3 HTML after canonical rendering;
 - advance canonical State after invalid artifact generation;
 - overwrite a divergent State instead of merging it;
 - trigger TA/TP03 or image generation without a separate user request.

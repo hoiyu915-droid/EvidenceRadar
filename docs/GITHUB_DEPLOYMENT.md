@@ -101,6 +101,18 @@ state/current/EvidenceRadar_State.json
 current State 與 canonical State byte-identical。不要手動刪除 state 來繞過
 dedupe 或 publisher hard max；先檢查 run log、source access 與 schema validation。
 
+新 run 同時標記 `SEMANTIC_CONTRACT_V3`。`EvidenceRadar_Run.json` 的每個 query、
+access 與 CHECK 都有 executor retrieval receipt；State 持久保存 stable source／claim
+registry、append-only access observations、gap backlog 與跨 run relations；Evidence
+保存 citation bindings、claim origin、structured effect estimates、conflict groups 與
+model inferences。GitHub lane 不會因這些欄位出現就提升 claim：它仍留下空 claims
+ledger。完整規格見
+[`docs/SEMANTIC_CONTRACT_V3.md`](SEMANTIC_CONTRACT_V3.md)。
+
+V3 HTML 由 Run + Evidence canonical render，Run 保存 report SHA-256；Pages 前的
+delivery validator 會重新渲染並要求 byte-identical。這可阻擋手寫到 HTML、但沒有
+claim/source/locator binding 的額外結論或數字。
+
 Actions 也會在 upload 前建立唯一的
 `EvidenceRadar-WorkRun-<run_id>.zip`、包內 `manifest.json` 與外部
 `.zip.sha256`。manifest 保留四個 canonical artifact 的 SHA-256 與 byte size，
@@ -165,6 +177,11 @@ ChatGPT Work 不是 GitHub Actions 的背景 worker。要在 Work 續跑時，�
 [`docs/WORK_SETUP.md`](WORK_SETUP.md) 的 repository-first mode 產生唯一
 run-id ZIP、manifest 和 SHA-256，再以附件方式交付；這仍然是 Work local output，
 不是 GitHub writeback。
+
+Work 必須先執行 `tools/render_report_from_artifacts.py`，再執行四件套 validator 與
+packager；不能手寫最終 HTML。Work 的 search/fetch/follow-up receipts 必須來自
+實際執行工具，且 promoted claim 需要同 run 的合格 access observation 與 citation
+binding。
 
 反向地，Work 產生的四個 artifact 只有在使用者明確審閱、帶入、使用
 `tools/merge_radar_state.py` 與 canonical State 作 deterministic union，並通過

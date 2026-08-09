@@ -27,17 +27,47 @@ If a repository checkout is not available in the Work VM, use the released Work
 Pack path below and record its manifest source commit instead. The two modes
 must not be mixed within one run.
 
-Read `EVIDENCE_RADAR_PROTOCOL.md`, `config/`, `docs/research_taxonomy.md`, the latest valid canonical or explicitly imported `EvidenceRadar_State.json`, and the artifact schemas before each run.
+Read `EVIDENCE_RADAR_PROTOCOL.md`, `docs/SEMANTIC_CONTRACT_V3.md`, `config/`,
+`docs/research_taxonomy.md`, the latest valid canonical or explicitly imported
+`EvidenceRadar_State.json`, and the artifact schemas before each run.
 
 Use live web search and open the actual authoritative pages. Memory, old reports and search snippets are navigation aids only. Never present them as proof of the current window.
 
 For `daily`, use an exact rolling 72-hour window in Asia/Tokyo and search all five categories independently. Record every planned query, source target, URL, access result and execution time. Build candidates first; write conclusions only after event and evidence verification.
+
+Every real search, content fetch, claim verification and gap follow-up must
+produce one `retrieval_attempts` receipt from the executed operation. Reconcile
+its stable attempt ID, backend, time, endpoint, request fingerprint, status,
+result count/ID hash, pagination and limit flag with `queries`, `source_access`,
+source CHECKs and candidates. A prose assertion that you searched is not a
+receipt. Use `NO_RESULTS` only after a successful zero-result request;
+`NOT_ATTEMPTED` requests zero pages. Log provider query rewrites in
+`search_expansions`.
+
+Reuse stable source IDs from `source_registry` and append receipt-linked
+`source_observations`; never replace a prior access observation. A known OA/PDF
+URL can remain BLOCKED or NOT_CHECKED and does not give FULL_TEXT depth.
 
 Apply identity priority:
 
 `DOI → PMID → PMCID → arXiv ID → Anthology ID → OpenAlex ID → normalized title`.
 
 Every reported item needs a qualifying event, direct source URL, source field, event time/precision/confidence, research design, main claim, caveat and correction/retraction status. Every visible number must preserve sign, unit, direction, comparator, semantic surface and source locator.
+
+Every Evidence claim needs `claim_kind`, `claim_origin`, exact citation
+bindings and `support_reason`. `MODEL_INFERENCE` belongs only in
+`Evidence.inferences`; it is never a citation binding or source-supported
+claim. Topic alignment answers scope only and cannot raise support status.
+Numeric claims require structured effect estimates including measure,
+population, exposure, comparator, outcome, denominator, timeframe, analysis
+set, estimator, method and uncertainty. Keep incompatible results in an open
+`conflict_group`.
+
+Carry unresolved source/content/identity/claim/numeric gaps forward. Start a
+follow-up only for a pre-existing OPEN gap and bind trigger, scope/parent work,
+actual query, backend, time, executor receipt, result and resolved gap IDs.
+Respect max attempts and cooldown; do not relabel a skipped request as a
+follow-up.
 
 Every candidate shown in HTML must also have a concise Traditional Chinese
 `content_summary`, `summary_language: zh-TW`, and an explicit `summary_basis`.
@@ -48,7 +78,18 @@ Use only `SUPPORTED`, `PARTIAL`, `CONFLICT` or `UNVERIFIED` for claim support. U
 
 Use only `COMPLETE`, `PARTIAL_SOURCE_COVERAGE`, `SOURCE_ACCESS_GAP`, `STATE_HISTORY_INCOMPLETE` or `NO_QUALIFYING_ITEMS` for the primary run status. Missing prior State requires `STATE_HISTORY_INCOMPLETE`. `NO_QUALIFYING_ITEMS` requires complete source coverage.
 
-Produce and validate:
+Produce State, Evidence and Run JSON first. Then generate and validate the
+canonical report with:
+
+```sh
+python3 tools/render_report_from_artifacts.py --bundle "$WORK_RUN_DIR"
+```
+
+The renderer synchronizes the current claim registry and claim count and binds
+the exact HTML hash. Correct JSON and rerun the renderer; never hand-edit
+substantive prose, numbers or claim labels into the final HTML.
+
+Deliver:
 
 1. `EvidenceRadar_Report.html`
 2. `EvidenceRadar_State.json`
@@ -57,7 +98,7 @@ Produce and validate:
 
 HTML is the primary delivery. It must agree with the JSON artifacts. Do not write to GitHub, invoke MCP/server/Codex, run the legacy Python crawler, or trigger TA/TP03/image generation unless the user separately requests that downstream work.
 
-The HTML delivery contract is machine-checkable. In `<head>`, emit exactly one
+The HTML delivery contract is machine-checkable. The canonical renderer emits exactly one
 meta value for `evidenceradar-run-id`, `evidenceradar-execution-lane`,
 `evidenceradar-protocol-commit`, and
 `evidenceradar-displayed-candidates`. Mark every displayed item with one unique
@@ -65,6 +106,8 @@ meta value for `evidenceradar-run-id`, `evidenceradar-execution-lane`,
 The displayed marker set must exactly equal candidates where
 `displayed_in_report: true`; `counts.displayed_candidates` and
 `counts.deduplicated_candidates` must agree with HTML and the complete ledger.
+It marks candidate summaries as navigation-only and every substantive claim
+with its Evidence claim ID; any extra unbound prose fails byte-parity validation.
 
 For every new State and Run artifact, set `execution_lane` to
 `chatgpt_work`, record the exact `protocol_commit` or Work Pack source commit,
@@ -82,7 +125,7 @@ If the GitHub canonical State and this Work State later diverge, return this
 State as a separate artifact for deterministic merging with
 `tools/merge_radar_state.py`; do not overwrite either branch by timestamp.
 
-Before returning files, always run the schema validator:
+After canonical rendering and before returning files, always run the schema validator:
 
 ```sh
 python3 tools/validate_gpt_work_artifacts.py \
@@ -94,7 +137,8 @@ mode. For an extracted released Work Pack, bind the run to that pack manifest:
 
 ```sh
 python3 tools/validate_delivery_bundle.py \
-  --root . --bundle . --expected-lane chatgpt_work --manifest manifest.json
+  --root . --bundle . --expected-lane chatgpt_work --manifest manifest.json \
+  --require-semantic-contract-v3
 ```
 
 For public-repository-first mode, there is no Work Pack manifest. Validate
@@ -106,7 +150,8 @@ python3 tools/validate_delivery_bundle.py \
   --bundle "$WORK_RUN_DIR" \
   --expected-lane chatgpt_work \
   --expected-protocol-commit "$PROTOCOL_COMMIT" \
-  --require-current-producer
+  --require-current-producer \
+  --require-semantic-contract-v3
 ```
 
 For a public-repository-first run, package the validated run directory with the
