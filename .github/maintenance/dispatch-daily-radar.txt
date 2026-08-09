@@ -1,0 +1,1 @@
+Dispatch the canonical daily Radar workflow once after the merged 72-hour event-window fix.
