@@ -1,6 +1,6 @@
 {
   "artifact_type": "EvidenceRadar_State",
-  "base_state_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "base_state_sha256": "7cdf8c0e2e0f0d4872f3333b146d989dbe2badc610feed55cadceba652883301",
   "dedupe_priority": [
     "doi",
     "pmid",
@@ -11,10 +11,10 @@
     "normalized_title"
   ],
   "execution_lane": "github_actions",
-  "generated_at": "2026-08-09T09:21:54.070002+09:00",
-  "history_note": "No valid canonical prior State artifact was available at run start.",
+  "generated_at": "2026-08-09T10:03:09.137644+09:00",
+  "history_note": "Canonical prior state was loaded.",
   "history_status": "STATE_HISTORY_INCOMPLETE",
-  "last_run_id": "github-actions-20260809T092119+0900",
+  "last_run_id": "github-actions-20260809T100233+0900",
   "notes": [
     "Automated GitHub lane records only event candidates whose source page was accessible."
   ],
@@ -32,6 +32,30 @@
       "work_id": "doi:10.2196/89215"
     },
     {
+      "confidence": "provider_metadata",
+      "event_id": "event:630f7a15f26d8d1c4e27c565b8257419031790167968d0154fe93490b34f38cb",
+      "event_type": "first_formal_indexing",
+      "notified_at": "2026-08-09T10:03:09.137644+09:00",
+      "occurred_at": "2026-08-08",
+      "precision": "date",
+      "source": "PubMed",
+      "source_field": "PubMedData/History[pubmed]",
+      "source_url": "https://pubmed.ncbi.nlm.nih.gov/42567275/",
+      "work_id": "doi:10.1016/j.jtct.2026.07.024"
+    },
+    {
+      "confidence": "provider_metadata",
+      "event_id": "event:94554ff98bbc881a4f75472e78ed05d1dd83221500a7dc84f052cb0fb480556c",
+      "event_type": "first_formal_indexing",
+      "notified_at": "2026-08-09T10:03:09.137644+09:00",
+      "occurred_at": "2026-08-07",
+      "precision": "date",
+      "source": "PubMed",
+      "source_field": "PubMedData/History[pubmed]",
+      "source_url": "https://pubmed.ncbi.nlm.nih.gov/42562204/",
+      "work_id": "doi:10.1016/j.arth.2026.05.038"
+    },
+    {
       "confidence": "publisher_supplied_citation",
       "event_id": "event:abb130421e50e372237c9700e9b96e42e38da9dbe8fe0c5743efdb9326c50ff3",
       "event_type": "version_of_record_first_online",
@@ -42,6 +66,18 @@
       "source_field": "Article/ArticleDate",
       "source_url": "https://pubmed.ncbi.nlm.nih.gov/42565815/",
       "work_id": "doi:10.2196/89321"
+    },
+    {
+      "confidence": "provider_metadata",
+      "event_id": "event:dbe8f42489cadce21730a5f84bfe6d3aa854a88186547d8461e562194c6efbe9",
+      "event_type": "first_formal_indexing",
+      "notified_at": "2026-08-09T10:03:09.137644+09:00",
+      "occurred_at": "2026-08-07",
+      "precision": "date",
+      "source": "PubMed",
+      "source_field": "PubMedData/History[pubmed]",
+      "source_url": "https://pubmed.ncbi.nlm.nih.gov/42566592/",
+      "work_id": "doi:10.1097/md.0000000000050023"
     },
     {
       "confidence": "provider_metadata",
@@ -56,11 +92,85 @@
       "work_id": "doi:10.1097/md.0000000000050133"
     }
   ],
-  "parent_run_ids": [],
-  "protocol_commit": "7be5e74415d0965a3767462935026952a7a691a3",
+  "parent_run_ids": [
+    "github-actions-20260809T092119+0900"
+  ],
+  "protocol_commit": "e64629fea01243482af1ab89a95ffb6c1ddf3b92",
   "schema_version": "1.0",
   "timezone": "Asia/Tokyo",
   "works": [
+    {
+      "category": "sport_science",
+      "first_seen_at": "2026-08-09T10:03:09.137644+09:00",
+      "identifiers": {
+        "doi": "10.1016/j.arth.2026.05.038",
+        "pmid": "42562204"
+      },
+      "is_preprint": false,
+      "last_seen_at": "2026-08-09T10:03:09.137644+09:00",
+      "normalized_title": "sensor based gait recovery analysis after total hip and knee arthroplasty a one year follow up study integrating muscle strength and patient reported outcomes",
+      "notified_event_ids": [
+        "event:94554ff98bbc881a4f75472e78ed05d1dd83221500a7dc84f052cb0fb480556c"
+      ],
+      "open_access": false,
+      "seen_count": 1,
+      "source_urls": [
+        "https://linkinghub.elsevier.com/retrieve/pii/S0883540326005541"
+      ],
+      "streams": [
+        "sport_science"
+      ],
+      "title": "Sensor-Based Gait Recovery Analysis After Total Hip and Knee Arthroplasty: A One-Year Follow-Up Study Integrating Muscle Strength and Patient-Reported Outcomes.",
+      "work_id": "doi:10.1016/j.arth.2026.05.038"
+    },
+    {
+      "category": "sport_science",
+      "first_seen_at": "2026-08-09T10:03:09.137644+09:00",
+      "identifiers": {
+        "doi": "10.1016/j.jtct.2026.07.024",
+        "pmid": "42567275"
+      },
+      "is_preprint": false,
+      "last_seen_at": "2026-08-09T10:03:09.137644+09:00",
+      "normalized_title": "the role of physical therapy across the transplant trajectory in allogeneic hematopoietic stem cell transplantation a systematic review and clinical framework",
+      "notified_event_ids": [
+        "event:630f7a15f26d8d1c4e27c565b8257419031790167968d0154fe93490b34f38cb"
+      ],
+      "open_access": false,
+      "seen_count": 1,
+      "source_urls": [
+        "https://linkinghub.elsevier.com/retrieve/pii/S2666636726005798"
+      ],
+      "streams": [
+        "sport_science"
+      ],
+      "title": "The role of physical therapy across the transplant trajectory in allogeneic hematopoietic stem cell transplantation, a systematic review and clinical framework.",
+      "work_id": "doi:10.1016/j.jtct.2026.07.024"
+    },
+    {
+      "category": "clinical_medicine",
+      "first_seen_at": "2026-08-09T10:03:09.137644+09:00",
+      "identifiers": {
+        "doi": "10.1097/md.0000000000050023",
+        "pmid": "42566592"
+      },
+      "is_preprint": false,
+      "last_seen_at": "2026-08-09T10:03:09.137644+09:00",
+      "normalized_title": "efficacy and safety of first line immune checkpoint inhibitors combinations for extensive stage small cell lung cancer a systematic review and network meta analysis",
+      "notified_event_ids": [
+        "event:dbe8f42489cadce21730a5f84bfe6d3aa854a88186547d8461e562194c6efbe9"
+      ],
+      "open_access": false,
+      "seen_count": 1,
+      "source_urls": [
+        "https://www.ovid.com/jnls/md-journal/fulltext/10.1097/md.0000000000050023~efficacy-and-safety-of-first-line-immune-checkpoint"
+      ],
+      "streams": [
+        "clinical_medicine"
+      ],
+      "title": "Efficacy and safety of first-line immune checkpoint inhibitors combinations for extensive-stage small-cell lung cancer: A systematic review and network meta-analysis.",
+      "work_id": "doi:10.1097/md.0000000000050023"
+    },
     {
       "category": "clinical_medicine",
       "first_seen_at": "2026-08-09T09:21:54.070002+09:00",
