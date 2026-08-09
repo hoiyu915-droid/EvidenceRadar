@@ -30,6 +30,7 @@ import datetime as _datetime
 import hashlib
 import json
 import os
+import sys
 import tempfile
 from collections import defaultdict
 from pathlib import Path
@@ -37,6 +38,13 @@ from typing import Any, Iterable, Mapping, Sequence
 
 
 JsonObject = dict[str, Any]
+
+# ``python tools/merge_radar_state.py`` makes ``tools/`` (not the pack root)
+# the first import location.  Add the immutable checkout / extracted Work Pack
+# root so the V3 schema validator remains available from the documented CLI.
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 _IDENTIFIER_FIELDS = (
     "doi",

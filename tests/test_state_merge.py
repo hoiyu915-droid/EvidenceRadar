@@ -5,10 +5,13 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 
+from tests.test_delivery_bundle import create_bundle
 from tools.merge_radar_state import (
     StateMergeError,
     canonical_json,
@@ -94,6 +97,32 @@ def _state(*, generated: str, run_id: str, works: list[dict], events: list[dict]
 
 
 class StateMergeTests(unittest.TestCase):
+    def test_v3_cli_loads_schema_validator_from_pack_root_outside_cwd(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            temporary = Path(directory)
+            bundle, _canonical = create_bundle(temporary / "fixture")
+            state_path = bundle / "EvidenceRadar_State.json"
+            output_path = temporary / "merged" / "EvidenceRadar_State.json"
+            outside_cwd = temporary / "outside-cwd"
+            outside_cwd.mkdir()
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    str(ROOT / "tools" / "merge_radar_state.py"),
+                    str(state_path),
+                    str(state_path),
+                    "--output",
+                    str(output_path),
+                ],
+                cwd=outside_cwd,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(0, completed.returncode, completed.stderr)
+            schema = load_json(ROOT / "schemas" / "evidence-radar-state.schema.json")
+            self.assertEqual([], validate_document(load_json(output_path), schema))
+
     def test_v3_relation_merge_is_order_independent_and_preserves_review(self) -> None:
         def relation_id(prefix: str, left: str, right: str, kind: str) -> str:
             digest = hashlib.sha256(
