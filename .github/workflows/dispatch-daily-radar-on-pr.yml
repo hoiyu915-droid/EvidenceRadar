@@ -1,0 +1,24 @@
+name: One-time dispatch EvidenceRadar daily run
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/maintenance/dispatch-daily-radar.txt"
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  dispatch:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch canonical daily Radar workflow from main
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run daily-radar.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref main
