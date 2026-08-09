@@ -19,6 +19,8 @@ on:
       - "schemas/**"
       - "templates/**"
       - "examples/**"
+      - "tools/build_runtime_release.py"
+      - "tools/build_work_pack.py"
       - "tools/delivery_contract.py"
       - "tools/merge_radar_state.py"
       - "tools/package_work_delivery.py"
