@@ -167,3 +167,17 @@ closed。
 最後依序執行 per-file schema validator、cross-bundle validator 與唯一 run-id
 packager。結構驗證證明 artifacts 內部一致，不取代研究者對來源真實性與 locator 的
 人工審查。
+
+## Additive study/document classification v1
+
+`STUDY_CLASSIFICATION_V1` is an additive V3 extension. Legacy V2/V3 bundles remain valid without the new fields. A producer that emits the marker MUST project the same classification into Run candidates, State works, and canonical HTML.
+
+The classifier is deliberately conservative and metadata-first:
+
+- preserve provider publication-type labels verbatim in `provider_publication_types`;
+- normalize document form separately from study design (`document_type` vs `study_designs`);
+- use PubMed/Europe PMC/OpenAlex publication metadata before title rules;
+- title rules only fire on explicit high-precision phrases such as randomized controlled trial, systematic review, meta-analysis, cohort/case-control/cross-sectional study, case report, qualitative study, or protocol;
+- no abstract/model/venue-topic inference is allowed in v1; unresolved designs remain an empty list with `study_design_basis=UNKNOWN`;
+- `document_type_basis` and `study_design_basis` make the classification provenance auditable;
+- canonical HTML exposes `data-document-type` and `data-study-designs`, visible study chips, and a study-type filter; validators fail closed when marker-bearing Run/State/HTML projections drift.
