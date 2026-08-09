@@ -178,6 +178,11 @@ class GithubDeploymentSurfaceTests(unittest.TestCase):
             "links.json",
         ):
             self.assertIn(marker, self.pages_workflow)
+        install_index = self.pages_workflow.index(
+            "python -m pip install -r requirements.txt"
+        )
+        build_index = self.pages_workflow.index("python tools/build_pages_site.py")
+        self.assertLess(install_index, build_index)
 
     def test_documentation_covers_template_secrets_state_and_work_boundary(self) -> None:
         for marker in (
