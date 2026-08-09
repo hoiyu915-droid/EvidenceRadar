@@ -1,25 +1,25 @@
 name: One-time EvidenceRadar event-window fix
 
-# Registered on main; this PR merge supplies the push trigger.
 on:
-  push:
+  pull_request:
     branches: [main]
     paths:
-      - ".github/workflows/apply-event-window-fix.yml"
+      - ".github/maintenance/event-window-fix-request.txt"
 
 permissions:
   contents: write
-  actions: write
 
 jobs:
   apply-fix:
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Check out repository
+      - name: Check out PR head branch
         uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.ref }}
 
       - name: Set up Python 3.12
         uses: actions/setup-python@v7.0.0
@@ -41,7 +41,9 @@ jobs:
           python -m py_compile tools/run_github_radar.py
           python -m unittest discover -s tests -v
 
-      - name: Commit bounded producer fix
+      - name: Commit producer fix to PR branch
+        env:
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
         run: |
           git config user.name "EvidenceRadar maintenance"
           git config user.email "evidenceradar-maintenance@users.noreply.github.com"
@@ -51,12 +53,4 @@ jobs:
             exit 1
           fi
           git commit -m "fix: gate Radar priority on 72h qualifying events"
-          git push origin "HEAD:main"
-
-      - name: Run the fixed Radar producer
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh workflow run daily-radar.yml \
-            --repo "$GITHUB_REPOSITORY" \
-            --ref main
+          git push origin "HEAD:${HEAD_BRANCH}"
