@@ -45,6 +45,7 @@ WORK_PRODUCER_PATHS = SHARED_CONTRACT_PATHS + (
     "templates/gpt-work-instructions.md",
     "tools/delivery_contract.py",
     "tools/merge_radar_state.py",
+    "tools/package_work_delivery.py",
     "tools/validate_delivery_bundle.py",
     "tools/validate_gpt_work_artifacts.py",
 )

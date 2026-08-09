@@ -13,6 +13,50 @@ project's files when the task is created in a project that has files, so this
 pack does not claim unattended Work scheduling. See the official
 [Scheduled Tasks documentation](https://help.openai.com/en/articles/10291617-tasks-in-chatgpt).
 
+## 0. Repository-first mode (direct public-repository execution)
+
+For a normal Work run, the Work VM can read and execute the public repository
+directly; a released Work Pack is not required. Use this mode when the task
+starts from the public GitHub repository:
+
+1. Open the repository's `main` branch and resolve it to one commit SHA before
+   reading files. If the Work VM has a shell, the equivalent immutable
+   checkout is:
+
+   ```sh
+   git clone --depth 1 --branch main \
+     https://github.com/hoiyu915-droid/EvidenceRadar.git \
+     "$WORK_SOURCE_DIR/EvidenceRadar"
+   git -C "$WORK_SOURCE_DIR/EvidenceRadar" rev-parse HEAD
+   ```
+
+   If it only has browser/repository access, record the commit shown by the
+   GitHub `main` page and read raw files at that commit. Do not use a moving
+   `main` URL after the SHA has been recorded.
+2. Read `EVIDENCE_RADAR_PROTOCOL.md`, `config/`, `schemas/`,
+   `docs/research_taxonomy.md`, the templates and the relevant tools from that
+   exact checkout. Keep the checkout read-only.
+3. Create a fresh Work-VM run directory, for example
+   `work-runs/<run_id>/`, and write all four artifacts there. This is local Work
+   state, not an implicit GitHub writeback.
+4. Validate the four files, then run the repository's
+   `tools/package_work_delivery.py` from the same immutable checkout. It emits
+   `EvidenceRadar-WorkRun-<run_id>.zip`, a matching unique run-id directory and
+   `.zip.sha256` sidecar. Attach the unique ZIP plus checksum, not four bare
+   files whose names may collide with an old Work attachment.
+
+The resulting delivery is self-contained: the archive root has the canonical
+`EvidenceRadar_Report.html`, `EvidenceRadar_State.json`,
+`EvidenceRadar_Evidence.json`, `EvidenceRadar_Run.json` and `manifest.json`.
+The manifest records the run id, `chatgpt_work` lane, protocol commit and the
+SHA-256/size of each canonical file. A second run must use a new run id; the
+packager refuses to overwrite an existing run directory or archive. This
+run-id packaging is also the recovery artifact when a later GitHub publication
+attempt sees a branch conflict.
+
+Repository-first mode and Work Pack mode are alternatives for one run. Do not
+mix policy files from one mode with the recorded source commit of the other.
+
 ## 1. Install a released pack
 
 1. Download `EvidenceRadar-WorkPack-v<version>.zip` and its matching
@@ -33,7 +77,8 @@ pack does not claim unattended Work scheduling. See the official
 
 The pack has no third-party runtime dependencies. It contains only the
 protocol, configuration, taxonomy, templates, schemas, examples, setup and
-migration guides, `tools/validate_gpt_work_artifacts.py`, and
+migration guides, `tools/validate_gpt_work_artifacts.py`,
+`tools/validate_delivery_bundle.py`, `tools/package_work_delivery.py`, and
 `tools/merge_radar_state.py`. Daily reports, cross-run state, the automated
 runner, legacy Python code, credentials, and other secret-bearing material are
 deliberately excluded. Carry the latest `EvidenceRadar_State.json` separately
@@ -103,7 +148,8 @@ python3 tools/validate_gpt_work_artifacts.py \
 
 The schema validator is necessary but not sufficient for delivery. The second
 validator checks all four artifacts together, including Run/State provenance,
-source coverage, candidate counts and the actual HTML item markers:
+source coverage, candidate counts and the actual HTML item markers. For an
+extracted released Work Pack, use its input manifest:
 
 ```sh
 python3 tools/validate_delivery_bundle.py \
@@ -113,13 +159,32 @@ python3 tools/validate_delivery_bundle.py \
   --manifest manifest.json
 ```
 
+For repository-first mode, do not pass a guessed or output-delivery manifest.
+Bind validation to the immutable clean checkout instead:
+
+```sh
+python3 tools/validate_delivery_bundle.py \
+  --root "$WORK_SOURCE_DIR/EvidenceRadar" \
+  --bundle "$WORK_RUN_DIR" \
+  --expected-lane chatgpt_work \
+  --expected-protocol-commit "$PROTOCOL_COMMIT" \
+  --require-current-producer
+python3 tools/package_work_delivery.py \
+  --source-dir "$WORK_RUN_DIR" \
+  --output-dir "$WORK_DELIVERY_DIR" \
+  --run-id "$RUN_ID" \
+  --validation-root "$WORK_SOURCE_DIR/EvidenceRadar" \
+  --expected-lane chatgpt_work \
+  --require-current-producer
+```
+
 `EvidenceRadar_Report.html` must be returned by Work as an actual downloadable
 file. A local Work filesystem path is not a clickable public link. For a stable
-browser URL, the validated bundle must be reviewed and published to a GitHub
-repository with Pages enabled. After the Pages deployment succeeds, use the
-deployed `links.json`; its `report_url` points to the current report and
-`immutable_run.report_html` points to the preserved run. Do not announce a
-guessed Pages URL before the deployment reports success.
+browser URL, the validated and uniquely packaged bundle must be reviewed and
+published to a GitHub repository with Pages enabled. After the Pages deployment
+succeeds, use the deployed `links.json`; its `report_url` points to the current
+report and `immutable_run.report_html` points to the preserved run. Do not
+announce a guessed Pages URL before the deployment reports success.
 
 ## 4. Configuration and boundaries
 

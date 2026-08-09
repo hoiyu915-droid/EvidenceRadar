@@ -37,9 +37,13 @@ class GithubDeploymentSurfaceTests(unittest.TestCase):
         self.assertIn("default: 10", target_block)
         self.assertIn("default: 15", hard_max_block)
         self.assertIn("type: number", self.workflow)
+        self.assertIn("cas_retry:", self.workflow)
+        self.assertIn("default: false", self.workflow)
+        self.assertIn("type: boolean", self.workflow)
 
     def test_write_permission_and_non_cancelling_concurrency_are_explicit(self) -> None:
-        self.assertRegex(self.workflow, r"permissions:\s*\n\s+contents:\s+write")
+        self.assertRegex(self.workflow, r"permissions:\s*\n(?:\s+\w+:\s+\w+\s*\n)+\s+contents:\s+write")
+        self.assertIn("actions: write", self.workflow)
         self.assertIn("concurrency:", self.workflow)
         self.assertIn("cancel-in-progress: false", self.workflow)
 
@@ -99,6 +103,32 @@ class GithubDeploymentSurfaceTests(unittest.TestCase):
         self.assertIn("if-no-files-found: error", self.workflow)
         self.assertIn("cmp --silent", self.workflow)
 
+    def test_run_delivery_is_unique_and_uploaded_before_writeback(self) -> None:
+        self.assertIn("RADAR_DELIVERY_OUTPUT_DIR", self.workflow)
+        self.assertIn("tools/package_work_delivery.py", self.workflow)
+        self.assertIn("--source-dir \"$source_dir\"", self.workflow)
+        self.assertIn("--run-id \"$run_id\"", self.workflow)
+        self.assertIn("EvidenceRadar-WorkRun-$run_id.zip", self.workflow)
+        self.assertIn("EvidenceRadar-WorkRun-$run_id.zip.sha256", self.workflow)
+        package_index = self.workflow.index("Package immutable run delivery")
+        upload_index = self.workflow.index("Upload the run artifacts")
+        writeback_index = self.workflow.index("Commit generated artifacts and state")
+        self.assertLess(package_index, upload_index)
+        self.assertLess(upload_index, writeback_index)
+        self.assertIn("github.run_attempt", self.workflow)
+
+    def test_cas_conflict_has_one_retry_and_never_greenlights_stale_writeback(self) -> None:
+        conflict_start = self.workflow.index('if [ "$remote_sha" != "$GITHUB_SHA" ]')
+        conflict_block = self.workflow[conflict_start:]
+        self.assertIn('if [ "$CAS_RETRY" = "true" ]', conflict_block)
+        self.assertIn("gh workflow run daily-radar.yml", conflict_block)
+        self.assertIn("-f publisher_target_min=", conflict_block)
+        self.assertIn("-f publisher_hard_max=", conflict_block)
+        self.assertIn("-f cas_retry=true", conflict_block)
+        self.assertIn("same publisher budget", conflict_block)
+        self.assertIn("exit 1", conflict_block)
+        self.assertNotIn("exit 0", conflict_block)
+
     def test_writeback_stages_only_generated_paths_and_handles_noop(self) -> None:
         self.assertIn('git add -- "$RADAR_OUTPUT_DIR" "$RADAR_STATE_PATH"', self.workflow)
         self.assertIn('git add -- "$RADAR_RUNS_DIR"', self.workflow)
@@ -108,6 +138,8 @@ class GithubDeploymentSurfaceTests(unittest.TestCase):
         self.assertNotIn("git pull --rebase origin", self.workflow)
         self.assertIn('remote_sha="$(git rev-parse "origin/$GITHUB_REF_NAME")"', self.workflow)
         self.assertIn('if [ "$remote_sha" != "$GITHUB_SHA" ]', self.workflow)
+        self.assertIn("generated bundle was not published", self.workflow)
+        self.assertIn("No stale State was rebased or pushed", self.workflow)
         self.assertIn("git push origin", self.workflow)
 
     def test_public_release_validates_the_canonical_current_bundle(self) -> None:
@@ -123,6 +155,9 @@ class GithubDeploymentSurfaceTests(unittest.TestCase):
             "pages: write",
             "id-token: write",
             "actions/configure-pages@v6.0.0",
+            "Fail closed if GitHub Pages is not enabled",
+            "gh api \"repos/${GITHUB_REPOSITORY}/pages\"",
+            'build_type\" != \"workflow',
             "python tools/build_pages_site.py",
             "--bundle artifacts/current",
             "actions/upload-pages-artifact@v5.0.0",
@@ -147,7 +182,14 @@ class GithubDeploymentSurfaceTests(unittest.TestCase):
             "EvidenceRadar_State.json",
             "publisher_target_min",
             "publisher_hard_max",
+            "cas_retry",
+            "CAS conflict",
+            "人工 rerun",
+            "Recovery artifact 是 Actions upload",
             "Settings → Pages",
+            "Source 不是",
+            "repository-first mode",
+            "run-id",
             "links.json",
         ):
             self.assertIn(marker, self.documentation)

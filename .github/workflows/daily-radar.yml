@@ -18,10 +18,16 @@ on:
         required: false
         default: 15
         type: number
+      cas_retry:
+        description: "Internal bounded CAS retry; leave false for normal/manual runs"
+        required: false
+        default: false
+        type: boolean
 
 # The optional GitHub lane writes only its generated artifacts and canonical
 # state back to the repository.  Forks/templates receive their own token.
 permissions:
+  actions: write
   contents: write
 
 concurrency:
@@ -38,9 +44,13 @@ env:
   RADAR_EVIDENCE_PATH: "artifacts/current/EvidenceRadar_Evidence.json"
   RADAR_RUN_PATH: "artifacts/current/EvidenceRadar_Run.json"
   RADAR_RUNS_DIR: "runs"
+  # A runner-temp path is deliberately outside the checkout.  It is unique per
+  # Actions run and is uploaded as the recovery bundle before any writeback.
+  RADAR_DELIVERY_OUTPUT_DIR: ${{ runner.temp }}/evidenceradar-work-delivery-${{ github.run_id }}-${{ github.run_attempt }}
   EXECUTION_LANE: "github_actions"
   PUBLISHER_TARGET_MIN: ${{ inputs.publisher_target_min || 10 }}
   PUBLISHER_HARD_MAX: ${{ inputs.publisher_hard_max || 15 }}
+  CAS_RETRY: ${{ inputs.cas_retry || false }}
   OPENALEX_API_KEY: ${{ secrets.OPENALEX_API_KEY }}
   OPENREVIEW_TOKEN: ${{ secrets.OPENREVIEW_TOKEN }}
   NCBI_EMAIL: ${{ vars.NCBI_EMAIL }}
@@ -125,10 +135,31 @@ jobs:
             "$RADAR_OUTPUT_DIR/EvidenceRadar_State.json" \
             "$RADAR_STATE_PATH"
 
+      - name: Package immutable run delivery and recovery bundle
+        run: |
+          run_id="$(python -c 'import json; print(json.load(open("artifacts/current/EvidenceRadar_Run.json", encoding="utf-8"))["run_id"])')"
+          source_dir="$RADAR_RUNS_DIR/$run_id"
+          if [ ! -d "$source_dir" ]; then
+            echo "::error::immutable run directory is missing: $source_dir"
+            exit 1
+          fi
+          if [ -e "$RADAR_DELIVERY_OUTPUT_DIR" ]; then
+            echo "::error::delivery output path already exists: $RADAR_DELIVERY_OUTPUT_DIR"
+            exit 1
+          fi
+          python tools/package_work_delivery.py \
+            --source-dir "$source_dir" \
+            --output-dir "$RADAR_DELIVERY_OUTPUT_DIR" \
+            --run-id "$run_id" \
+            --expected-lane "$EXECUTION_LANE" \
+            --require-current-producer
+          test -s "$RADAR_DELIVERY_OUTPUT_DIR/EvidenceRadar-WorkRun-$run_id.zip"
+          test -s "$RADAR_DELIVERY_OUTPUT_DIR/EvidenceRadar-WorkRun-$run_id.zip.sha256"
+
       - name: Upload the run artifacts
         uses: actions/upload-artifact@v7.0.1
         with:
-          name: evidenceradar-${{ github.run_id }}
+          name: evidenceradar-${{ github.run_id }}-${{ github.run_attempt }}
           if-no-files-found: error
           retention-days: 14
           path: |
@@ -136,10 +167,12 @@ jobs:
             ${{ env.RADAR_STATE_PATH }}
             ${{ env.RADAR_EVIDENCE_PATH }}
             ${{ env.RADAR_RUN_PATH }}
+            ${{ env.RADAR_DELIVERY_OUTPUT_DIR }}
 
       - name: Commit generated artifacts and state
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git config user.name "EvidenceRadar bot"
           git config user.email "evidenceradar-bot@users.noreply.github.com"
@@ -165,6 +198,28 @@ jobs:
           remote_sha="$(git rev-parse "origin/$GITHUB_REF_NAME")"
           if [ "$remote_sha" != "$GITHUB_SHA" ]; then
             echo "::error::canonical branch advanced from $GITHUB_SHA to $remote_sha; generated bundle was not published"
+            {
+              echo "## EvidenceRadar writeback failed: CAS conflict"
+              echo ""
+              echo "The canonical branch advanced while this run was searching. No stale State was rebased or pushed."
+              echo "The uniquely named run delivery and SHA-256 sidecar are preserved as an uploaded Actions recovery artifact; they are not a publication."
+            } >> "$GITHUB_STEP_SUMMARY"
+            if [ "$CAS_RETRY" = "true" ]; then
+              echo "::error::bounded CAS retry already consumed; no further automatic retry will be dispatched"
+              echo "Manual rerun is required after reviewing the recovery artifact."
+            else
+              echo "Queueing one bounded retry from the newest canonical branch..."
+              if gh workflow run daily-radar.yml \
+                --repo "$GITHUB_REPOSITORY" \
+                --ref "$GITHUB_REF_NAME" \
+                -f publisher_target_min="$PUBLISHER_TARGET_MIN" \
+                -f publisher_hard_max="$PUBLISHER_HARD_MAX" \
+                -f cas_retry=true; then
+                echo "Retry queued with cas_retry=true and the same publisher budget."
+              else
+                echo "::error::automatic CAS retry dispatch failed; manual workflow rerun is required"
+              fi
+            fi
             exit 1
           fi
           git push origin "HEAD:$GITHUB_REF_NAME"

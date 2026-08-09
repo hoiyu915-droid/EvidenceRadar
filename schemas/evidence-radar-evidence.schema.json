@@ -263,6 +263,33 @@
             "UNAVAILABLE"
           ]
         },
+        "oa_status": {
+          "type": "string",
+          "enum": ["YES", "NO", "UNKNOWN"]
+        },
+        "oa_evidence": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/oa_evidence" }
+        },
+        "access_probe_status": {
+          "type": "string",
+          "enum": ["ACCESSIBLE", "BLOCKED", "PAYWALLED", "FAILED", "NOT_CHECKED"]
+        },
+        "fulltext_kind": {
+          "type": "string",
+          "enum": ["PDF", "HTML", "REPOSITORY", "ABSTRACT_ONLY", "UNKNOWN"]
+        },
+        "download_urls": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^https?://\\S+$" }
+        },
+        "fulltext_locations": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/fulltext_location" }
+        },
         "title": {
           "type": "string",
           "minLength": 1
@@ -331,7 +358,60 @@
             "type": "string",
             "minLength": 1
           }
+        },
+        "oa_status": {
+          "type": "string",
+          "enum": ["YES", "NO", "UNKNOWN"]
+        },
+        "oa_evidence": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/oa_evidence" }
+        },
+        "access_status": {
+          "type": "string",
+          "enum": ["ACCESSIBLE", "BLOCKED", "PAYWALLED", "FAILED", "NOT_CHECKED"]
+        },
+        "fulltext_kind": {
+          "type": "string",
+          "enum": ["PDF", "HTML", "REPOSITORY", "ABSTRACT_ONLY", "UNKNOWN"]
+        },
+        "download_urls": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^https?://\\S+$" }
+        },
+        "fulltext_locations": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/fulltext_location" }
         }
+      }
+    },
+    "oa_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "evidence_type", "value"],
+      "properties": {
+        "source": { "type": "string", "minLength": 1 },
+        "evidence_type": { "type": "string", "minLength": 1 },
+        "value": { "type": "string", "minLength": 1 },
+        "url": { "type": "string", "pattern": "^https?://\\S+$" }
+      }
+    },
+    "fulltext_location": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["url", "kind", "host_type", "access_status"],
+      "properties": {
+        "url": { "type": "string", "pattern": "^https?://\\S+$" },
+        "kind": { "type": "string", "enum": ["PDF", "HTML", "REPOSITORY"] },
+        "host_type": { "type": "string", "enum": ["REPOSITORY", "PUBLISHER"] },
+        "access_status": {
+          "type": "string",
+          "enum": ["ACCESSIBLE", "BLOCKED", "PAYWALLED", "FAILED", "NOT_CHECKED"]
+        },
+        "reason": { "type": "string", "minLength": 1 }
       }
     },
     "measurement": {

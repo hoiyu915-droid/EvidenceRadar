@@ -535,6 +535,10 @@
           "enum": ["QUALIFYING", "ALREADY_NOTIFIED", "NO_QUALIFYING_EVENT"]
         },
         "event_id": { "type": "string", "minLength": 1 },
+        "event_class": {
+          "type": "string",
+          "enum": ["NEW_PUBLICATION", "BACKFILL_INDEXING", "CORRECTION_NOTICE", "OTHER"]
+        },
         "qualifying_event": {
           "anyOf": [
             { "$ref": "#/$defs/candidate_event" },
@@ -560,7 +564,72 @@
         },
         "displayed_in_report": { "type": "boolean" },
         "open_access": { "type": "boolean" },
+        "oa_status": {
+          "type": "string",
+          "enum": ["YES", "NO", "UNKNOWN"]
+        },
+        "oa_evidence": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/oa_evidence" }
+        },
+        "access_status": {
+          "type": "string",
+          "enum": ["ACCESSIBLE", "BLOCKED", "PAYWALLED", "FAILED", "NOT_CHECKED"]
+        },
+        "fulltext_kind": {
+          "type": "string",
+          "enum": ["PDF", "HTML", "REPOSITORY", "ABSTRACT_ONLY", "UNKNOWN"]
+        },
+        "fulltext_locations": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/fulltext_location" }
+        },
+        "fulltext_access_status": {
+          "type": "string",
+          "enum": [
+            "ACCESSIBLE",
+            "BLOCKED",
+            "PAYWALLED",
+            "FAILED",
+            "NOT_CHECKED",
+            "MIXED",
+            "UNKNOWN"
+          ]
+        },
+        "download_urls": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^https?://\\S+$" }
+        },
         "is_preprint": { "type": "boolean" }
+      }
+    },
+    "oa_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "evidence_type", "value"],
+      "properties": {
+        "source": { "type": "string", "minLength": 1 },
+        "evidence_type": { "type": "string", "minLength": 1 },
+        "value": { "type": "string", "minLength": 1 },
+        "url": { "type": "string", "pattern": "^https?://\\S+" }
+      }
+    },
+    "fulltext_location": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["url", "kind", "host_type", "access_status"],
+      "properties": {
+        "url": { "type": "string", "pattern": "^https?://\\S+$" },
+        "kind": { "type": "string", "enum": ["PDF", "HTML", "REPOSITORY"] },
+        "host_type": { "type": "string", "enum": ["REPOSITORY", "PUBLISHER"] },
+        "access_status": {
+          "type": "string",
+          "enum": ["ACCESSIBLE", "BLOCKED", "PAYWALLED", "FAILED", "NOT_CHECKED"]
+        },
+        "reason": { "type": "string", "minLength": 1 }
       }
     },
     "counts": {
@@ -590,6 +659,15 @@
         "publisher_failed": { "type": "integer", "minimum": 0, "maximum": 15 },
         "publisher_not_attempted": { "type": "integer", "minimum": 0 },
         "displayed_candidates": { "type": "integer", "minimum": 0 },
+        "featured_candidates": { "type": "integer", "minimum": 0 },
+        "oa_yes": { "type": "integer", "minimum": 0 },
+        "oa_no": { "type": "integer", "minimum": 0 },
+        "oa_unknown": { "type": "integer", "minimum": 0 },
+        "fulltext_accessible": { "type": "integer", "minimum": 0 },
+        "fulltext_blocked": { "type": "integer", "minimum": 0 },
+        "fulltext_paywalled": { "type": "integer", "minimum": 0 },
+        "fulltext_failed": { "type": "integer", "minimum": 0 },
+        "fulltext_not_checked": { "type": "integer", "minimum": 0 },
         "summaries_translated_zh_tw": { "type": "integer", "minimum": 0 },
         "summaries_fallback_zh_tw": { "type": "integer", "minimum": 0 },
         "review_pending": { "type": "integer", "minimum": 0 },

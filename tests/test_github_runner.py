@@ -18,6 +18,10 @@ from tools.run_github_radar import (
     _request,
     candidate_content_summary,
     candidate_source_excerpt,
+    build_state,
+    event_class,
+    fulltext_metadata,
+    select_featured_work_ids,
     event_in_window,
     event_record,
     execute,
@@ -263,7 +267,7 @@ class GithubRunnerTests(unittest.TestCase):
             <Abstract><AbstractText>Exercise physiology outcome.</AbstractText></Abstract>
           </Article></MedlineCitation>
           <PubmedData>
-            <ArticleIdList><ArticleId IdType="doi">10.1000/Test.DOI</ArticleId></ArticleIdList>
+            <ArticleIdList><ArticleId IdType="doi">10.1000/Test.DOI</ArticleId><ArticleId IdType="pmc">PMC12345</ArticleId></ArticleIdList>
             <History><PubMedPubDate PubStatus="pubmed"><Year>2026</Year><Month>08</Month><Day>09</Day><Hour>2</Hour><Minute>3</Minute></PubMedPubDate></History>
           </PubmedData>
         </PubmedArticle></PubmedArticleSet>"""
@@ -291,6 +295,8 @@ class GithubRunnerTests(unittest.TestCase):
         self.assertEqual(1, len(results))
         self.assertEqual("10.1000/test.doi", results[0].doi)
         self.assertEqual("12345", results[0].pmid)
+        self.assertTrue(results[0].open_access)
+        self.assertIn("https://pmc.ncbi.nlm.nih.gov/articles/PMC12345/", results[0].fulltext_urls())
         self.assertEqual("2026-08-08", results[0].publication_date)
         self.assertEqual("2026-08-09", results[0].events[-1]["occurred_at"])
         self.assertEqual("date", results[0].events[-1]["precision"])
@@ -575,6 +581,8 @@ class GithubRunnerTests(unittest.TestCase):
         self.assertEqual(15, run["counts"]["publisher_attempted"])
         self.assertEqual(15, run["counts"]["publisher_accessible"])
         self.assertEqual(145, run["counts"]["publisher_not_attempted"])
+        self.assertEqual(0, run["counts"]["fulltext_paywalled"])
+        self.assertEqual(0, run["counts"]["fulltext_failed"])
         self.assertEqual(160, len(state["works"]))
         self.assertEqual(15, len(state["notified_events"]))
         self.assertEqual(15, len(evidence["works"]))
@@ -589,8 +597,76 @@ class GithubRunnerTests(unittest.TestCase):
         self.assertIn('id="category-filter"', report)
         self.assertIn('id="triage-filter"', report)
         self.assertIn('id="source-filter"', report)
+        self.assertIn('id="event-filter"', report)
+        self.assertIn('id="oa-filter"', report)
+        self.assertIn('id="access-filter"', report)
+        self.assertIn('data-oa-status="UNKNOWN"', report)
+        self.assertIn('data-access-status="NOT_CHECKED"', report)
+        self.assertIn('data-featured="true"', report)
+        self.assertIn('data-featured="false"', report)
+        self.assertIn('name="evidenceradar-featured-candidates"', report)
+        self.assertIn('class="full-pool"', report)
+        self.assertIn("今日精選", report)
+        self.assertIn("完整候選池", report)
         self.assertIn("Auditable Evidence Candidate 160", report)
         self.assertIn("候選顯示不受 publisher 10–15 探測額度限制", report)
+
+    def test_execute_keeps_blocked_direct_repository_probe_in_state(self) -> None:
+        end_at = datetime(2026, 8, 9, 12, 0, tzinfo=TZ)
+        item = candidate(1)
+        item.doi = ""
+        item.pmcid = "PMC423456"
+        item.open_access = True
+        direct_url = "https://pmc.ncbi.nlm.nih.gov/articles/PMC423456/"
+
+        def discoverer(*_args: object, **_kwargs: object):
+            return (
+                [item],
+                [
+                    {
+                        "query_id": "query-blocked",
+                        "category": "clinical_medicine",
+                        "query": "fixture query",
+                        "searched_at": end_at.isoformat(),
+                        "source_ids": ["pubmed"],
+                        "status": "SUCCESS",
+                        "result_count": 1,
+                    }
+                ],
+                [],
+                {"pubmed"},
+                set(),
+            )
+
+        def blocked_probe(items, config, **kwargs):
+            return probe_publisher_pages(items, config, sleep=lambda _seconds: None, **kwargs)
+
+        with tempfile.TemporaryDirectory() as directory:
+            temporary = Path(directory)
+            output = temporary / "output"
+            state_path = temporary / "state" / "EvidenceRadar_State.json"
+            summary = execute(
+                root=ROOT,
+                output_dir=output,
+                state_path=state_path,
+                end_at=end_at,
+                run_id="github-actions-blocked-pmc",
+                execution_lane="github_actions",
+                protocol_commit="1" * 40,
+                session=FakeSession({direct_url: 403}),
+                discoverer=discoverer,
+                publisher_probe=blocked_probe,
+                publisher_target_min=1,
+                publisher_hard_max=1,
+            )
+            run = json.loads((output / "EvidenceRadar_Run.json").read_text())
+            state = json.loads((output / "EvidenceRadar_State.json").read_text())
+
+        self.assertEqual(1, summary["publisher_attempted"])
+        self.assertEqual("YES", run["candidates"][0]["oa_status"])
+        self.assertEqual("BLOCKED", run["candidates"][0]["access_status"])
+        self.assertEqual("BLOCKED", state["works"][0]["access_status"])
+        self.assertEqual([], state["notified_events"])
 
     def test_candidate_content_summary_is_zh_tw_and_source_excerpt_is_bounded(self) -> None:
         item = candidate(1)
@@ -788,6 +864,256 @@ class GithubRunnerTests(unittest.TestCase):
     def test_publisher_url_prefers_formal_doi_over_discovery_landing_page(self) -> None:
         item = candidate(1, domain="repository.example")
         self.assertEqual("https://doi.org/10.1000/example.1", item.publisher_url())
+
+    def test_discovery_landing_pages_are_not_publisher_probe_targets(self) -> None:
+        arxiv_item = Candidate(
+            title="arXiv fixture",
+            stream="llm_l1_model_behavior",
+            category="llm_research",
+            source="arXiv",
+            publication_date="2026-08-08",
+            arxiv_id="2608.12345",
+            landing_url="https://arxiv.org/abs/2608.12345",
+        )
+        pubmed_item = Candidate(
+            title="PubMed fixture",
+            stream="clinical_medicine",
+            category="clinical_medicine",
+            source="PubMed",
+            publication_date="2026-08-08",
+            pmid="12345",
+            landing_url="https://pubmed.ncbi.nlm.nih.gov/12345/",
+        )
+        self.assertEqual("", arxiv_item.publisher_url())
+        self.assertEqual("", pubmed_item.publisher_url())
+        openalex_item = Candidate(
+            title="OpenAlex fixture",
+            stream="clinical_medicine",
+            category="clinical_medicine",
+            source="OpenAlex",
+            publication_date="2026-08-08",
+            openalex_id="https://openalex.org/W123",
+            landing_url="https://api.openalex.org/works/W123",
+        )
+        self.assertEqual("", openalex_item.publisher_url())
+
+    def test_oa_and_fulltext_access_are_separate_for_blocked_repository(self) -> None:
+        item = candidate(1, domain="repository.example")
+        item.doi = ""
+        item.source = "PubMed"
+        item.landing_url = ""
+        item.pmcid = "PMC123456"
+        item.open_access = True
+        direct_url = "https://pmc.ncbi.nlm.nih.gov/articles/PMC123456/"
+        metadata = fulltext_metadata(
+            item,
+            {
+                "url": direct_url,
+                "status": "FAILED",
+                "http_status": 403,
+            },
+        )
+        self.assertEqual("YES", metadata["oa_status"])
+        self.assertEqual("BLOCKED", metadata["access_status"])
+        self.assertEqual("REPOSITORY", metadata["fulltext_kind"])
+        self.assertIn(direct_url, metadata["download_urls"])
+        locations = {item["url"]: item for item in metadata["fulltext_locations"]}
+        self.assertEqual("BLOCKED", locations[direct_url]["access_status"])
+        self.assertEqual(
+            "NOT_CHECKED",
+            locations["https://pmc.ncbi.nlm.nih.gov/articles/PMC123456/pdf"]["access_status"],
+        )
+        self.assertNotEqual("ACCESSIBLE", metadata["access_status"])
+        paywalled = fulltext_metadata(
+            item,
+            {"url": direct_url, "status": "FAILED", "http_status": 402},
+        )
+        self.assertEqual("PAYWALLED", paywalled["access_status"])
+
+    def test_state_preserves_prior_fulltext_probe_when_rediscovery_is_not_checked(self) -> None:
+        item = candidate(1)
+        item.pmcid = "PMC123456"
+        item.open_access = True
+        direct_url = "https://pmc.ncbi.nlm.nih.gov/articles/PMC123456/"
+        prior = {
+            "artifact_type": "EvidenceRadar_State",
+            "history_status": "COMPLETE",
+            "works": [
+                {
+                    "work_id": item.work_id,
+                    "title": item.title,
+                    "access_status": "BLOCKED",
+                    "fulltext_access_status": "BLOCKED",
+                    "fulltext_kind": "REPOSITORY",
+                    "download_urls": [direct_url],
+                    "fulltext_locations": [
+                        {
+                            "url": direct_url,
+                            "kind": "REPOSITORY",
+                            "host_type": "REPOSITORY",
+                            "access_status": "BLOCKED",
+                            "reason": "prior direct probe",
+                        }
+                    ],
+                    "oa_status": "YES",
+                    "oa_evidence": [
+                        {
+                            "source": "PubMed",
+                            "evidence_type": "repository_identifier",
+                            "value": "PMC123456",
+                        }
+                    ],
+                }
+            ],
+            "notified_events": [],
+        }
+        state = build_state(
+            prior,
+            [item],
+            [],
+            generated_at=datetime(2026, 8, 9, 12, 0, tzinfo=TZ),
+            run_id="state-rediscovers-only",
+            execution_lane="github_actions",
+            protocol_commit="a" * 40,
+            base_state_sha256="b" * 64,
+        )
+        work = state["works"][0]
+        self.assertEqual("BLOCKED", work["access_status"])
+        self.assertEqual("BLOCKED", work["fulltext_access_status"])
+        self.assertIn(direct_url, work["download_urls"])
+        self.assertEqual("prior direct probe", work["fulltext_locations"][0]["reason"])
+        self.assertEqual("YES", work["oa_status"])
+
+    def test_state_updates_prior_fulltext_probe_on_new_direct_probe(self) -> None:
+        item = candidate(2)
+        item.pmcid = "PMC223456"
+        item.open_access = True
+        direct_url = "https://pmc.ncbi.nlm.nih.gov/articles/PMC223456/"
+        prior = {
+            "artifact_type": "EvidenceRadar_State",
+            "history_status": "COMPLETE",
+            "works": [
+                {
+                    "work_id": item.work_id,
+                    "title": item.title,
+                    "access_status": "BLOCKED",
+                    "fulltext_access_status": "BLOCKED",
+                    "fulltext_kind": "REPOSITORY",
+                    "download_urls": [direct_url],
+                    "fulltext_locations": [
+                        {
+                            "url": direct_url,
+                            "kind": "REPOSITORY",
+                            "host_type": "REPOSITORY",
+                            "access_status": "BLOCKED",
+                            "reason": "prior direct probe",
+                        }
+                    ],
+                    "oa_status": "YES",
+                    "oa_evidence": [],
+                }
+            ],
+            "notified_events": [],
+        }
+        event = item.events[0]
+        state = build_state(
+            prior,
+            [item],
+            [
+                (
+                    item,
+                    event,
+                    {
+                        "source_id": "publisher-direct-2",
+                        "url": direct_url,
+                        "status": "SUCCESS",
+                        "http_status": 200,
+                    },
+                )
+            ],
+            generated_at=datetime(2026, 8, 9, 13, 0, tzinfo=TZ),
+            run_id="state-direct-probe",
+            execution_lane="github_actions",
+            protocol_commit="c" * 40,
+            base_state_sha256="d" * 64,
+        )
+        work = state["works"][0]
+        self.assertEqual("ACCESSIBLE", work["access_status"])
+        self.assertEqual("ACCESSIBLE", work["fulltext_access_status"])
+        self.assertEqual("ACCESSIBLE", work["fulltext_locations"][0]["access_status"])
+        self.assertIn(direct_url, work["download_urls"])
+
+    def test_state_records_failed_direct_probe_without_notifying_event(self) -> None:
+        item = candidate(3)
+        item.doi = ""
+        item.pmcid = "PMC323456"
+        item.open_access = True
+        direct_url = "https://pmc.ncbi.nlm.nih.gov/articles/PMC323456/"
+        state = build_state(
+            None,
+            [item],
+            [
+                (
+                    item,
+                    item.events[0],
+                    {
+                        "source_id": "publisher-direct-3",
+                        "url": direct_url,
+                        "status": "FAILED",
+                        "http_status": 403,
+                    },
+                )
+            ],
+            generated_at=datetime(2026, 8, 9, 14, 0, tzinfo=TZ),
+            run_id="state-blocked-probe",
+            execution_lane="github_actions",
+            protocol_commit="e" * 40,
+            base_state_sha256="f" * 64,
+        )
+        work = state["works"][0]
+        self.assertEqual("BLOCKED", work["access_status"])
+        self.assertEqual("BLOCKED", work["fulltext_access_status"])
+        self.assertEqual([], work.get("notified_event_ids", []))
+        self.assertEqual([], state["notified_events"])
+
+    def test_featured_digest_excludes_backfill_and_correction_but_keeps_pool(self) -> None:
+        records = [
+            {
+                "work_id": "normal",
+                "category": "clinical_medicine",
+                "triage_status": "PRIORITY",
+                "routing_score": 90,
+                "event_class": "NEW_PUBLICATION",
+            },
+            {
+                "work_id": "backfill",
+                "category": "clinical_medicine",
+                "triage_status": "PRIORITY",
+                "routing_score": 100,
+                "event_class": "BACKFILL_INDEXING",
+            },
+            {
+                "work_id": "correction",
+                "category": "clinical_medicine",
+                "triage_status": "PRIORITY",
+                "routing_score": 99,
+                "event_class": "CORRECTION_NOTICE",
+            },
+        ]
+        self.assertEqual({"normal"}, select_featured_work_ids(records, target_per_category=5, hard_max_per_category=8))
+
+    def test_correction_title_is_audit_class_even_without_qualifying_event(self) -> None:
+        item = Candidate(
+            title="Correction: fixture article",
+            stream="clinical_medicine",
+            category="clinical_medicine",
+            source="PubMed",
+            publication_date="2026-08-08",
+        )
+        self.assertEqual(
+            "CORRECTION_NOTICE",
+            event_class(item, None, datetime(2026, 8, 9, 12, 0, tzinfo=TZ)),
+        )
 
     def test_doi_redirect_does_not_bypass_resolved_domain_cap(self) -> None:
         class RedirectSession(FakeSession):

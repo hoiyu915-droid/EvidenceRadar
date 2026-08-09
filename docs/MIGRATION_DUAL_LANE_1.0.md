@@ -11,11 +11,19 @@ the archived crawler under `legacy/python-runtime/`.
   `execution_lane`, `protocol_commit`, `base_state_sha256` and
   `parent_run_ids` fields are optional in the 1.0 schemas for backward
   compatibility, but required by protocol for newly produced dual-lane runs.
+- OA/access fields (`oa_status`, `oa_evidence`, `access_status`,
+  `fulltext_kind`, `download_urls`, `fulltext_locations`) and `event_class`
+  remain schema-optional for historical artifacts. New producers marked with
+  `SEMANTIC_CONTRACT_V2` must emit them and pass cross-artifact validation.
 - Unknown fields still fail closed because top-level schemas retain
   `additionalProperties: false`.
-- Evidence schema and claim support states are unchanged.
+- Claim support state names are unchanged. A modern `SUPPORTED` claim now
+  requires an auditable accessible direct full-text probe; a discovery landing
+  page or hand-written `FULL_TEXT` label is insufficient.
 - The Featured selection target remains 5–8 per active category. The new
-  10–15 setting applies only to the bounded publisher-page access budget.
+  10–15 setting applies only to the bounded publisher-page access budget. The
+  HTML now separates Featured from a searchable, expandable complete candidate
+  pool, so migration does not discard lower-priority or backfill records.
 
 ## State paths
 
@@ -42,6 +50,10 @@ manual-run surface.
    `tools/merge_radar_state.py`; validate the result before accepting it.
 5. Preserve `STATE_HISTORY_INCOMPLETE` when earlier history was already
    incomplete. Migration does not fabricate a complete history baseline.
+6. Return each Work result through `tools/package_work_delivery.py` as a unique
+   run-id directory, ZIP, manifest and checksum. Repository-first Work runs pin
+   a commit SHA and execute inside the Work VM; Work Pack mode remains available
+   when the repository checkout cannot be used.
 
 ## Rollback
 

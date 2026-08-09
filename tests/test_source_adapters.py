@@ -15,6 +15,7 @@ from tools.run_github_radar import (
     Candidate,
     _arxiv_identifier,
     _arxiv_search_query,
+    candidate_oa_status,
     _europe_pmc_query,
     fetch_acl_anthology,
     fetch_arxiv,
@@ -165,6 +166,15 @@ class SourceAdapterFieldParsingTests(unittest.TestCase):
         self.assertEqual("PMC123456", item.pmcid)
         self.assertEqual("2026-08-08", item.publication_date)
         self.assertTrue(item.open_access)
+        self.assertEqual("YES", candidate_oa_status(item))
+        self.assertIn(
+            "https://pmc.ncbi.nlm.nih.gov/articles/PMC123456/",
+            item.fulltext_urls(),
+        )
+        self.assertIn(
+            "https://pmc.ncbi.nlm.nih.gov/articles/PMC123456/pdf",
+            item.fulltext_urls(),
+        )
         self._assert_common_candidate_contract(item)
         self.assertTrue(item.events)
         self.assertEqual("2026-08-08", item.events[0]["occurred_at"])
@@ -199,6 +209,13 @@ class SourceAdapterFieldParsingTests(unittest.TestCase):
         self.assertEqual("2026-08-08", item.events[0]["occurred_at"][:10])
         self.assertEqual("atom:published", item.events[0]["source_field"])
         self.assertIn("arxiv.org", item.landing_url)
+        self.assertEqual("YES", candidate_oa_status(item))
+        self.assertEqual(
+            ["https://arxiv.org/pdf/2608.12345"],
+            item.fulltext_urls(),
+        )
+        self.assertIn("https://arxiv.org/abs/2608.12345", item.discovery_urls())
+        self.assertIn("https://arxiv.org/pdf/2608.12345", item.discovery_urls())
 
     def test_openreview_parses_content_values_doi_and_event(self) -> None:
         response = _response(

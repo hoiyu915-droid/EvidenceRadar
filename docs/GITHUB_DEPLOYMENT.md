@@ -21,6 +21,17 @@ credentials，也不把其中一條的執行誤當成另一條的 source verific
    **GitHub Actions**。`pages.yml` 只會發布通過四件套、provenance、候選
    ledger/HTML 數量與 producer-version 檢查的 current bundle。
 
+   Pages 未啟用、Source 不是 **GitHub Actions** 或 API 無法讀取 Pages
+   設定時，publication 會在部署前 fail closed；這時只能取得 Actions
+   artifact，不能宣稱已有公開 HTML URL。可在 repository checkout 中先做
+   唯讀 preflight：
+
+   ```sh
+   gh api "repos/OWNER/REPOSITORY/pages" --jq '.build_type'
+   ```
+
+   輸出必須是 `workflow`，且之後要等待 `pages.yml` 的 deployment job 成功。
+
 每個 template/fork 都是自己的狀態邊界。在 **Settings → Secrets and variables
 → Actions** 建立：
 
@@ -50,6 +61,7 @@ Provider 基線以 [NCBI E-utilities usage guidelines](https://www.ncbi.nlm.nih.
 | --- | ---: | --- |
 | `publisher_target_min` | 10 | 本輪成功存取目標下限 |
 | `publisher_hard_max` | 15 | 本輪網路探測硬上限；runner 拒絕任何大於 15 的值 |
+| `cas_retry` | false | 內部使用的單次 CAS conflict retry；一般手動執行保持 false |
 
 每輪以 10 筆成功的 publisher/source-page audit records 為目標，publisher-page
 candidate attempts 的硬上限為 15；這不是補足數量的承諾。來源被擋、來源不足或
@@ -67,8 +79,9 @@ candidate attempts 的硬上限為 15；這不是補足數量的承諾。來源�
 `EVIDENCERADAR_TRANSLATION_MODEL`，預設為 `gpt-5-mini`。憑證只透過 Actions secret
 注入，不會寫入 artifact 或 log。沒有設定時 runner 仍輸出繁中保守簡述，不會退回英文。
 
-Workflow 宣告 `permissions: contents: write`，只為了將產生的 artifact、state
-與 `runs/` 歷史寫回同一個 repository。提交步驟使用 `EvidenceRadar bot` 身份，
+Workflow 宣告 `permissions: actions: write` 與 `contents: write`：前者只用來在
+CAS conflict 時排一次同 workflow 的 bounded retry，後者才用於將產生的 artifact、
+state 與 `runs/` 歷史寫回同一個 repository。提交步驟使用 `EvidenceRadar bot` 身份，
 精準 stage 這些生成路徑；沒有內容變更時安全退出。啟用 branch protection、
 required checks 或限制 Actions token 時，依自己的治理規則調整，並保留可追溯
 的 run log 與 artifact upload。
@@ -87,6 +100,12 @@ state/current/EvidenceRadar_State.json
 也會把四檔保存到 `runs/<run_id>/` 作 immutable run record，並在提交前確認
 current State 與 canonical State byte-identical。不要手動刪除 state 來繞過
 dedupe 或 publisher hard max；先檢查 run log、source access 與 schema validation。
+
+Actions 也會在 upload 前建立唯一的
+`EvidenceRadar-WorkRun-<run_id>.zip`、包內 `manifest.json` 與外部
+`.zip.sha256`。manifest 保留四個 canonical artifact 的 SHA-256 與 byte size，
+因此 branch conflict 時仍可從該次 Actions artifact 取回完整 run；附件名稱不
+會和上一輪的 `EvidenceRadar_Report.html` 等裸檔碰撞。
 
 ## 可直接點閱的 HTML 與 links.json
 
@@ -110,7 +129,12 @@ Pages workflow 的 deployment 成功前，不應把推算網址宣稱為已可�
 
 每日 workflow 不再對更新過的 default branch 執行 `pull --rebase`。它在 push 前
 比較 remote SHA 與啟動時 `GITHUB_SHA`；任何 Work／maintainer／另一 lane 的新
-commit 都會讓 stale bundle 停止發布，留待下一輪以最新 canonical State 重跑。
+commit 都會讓 stale bundle 停止發布。第一次 CAS conflict 會先保留唯一 run-id
+recovery artifact，使用相同 publisher budget 排一次 `workflow_dispatch` retry，
+然後把本次 run 標記為 failed；retry 從最新 canonical State 重新搜尋與驗證。
+retry 若再次 conflict，`cas_retry=true` 會禁止遞迴 dispatch，並要求人工 rerun。
+Recovery artifact 是 Actions upload，不是 GitHub publication；它絕不會把舊 State
+rebase 後強推，也不會把衝突 run 誤標成已發布。
 
 每輪 Run 的 `source_coverage` 與 Evidence 的 `coverage` 都會逐一列出每個
 configured source 的 CHECK summary。欄位 `requested`、`checked`、`searched`、
@@ -129,6 +153,12 @@ ChatGPT Work 不是 GitHub Actions 的背景 worker。要在 Work 續跑時，�
 再按照 [`EVIDENCE_RADAR_PROTOCOL.md`](../EVIDENCE_RADAR_PROTOCOL.md) 重新搜尋與
 讀取目前來源。Work 必須重新驗證時窗、事件與 claims；GitHub 的 report、state
 或 log 不能直接當成目前來源證據，也不能讓 Work 自動把檔案寫回 repository。
+
+若不想先下載 Work Pack，Work 也可從這個 public repository 直接讀取 `main` 的
+固定 commit、在 Work VM 執行，並把輸出留在 Work VM。依
+[`docs/WORK_SETUP.md`](WORK_SETUP.md) 的 repository-first mode 產生唯一
+run-id ZIP、manifest 和 SHA-256，再以附件方式交付；這仍然是 Work local output，
+不是 GitHub writeback。
 
 反向地，Work 產生的四個 artifact 只有在使用者明確審閱、帶入、使用
 `tools/merge_radar_state.py` 與 canonical State 作 deterministic union，並通過

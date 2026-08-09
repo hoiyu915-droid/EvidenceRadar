@@ -95,6 +95,13 @@ selection:
   candidate_pool:
     display_all_deduplicated: true
     group_by_category: true
+    default_view: featured
+    full_pool_collapsed_by_default: true
+    full_pool_searchable: true
+    full_pool_expands_on_filter: true
+    excluded_from_featured_event_classes:
+      - BACKFILL_INDEXING
+      - CORRECTION_NOTICE
     includes_featured: true
     complete_deduplicated_ledger_in_run_json: true
   allow_below_minimum_when_insufficient: true

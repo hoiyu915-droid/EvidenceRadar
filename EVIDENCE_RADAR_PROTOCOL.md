@@ -77,6 +77,22 @@ remain bounded verification-stage checks. A primary registry, repository,
 proceedings page or publisher page is still required at the verification level
 claimed by the report.
 
+### OA and full-text access semantics
+
+OA availability and observed access are independent audit facts. New candidates
+record `oa_status`, `oa_evidence`, `access_status`, `fulltext_kind`,
+`download_urls` and per-location access observations. `oa_status: YES` may be
+paired with `access_status: BLOCKED`, `PAYWALLED`, `FAILED` or `NOT_CHECKED`.
+An OA signal from PMCID, arXiv or provider metadata does not prove that this run
+opened the full text.
+
+Preserve direct repository HTML/PDF URLs when available. DOI resolvers, PubMed,
+OpenAlex, Europe PMC index records, arXiv abstract pages and other discovery
+landing pages are not substantive full-text evidence merely because they return
+HTTP 200. Only the exact direct location actually probed may be marked
+`ACCESSIBLE`, `BLOCKED`, `PAYWALLED` or `FAILED`; unprobed locations remain
+`NOT_CHECKED`.
+
 ### Per-run source CHECK contract
 
 For every distinct source named by an enabled stream, emit exactly one
@@ -128,6 +144,11 @@ Each event requires `occurred_at`, `source`, `source_field`, `source_url`,
 issue assignment, correction publication or re-indexing are not qualifying
 events by themselves.
 
+Each candidate also records an `event_class`. `BACKFILL_INDEXING` and
+`CORRECTION_NOTICE` remain in the complete candidate pool for audit but are not
+ordinary Featured items. A correction or retraction title takes precedence over
+an otherwise missing or ambiguous qualifying event.
+
 ## 6. Classification and ranking
 
 Apply `docs/research_taxonomy.md` and `config/scoring.yml`.
@@ -175,8 +196,15 @@ The GitHub lane must leave the claims ledger empty unless an independently
 defined full-verification implementation is added later. It retains every
 deduplicated discovery candidate in Run and State, including lower-priority,
 blocked and unprobed candidates. Routing score changes order, not epistemic
-value. The readable report displays every deduplicated candidate grouped by
-category; publisher access success is never a display gate.
+value. The readable report shows approximately 5–8 Featured candidates per
+active category and keeps every deduplicated candidate in a searchable,
+expandable complete pool. The complete pool displays every deduplicated candidate;
+publisher access success is never a display gate.
+
+`SUPPORTED` requires an explicitly observed accessible direct full-text
+location and a locator that can be audited. A publisher/discovery URL labelled
+`FULL_TEXT`, a DOI redirect, or a manually asserted status is insufficient.
+`PARTIAL`, `CONFLICT` and `UNVERIFIED` items cannot be counted as verified.
 
 ## 9. Source coverage and run status
 
@@ -236,16 +264,17 @@ abstract exists, it emits `ZH_TW_METADATA_TEMPLATE` or `TITLE_ONLY_ZH_TW` and
 does not expose the English abstract in the preview. ChatGPT Work writes the
 preview directly in Traditional Chinese after reading the source. Every basis
 is navigation metadata, not claim verification.
-The self-contained HTML provides text search, category/triage/source filters,
-collapsible category sections and expandable audit details without removing
-any candidate from the report.
+The self-contained HTML provides text search, category/triage/source/OA/access
+filters, collapsible category sections, Featured/full-pool separation and
+expandable audit details without removing any candidate from the report.
 
 HTML delivery is part of the artifact contract, not a best-effort preview.
 Every report carries `evidenceradar-run-id`, `evidenceradar-execution-lane`,
-`evidenceradar-protocol-commit` and `evidenceradar-displayed-candidates` meta
-values. Every rendered candidate carries exactly one
-`data-evidenceradar-work-id`. The complete Run ledger, its displayed subset and
-the HTML marker set must agree before State can advance or a public link can be
+`evidenceradar-protocol-commit`, `evidenceradar-displayed-candidates` and
+`evidenceradar-featured-candidates` meta values. Every rendered candidate
+carries exactly one `data-evidenceradar-work-id` and an explicit Featured/full
+pool marker. The complete Run ledger, Featured ID set, displayed subset and the
+HTML marker set must agree before State can advance or a public link can be
 published.
 
 ## 11. State synchronization and concurrency
@@ -269,15 +298,24 @@ python tools/merge_radar_state.py \
 
 The merge is identity-aware and idempotent: it unions aliases and notification
 events, preserves the earliest first-seen and latest last-seen timestamps,
-uses the greatest observed count, and emits deterministic ordering. Validate
-the merged artifact before replacing canonical State.
+uses the greatest observed count, and emits deterministic ordering. OA evidence,
+download URLs and full-text locations are deterministic unions. A rediscovery
+with `NOT_CHECKED` must not erase an earlier observed access result; mixed
+per-location observations derive an aggregate `MIXED` state rather than letting
+the newest lane silently overwrite the other. Validate the merged artifact
+before replacing canonical State.
 
 ## 12. Public deployment contract
 
 - GitHub users create an independent repository from the template or fork,
   enable Actions and run the workflow manually once before relying on schedule.
-- ChatGPT Work users download a versioned Work Pack with its SHA-256 sidecar,
-  keep paths intact and carry State separately.
+- ChatGPT Work may read a fixed commit of the public repository directly and
+  execute in a fresh Work-VM run-id directory. A versioned Work Pack with its
+  SHA-256 sidecar remains the offline/fallback route; State is carried
+  separately.
+- Every Work delivery is validated before packaging and returned as a unique
+  `EvidenceRadar-WorkRun-<run_id>.zip`, manifest and checksum. A Work-VM path is
+  not a public URL and Work has no implicit repository writeback.
 - Credentials stay in repository secrets or the user's Work environment; they
   never enter config, artifacts, logs or the Work Pack.
 - Each deployment owns its State. Upstream historical data is not silently
@@ -289,8 +327,9 @@ the merged artifact before replacing canonical State.
   per-file schema validation. It rejects stale producer files, lane/protocol
   mismatches, divergent canonical State and JSON/HTML candidate-count drift.
 - Repository writeback is compare-and-swap. If the default branch advances
-  after a run starts, that run stops instead of rebasing stale artifacts over
-  the newer canonical bundle.
+  after a run starts, that run preserves its unique recovery artifact, fails
+  visibly and schedules at most one retry from the newest canonical State. It
+  never rebases or force-writes stale artifacts over the newer bundle.
 
 See `docs/GITHUB_DEPLOYMENT.md` and `docs/WORK_SETUP.md`.
 
