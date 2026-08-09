@@ -34,6 +34,12 @@ def _work(
     source_urls: list[str] | None = None,
     streams: list[str] | None = None,
     notes: list[str] | None = None,
+    oa_status: str | None = None,
+    oa_evidence: list[dict] | None = None,
+    access_status: str | None = None,
+    fulltext_kind: str | None = None,
+    download_urls: list[str] | None = None,
+    fulltext_locations: list[dict] | None = None,
 ) -> dict:
     return {
         "work_id": work_id,
@@ -47,6 +53,12 @@ def _work(
         **({"source_urls": source_urls} if source_urls is not None else {}),
         **({"streams": streams} if streams is not None else {}),
         **({"notes": notes} if notes is not None else {}),
+        **({"oa_status": oa_status} if oa_status is not None else {}),
+        **({"oa_evidence": oa_evidence} if oa_evidence is not None else {}),
+        **({"access_status": access_status} if access_status is not None else {}),
+        **({"fulltext_kind": fulltext_kind} if fulltext_kind is not None else {}),
+        **({"download_urls": download_urls} if download_urls is not None else {}),
+        **({"fulltext_locations": fulltext_locations} if fulltext_locations is not None else {}),
     }
 
 
@@ -202,6 +214,164 @@ class StateMergeTests(unittest.TestCase):
         )
         with self.assertRaisesRegex(StateMergeError, "event_id collision"):
             merge_states(base, incoming)
+
+    def test_event_id_collision_rejects_provenance_drift(self) -> None:
+        base_event = _event("event-1", "work")
+        base = _state(
+            generated="2026-08-01T00:00:00+00:00",
+            run_id="run-a",
+            works=[_work("work", identifiers={"doi": "10.1/x"})],
+            events=[base_event],
+        )
+        for field, value in (
+            ("source_url", "https://other.example/article"),
+            ("precision", "datetime"),
+            ("confidence", "provider_metadata"),
+        ):
+            with self.subTest(field=field):
+                incoming_event = copy.deepcopy(base_event)
+                incoming_event[field] = value
+                incoming = _state(
+                    generated="2026-08-02T00:00:00+00:00",
+                    run_id=f"run-{field}",
+                    works=[_work("work", identifiers={"doi": "10.1/x"})],
+                    events=[incoming_event],
+                )
+                with self.assertRaisesRegex(StateMergeError, "event_id collision"):
+                    merge_states(base, incoming)
+
+    def test_oa_union_is_independent_from_latest_access_observation(self) -> None:
+        pmc_location = {
+            "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC123/",
+            "kind": "REPOSITORY",
+            "host_type": "REPOSITORY",
+            "access_status": "NOT_CHECKED",
+        }
+        base = _state(
+            generated="2026-08-01T00:00:00+00:00",
+            run_id="run-a",
+            works=[
+                _work(
+                    "work",
+                    identifiers={"pmcid": "PMC123"},
+                    last="2026-08-01T01:00:00+00:00",
+                    oa_status="YES",
+                    oa_evidence=[
+                        {
+                            "source": "pubmed",
+                            "evidence_type": "PMCID",
+                            "value": "PMC123",
+                            "url": pmc_location["url"],
+                        }
+                    ],
+                    access_status="NOT_CHECKED",
+                    fulltext_kind="REPOSITORY",
+                    download_urls=[pmc_location["url"]],
+                    fulltext_locations=[pmc_location],
+                )
+            ],
+            events=[],
+        )
+        incoming = _state(
+            generated="2026-08-02T00:00:00+00:00",
+            run_id="run-b",
+            works=[
+                _work(
+                    "work",
+                    identifiers={"pmcid": "PMC123"},
+                    last="2026-08-02T01:00:00+00:00",
+                    oa_status="UNKNOWN",
+                    oa_evidence=[
+                        {
+                            "source": "publisher",
+                            "evidence_type": "LICENSE_NOT_OBSERVED",
+                            "value": "unknown",
+                        }
+                    ],
+                    access_status="BLOCKED",
+                    fulltext_kind="HTML",
+                    download_urls=["https://publisher.example/article"],
+                )
+            ],
+            events=[],
+        )
+
+        work = merge_states(base, incoming)["works"][0]
+        self.assertEqual("YES", work["oa_status"])
+        self.assertEqual("BLOCKED", work["access_status"])
+        self.assertEqual("REPOSITORY", work["fulltext_kind"])
+        self.assertEqual("BLOCKED", work["fulltext_access_status"])
+        self.assertEqual(
+            [
+                "https://pmc.ncbi.nlm.nih.gov/articles/PMC123/",
+                "https://publisher.example/article",
+            ],
+            work["download_urls"],
+        )
+        self.assertEqual(2, len(work["oa_evidence"]))
+        self.assertEqual([pmc_location], work["fulltext_locations"])
+
+    def test_fulltext_location_merge_preserves_probe_and_derives_mixed(self) -> None:
+        repository_url = "https://pmc.ncbi.nlm.nih.gov/articles/PMC123/"
+        publisher_url = "https://publisher.example/fulltext"
+        base = _state(
+            generated="2026-08-01T00:00:00+00:00",
+            run_id="run-a",
+            works=[
+                _work(
+                    "work",
+                    identifiers={"pmcid": "PMC123"},
+                    last="2026-08-01T01:00:00+00:00",
+                    access_status="ACCESSIBLE",
+                    fulltext_kind="REPOSITORY",
+                    fulltext_locations=[
+                        {
+                            "url": repository_url,
+                            "kind": "REPOSITORY",
+                            "host_type": "REPOSITORY",
+                            "access_status": "ACCESSIBLE",
+                        }
+                    ],
+                )
+            ],
+            events=[],
+        )
+        incoming = _state(
+            generated="2026-08-02T00:00:00+00:00",
+            run_id="run-b",
+            works=[
+                _work(
+                    "work",
+                    identifiers={"pmcid": "PMC123"},
+                    last="2026-08-02T01:00:00+00:00",
+                    access_status="BLOCKED",
+                    fulltext_kind="HTML",
+                    fulltext_locations=[
+                        {
+                            "url": repository_url,
+                            "kind": "REPOSITORY",
+                            "host_type": "REPOSITORY",
+                            "access_status": "NOT_CHECKED",
+                        },
+                        {
+                            "url": publisher_url,
+                            "kind": "HTML",
+                            "host_type": "PUBLISHER",
+                            "access_status": "BLOCKED",
+                        },
+                    ],
+                )
+            ],
+            events=[],
+        )
+
+        work = merge_states(base, incoming)["works"][0]
+        by_url = {item["url"]: item for item in work["fulltext_locations"]}
+        self.assertEqual("ACCESSIBLE", by_url[repository_url]["access_status"])
+        self.assertEqual("BLOCKED", by_url[publisher_url]["access_status"])
+        self.assertEqual("MIXED", work["fulltext_access_status"])
+        self.assertEqual("BLOCKED", work["access_status"])
+        self.assertEqual("REPOSITORY", work["fulltext_kind"])
 
     def test_existing_canonical_work_id_wins_over_lexical_alias(self) -> None:
         base = _state(

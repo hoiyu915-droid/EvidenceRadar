@@ -29,6 +29,7 @@ class WorkPackTests(unittest.TestCase):
             "schemas/evidence-radar-state.schema.json",
             "tools/delivery_contract.py",
             "tools/merge_radar_state.py",
+            "tools/package_work_delivery.py",
             "tools/validate_delivery_bundle.py",
             "tools/validate_gpt_work_artifacts.py",
         ):
@@ -41,6 +42,20 @@ class WorkPackTests(unittest.TestCase):
             "state/literature_registry.json",
         ):
             self.assertNotIn(forbidden, paths)
+
+    def test_work_setup_documents_repository_first_and_unique_run_delivery(self) -> None:
+        setup = (ROOT / "docs" / "WORK_SETUP.md").read_text(encoding="utf-8")
+        instructions = (ROOT / "templates" / "gpt-work-instructions.md").read_text(encoding="utf-8")
+        self.assertIn("Repository-first", setup)
+        self.assertIn("repository-first", instructions)
+        for document in (setup, instructions):
+            self.assertIn("main", document)
+            self.assertIn("protocol commit", document)
+            self.assertIn("tools/package_work_delivery.py", document)
+            self.assertIn("EvidenceRadar-WorkRun-<run_id>.zip", document)
+            self.assertIn(".zip.sha256", document)
+            self.assertIn("manifest.json", document)
+        self.assertIn("mix policy files", setup)
 
     def test_build_is_byte_reproducible_and_manifest_verifies_every_file(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -63,7 +78,7 @@ class WorkPackTests(unittest.TestCase):
                 self.assertEqual("manifest.json", names[-1])
                 manifest = json.loads(archive.read("manifest.json"))
                 self.assertEqual("evidenceradar-work-pack", manifest["format"])
-                self.assertEqual("1.1.0", manifest["pack_version"])
+                self.assertEqual("1.2.0", manifest["pack_version"])
                 self.assertEqual(len(manifest["files"]), manifest["file_count"])
                 self.assertTrue(manifest["reproducible"])
                 for item in manifest["files"]:

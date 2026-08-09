@@ -45,6 +45,18 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Fail closed if GitHub Pages is not enabled
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          build_type="$(gh api "repos/${GITHUB_REPOSITORY}/pages" --jq '.build_type // ""' 2>/dev/null || true)"
+          if [ "$build_type" != "workflow" ]; then
+            echo "::error::GitHub Pages is not enabled with Build and deployment Source=GitHub Actions for this repository"
+            echo "Enable Settings > Pages > Build and deployment > GitHub Actions, then rerun this workflow."
+            exit 1
+          fi
+          echo "GitHub Pages preflight: build_type=$build_type"
+
       - name: Configure GitHub Pages
         id: pages
         uses: actions/configure-pages@v6.0.0

@@ -369,7 +369,14 @@ def _merge_work(records: Sequence[Mapping[str, Any]], tokens: Sequence[Mapping[s
         ),
     }
 
-    list_fields = ("streams", "source_urls", "repository_versions", "notes")
+    list_fields = (
+        "streams",
+        "source_urls",
+        "repository_versions",
+        "notes",
+        "download_urls",
+        "oa_evidence",
+    )
     for field in list_fields:
         values = [value for record in records for value in (record.get(field) or [])]
         if values:
@@ -381,13 +388,114 @@ def _merge_work(records: Sequence[Mapping[str, Any]], tokens: Sequence[Mapping[s
         values = [record[field] for record in records if isinstance(record.get(field), bool)]
         if values:
             merged[field] = any(values)
+
+    # OA is a publication/repository property and must never be inferred from
+    # whether this particular run could open the full text.  Preserve a
+    # positive observation across stale branches while retaining every
+    # evidence record.  The legacy boolean is accepted as an upgrade input.
+    oa_values = [
+        str(record.get("oa_status"))
+        for record in records
+        if record.get("oa_status") in {"YES", "NO", "UNKNOWN"}
+    ]
+    legacy_oa = [
+        record["open_access"]
+        for record in records
+        if isinstance(record.get("open_access"), bool)
+    ]
+    if "YES" in oa_values or any(legacy_oa):
+        merged["oa_status"] = "YES"
+    elif "NO" in oa_values or any(value is False for value in legacy_oa):
+        merged["oa_status"] = "NO"
+    else:
+        merged["oa_status"] = "UNKNOWN"
+
+    # Access/full-text fields describe observations, not a permanent property.
+    # Merge locations by URL and let an actual probe outrank NOT_CHECKED even
+    # when a stale branch was generated later.  This prevents an unprobed run
+    # from erasing a prior ACCESSIBLE/BLOCKED observation.
+    location_candidates: dict[str, list[tuple[Mapping[str, Any], Mapping[str, Any]]]] = defaultdict(list)
+    for record in records:
+        locations = record.get("fulltext_locations")
+        if not isinstance(locations, list):
+            continue
+        for location in locations:
+            if not isinstance(location, Mapping):
+                continue
+            url = location.get("url")
+            if isinstance(url, str) and url.strip():
+                location_candidates[url.strip()].append((record, location))
+    merged_locations: list[JsonObject] = []
+    for url in sorted(location_candidates):
+        candidates = location_candidates[url]
+        probed = [
+            item
+            for item in candidates
+            if item[1].get("access_status") not in (None, "", "NOT_CHECKED", "UNKNOWN")
+        ]
+        pool = probed or candidates
+        _record, location = max(
+            pool,
+            key=lambda item: (
+                _time_key(item[0].get("last_seen_at")),
+                canonical_json(item[1]),
+            ),
+        )
+        merged_locations.append(copy.deepcopy(dict(location)))
+    merged["fulltext_locations"] = merged_locations
+
+    actual_access_records = [
+        record
+        for record in records
+        if record.get("access_status") not in (None, "", "NOT_CHECKED", "UNKNOWN")
+    ]
+    access_status = _latest_value(actual_access_records or records, "access_status")
+    merged["access_status"] = access_status or "NOT_CHECKED"
+
+    location_statuses = {
+        str(location.get("access_status"))
+        for location in merged_locations
+        if location.get("access_status") not in (None, "", "NOT_CHECKED", "UNKNOWN")
+    }
+    if merged["access_status"] not in {"NOT_CHECKED", "UNKNOWN"}:
+        location_statuses.add(str(merged["access_status"]))
+    if len(location_statuses) > 1:
+        merged["fulltext_access_status"] = "MIXED"
+    elif location_statuses:
+        merged["fulltext_access_status"] = next(iter(location_statuses))
+    elif merged_locations:
+        merged["fulltext_access_status"] = "NOT_CHECKED"
+    else:
+        merged["fulltext_access_status"] = "UNKNOWN"
+
+    location_kinds = {str(location.get("kind")) for location in merged_locations}
+    if "PDF" in location_kinds:
+        merged["fulltext_kind"] = "PDF"
+    elif "REPOSITORY" in location_kinds:
+        merged["fulltext_kind"] = "REPOSITORY"
+    elif "HTML" in location_kinds:
+        merged["fulltext_kind"] = "HTML"
+    else:
+        fulltext_kind = _latest_value(records, "fulltext_kind")
+        merged["fulltext_kind"] = fulltext_kind or "UNKNOWN"
+    merged.setdefault("download_urls", [])
+    merged.setdefault("oa_evidence", [])
     return merged
 
 
 def _merge_event_candidates(candidates: Sequence[Mapping[str, Any]]) -> JsonObject:
     """Choose one deterministic event payload for an idempotent event_id."""
 
-    immutable_fields = ("work_id", "event_type", "occurred_at", "source", "source_field")
+    immutable_fields = (
+        "work_id",
+        "event_type",
+        "occurred_at",
+        "source",
+        "source_url",
+        "source_field",
+        "precision",
+        "confidence",
+    )
     for field in immutable_fields:
         values = {
             canonical_json(candidate.get(field))

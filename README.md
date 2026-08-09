@@ -11,7 +11,7 @@ GitHub Actions and ChatGPT Work are the two supported EvidenceRadar execution la
 | Lane | 適合用途 | 啟動方式 | 驗證邊界 |
 |---|---|---|---|
 | GitHub Actions | 每日無人值守 discovery/source audit | 排程或手動 Run workflow | metadata、事件窗、來源頁可存取性；不產生未審閱科學結論 |
-| ChatGPT Work | 研究者主動執行完整 evidence review | 上傳 Work Pack 並下指令 | 即時搜尋、直接來源閱讀、claim／數字／衝突核實 |
+| ChatGPT Work | 研究者主動執行完整 evidence review | 讀取固定 commit 的公開 repository，或上傳 released Work Pack | 即時搜尋、直接來源閱讀、claim／數字／衝突核實 |
 
 ## 自行部署：不必共用維護者的設定
 
@@ -36,7 +36,13 @@ GitHub Actions and ChatGPT Work are the two supported EvidenceRadar execution la
 
 ### 路徑 B：ChatGPT Work 使用者啟動
 
-一般使用者只要下載 GitHub Release 內成對的：
+一般執行可讓 Work 直接讀取公開 repository 的 `main`，先固定本輪 commit SHA，
+再在 **Work VM** 的新 run-id 目錄中執行、驗證與封裝；不需要先下載部署檔。
+這些檔案保存在 Work VM，並以唯一名稱的 run-id ZIP 與 checksum 交付，不會自動
+寫回 GitHub，也不會因本機路徑而自動取得公開網址。
+
+若 Work VM 無法取得 repository checkout，或需要離線／固定版本輸入，再下載
+GitHub Release 內成對的 Work Pack：
 
 ```text
 EvidenceRadar-WorkPack-v<VERSION>.zip
@@ -45,8 +51,9 @@ EvidenceRadar-WorkPack-v<VERSION>.zip.sha256
 
 驗證 checksum、解壓並上傳到自己的 ChatGPT Work project。首次可沒有 State；
 第二次起另外帶入最新 `EvidenceRadar_State.json`。Work Pack 只有 protocol、設定、
-schema、template、範例、migration、manifest 與兩個 dependency-free 的 State／
-validation tools，不含 credentials、歷史 State、每日報告或 Python crawler。
+schema、template、範例、migration、manifest 與 dependency-free 的 State merge、
+四件套 validation 及 run-id delivery packager，不含 credentials、歷史 State、
+每日報告或 Python crawler。
 
 這條 lane 不宣稱能把含 Work Pack 檔案的 project 直接變成 unattended scheduled
 run。OpenAI 目前說明：[在含檔案的 project 建立 Scheduled Task 時，該 task
@@ -71,11 +78,17 @@ GitHub runner 每輪以 10 筆可存取 publisher/source-page audit records 為�
 
 來源不足或被擋時允許少於 10，並保留 warning/gap；禁止補位，也不會超過 15。
 這個 budget **只限制 publisher 網路探測，不限制候選保存或顯示**。GitHub HTML
-依類別顯示本輪所有去重候選；`EvidenceRadar_Run.json` 的 `candidates` ledger
-保存相同的完整候選集，包括低優先、來源受阻與尚未探測者。
+依類別先顯示約 5–8 筆 Featured，再提供可搜尋、可展開的完整候選池；
+`EvidenceRadar_Run.json` 的 `candidates` ledger 保存相同的完整候選集，包括低優先、
+回補索引、更正／撤回、來源受阻與尚未探測者。
 來源頁成功開啟只代表 access audit，不代表研究 claim 已被核實。
 
-HTML 提供題名／作者／期刊／簡述搜尋，以及類別、閱讀層級、來源篩選與分類收合。
+OA 狀態與本輪全文存取結果是兩個欄位：`oa_status: YES` 可同時搭配
+`access_status: BLOCKED`。PMCID 與 arXiv 候選保留直接 HTML/PDF 下載連結；
+DOI、PubMed、OpenAlex 或 abstract landing page 的 HTTP 200 不會被誤報為全文可讀。
+
+HTML 提供題名／作者／期刊／簡述搜尋，以及類別、閱讀層級、來源、OA、全文存取
+篩選與分類收合。套用篩選時會展開完整池，不會只搜尋 Featured。
 每個 item 都有繁體中文內容簡述。設定 `EVIDENCERADAR_TRANSLATION_API_KEY` 時，
 GitHub lane 會批次翻譯有限長度的 provider abstract 節錄；沒有憑證、翻譯失敗或沒有
 abstract 時，改用繁中 metadata／題名層級 fallback，不在簡述區顯示英文摘要。
@@ -132,8 +145,10 @@ true。`publisher` 與 `formal_proceedings_or_publisher` 都是
 ChatGPT Work 的本機路徑不算 HTML 交付；Pages deployment 成功後才回報公開連結。
 
 `tools/validate_delivery_bundle.py` 會把四件套視為一個整體，檢查 producer/lane
-provenance、canonical State、source coverage、完整候選 ledger，以及 HTML 實際
-顯示的 work IDs。這道閘門防止舊 runner 或舊 Work Pack 在新版合併後覆寫 current。
+provenance、canonical State、source coverage、完整候選 ledger、Featured/full-pool
+標記、OA／全文存取一致性，以及 HTML 實際顯示的 work IDs。只有具可稽核直接全文
+probe 的來源才能支持 `SUPPORTED` claim。這道閘門防止舊 runner、手填狀態或舊
+Work Pack 在新版合併後覆寫 current。
 
 Work 與 GitHub 從不同 State 分支執行時，使用 deterministic union，不能用較新的
 檔案直接覆蓋另一條 lane：
@@ -177,6 +192,7 @@ Run status 只可使用 `COMPLETE`、`PARTIAL_SOURCE_COVERAGE`、
 - [`tools/run_github_radar.py`](tools/run_github_radar.py)：新的 GitHub lane runner
 - [`tools/merge_radar_state.py`](tools/merge_radar_state.py)：雙 lane State union
 - [`tools/build_work_pack.py`](tools/build_work_pack.py)：可重現 Work Pack builder
+- [`tools/package_work_delivery.py`](tools/package_work_delivery.py)：驗證後建立唯一 run-id Work ZIP／manifest／checksum
 - [`tools/validate_delivery_bundle.py`](tools/validate_delivery_bundle.py)：四件套與 HTML 一致性／producer 閘門
 - [`tools/build_pages_site.py`](tools/build_pages_site.py)：產生 Pages 站點與 `links.json`
 - [`templates/gpt-work-instructions.md`](templates/gpt-work-instructions.md)：Work 指令
