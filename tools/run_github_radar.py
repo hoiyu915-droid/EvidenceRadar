@@ -4118,7 +4118,7 @@ def render_report(
             authors = ", ".join(str(value) for value in item.get("authors", [])[:8])
             identifiers = " · ".join(
                 f"{key.upper()}: {value}"
-                for key, value in item.get("identifiers", {}).items()
+                for key, value in sorted(item.get("identifiers", {}).items())
             )
             event = item.get("qualifying_event") or {}
             source_urls = [str(value) for value in item.get("source_urls", [])]

@@ -11,7 +11,7 @@ from unittest.mock import patch
 from tests.test_delivery_bundle import ROOT, create_bundle
 import tools.render_report_from_artifacts as renderer
 from tools.render_report_from_artifacts import render_bundle
-from tools.run_github_radar import RadarRuntimeError
+from tools.run_github_radar import RadarRuntimeError, render_report_from_documents
 from tools.validate_delivery_bundle import validate_delivery_bundle
 
 
@@ -92,6 +92,34 @@ class CanonicalArtifactRendererTests(unittest.TestCase):
             self.assertIn('data-evidenceradar-claim-id="claim-renderer-fixture"', report)
             errors, _run = validate_delivery_bundle(ROOT, bundle)
             self.assertEqual([], errors)
+
+    def test_renderer_is_independent_of_identifier_object_order(self) -> None:
+        """JSON key sorting cannot change the canonical HTML projection."""
+
+        with tempfile.TemporaryDirectory() as directory:
+            bundle, _canonical = create_bundle(Path(directory))
+            run = self._load(bundle, "EvidenceRadar_Run.json")
+            evidence = self._load(bundle, "EvidenceRadar_Evidence.json")
+            candidate = run["candidates"][0]
+            candidate["identifiers"] = {
+                "doi": "10.1000/delivery.fixture",
+                "pmid": "12345678",
+                "pmcid": "PMC1234567",
+            }
+            before_serialization = render_report_from_documents(run, evidence)
+
+            candidate["identifiers"] = {
+                "pmcid": "PMC1234567",
+                "pmid": "12345678",
+                "doi": "10.1000/delivery.fixture",
+            }
+            after_serialization = render_report_from_documents(run, evidence)
+
+            self.assertEqual(before_serialization, after_serialization)
+            self.assertIn(
+                "DOI: 10.1000/delivery.fixture · PMCID: PMC1234567 · PMID: 12345678",
+                after_serialization,
+            )
 
     def test_renderer_rejects_reusing_claim_id_for_changed_text_before_writes(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
