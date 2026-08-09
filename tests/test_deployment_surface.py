@@ -105,6 +105,8 @@ class GithubDeploymentSurfaceTests(unittest.TestCase):
 
     def test_run_delivery_is_unique_and_uploaded_before_writeback(self) -> None:
         self.assertIn("RADAR_DELIVERY_OUTPUT_DIR", self.workflow)
+        self.assertIn("$RUNNER_TEMP/evidenceradar-work-delivery-", self.workflow)
+        self.assertNotIn("RADAR_DELIVERY_OUTPUT_DIR: ${{ runner.temp }}", self.workflow)
         self.assertIn("tools/package_work_delivery.py", self.workflow)
         self.assertIn("--source-dir \"$source_dir\"", self.workflow)
         self.assertIn("--run-id \"$run_id\"", self.workflow)

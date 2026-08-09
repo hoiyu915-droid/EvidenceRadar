@@ -44,9 +44,6 @@ env:
   RADAR_EVIDENCE_PATH: "artifacts/current/EvidenceRadar_Evidence.json"
   RADAR_RUN_PATH: "artifacts/current/EvidenceRadar_Run.json"
   RADAR_RUNS_DIR: "runs"
-  # A runner-temp path is deliberately outside the checkout.  It is unique per
-  # Actions run and is uploaded as the recovery bundle before any writeback.
-  RADAR_DELIVERY_OUTPUT_DIR: ${{ runner.temp }}/evidenceradar-work-delivery-${{ github.run_id }}-${{ github.run_attempt }}
   EXECUTION_LANE: "github_actions"
   PUBLISHER_TARGET_MIN: ${{ inputs.publisher_target_min || 10 }}
   PUBLISHER_HARD_MAX: ${{ inputs.publisher_hard_max || 15 }}
@@ -137,6 +134,9 @@ jobs:
 
       - name: Package immutable run delivery and recovery bundle
         run: |
+          # RUNNER_TEMP exists only after the job has been assigned a runner;
+          # the runner context is not legal in workflow-level env.
+          RADAR_DELIVERY_OUTPUT_DIR="$RUNNER_TEMP/evidenceradar-work-delivery-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           run_id="$(python -c 'import json; print(json.load(open("artifacts/current/EvidenceRadar_Run.json", encoding="utf-8"))["run_id"])')"
           source_dir="$RADAR_RUNS_DIR/$run_id"
           if [ ! -d "$source_dir" ]; then
@@ -167,7 +167,7 @@ jobs:
             ${{ env.RADAR_STATE_PATH }}
             ${{ env.RADAR_EVIDENCE_PATH }}
             ${{ env.RADAR_RUN_PATH }}
-            ${{ env.RADAR_DELIVERY_OUTPUT_DIR }}
+            ${{ runner.temp }}/evidenceradar-work-delivery-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Commit generated artifacts and state
         env:
