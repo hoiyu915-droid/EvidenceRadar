@@ -17,6 +17,10 @@ the archived crawler under `legacy/python-runtime/`.
   `SEMANTIC_CONTRACT_V2` must emit them and pass cross-artifact validation.
 - Unknown fields still fail closed because top-level schemas retain
   `additionalProperties: false`.
+- V3 retrieval/source/claim/gap/relation fields remain schema-optional so a
+  historical V2 bundle can still be read. A producer marked
+  `SEMANTIC_CONTRACT_V3` must emit every V3 ledger and pass receipt, registry,
+  citation, numeric, relation and canonical-HTML invariants.
 - Claim support state names are unchanged. A modern `SUPPORTED` claim now
   requires an auditable accessible direct full-text probe; a discovery landing
   page or hand-written `FULL_TEXT` label is insufficient.
@@ -48,12 +52,22 @@ manual-run surface.
    State into `base_state_sha256`.
 4. If GitHub has already produced canonical State, merge both branches with
    `tools/merge_radar_state.py`; validate the result before accepting it.
+   Direct runner writes also compare the exact input State snapshot immediately
+   before atomic replacement; a mismatch is a recoverable conflict, never a
+   timestamp-based overwrite.
 5. Preserve `STATE_HISTORY_INCOMPLETE` when earlier history was already
    incomplete. Migration does not fabricate a complete history baseline.
 6. Return each Work result through `tools/package_work_delivery.py` as a unique
    run-id directory, ZIP, manifest and checksum. Repository-first Work runs pin
    a commit SHA and execute inside the Work VM; Work Pack mode remains available
    when the repository checkout cannot be used.
+7. When adopting V3, initialize the new top-level ledgers as arrays, retain the
+   imported source/claim registry, and create executor receipts only for
+   operations actually performed in the new run. Do not retrofit historical
+   searches as `EXECUTOR` receipts.
+8. Write State/Evidence/Run JSON first, then run
+   `tools/render_report_from_artifacts.py`; do not migrate an old hand-authored
+   HTML file by copying its prose into the V3 report.
 
 ## Rollback
 

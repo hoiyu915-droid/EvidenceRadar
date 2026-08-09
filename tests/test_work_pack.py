@@ -12,36 +12,42 @@ from pathlib import Path, PurePosixPath
 from zipfile import ZipFile
 
 from tools.build_work_pack import build_work_pack, collect_source_files, load_pack_spec
+from tools.delivery_contract import WORK_PRODUCER_PATHS
 
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 class WorkPackTests(unittest.TestCase):
-    def test_allowlist_contains_portable_contract_and_dependency_free_tools(self) -> None:
+    def test_allowlist_contains_portable_contract_v3_runtime_and_tools(self) -> None:
         spec = load_pack_spec(ROOT / "release" / "work-pack-manifest.json")
         paths = {relative for relative, _source in collect_source_files(ROOT, spec)}
         for required in (
             "EVIDENCE_RADAR_PROTOCOL.md",
+            "requirements.txt",
             "config/deployment.yml",
             "docs/WORK_SETUP.md",
+            "docs/SEMANTIC_CONTRACT_V3.md",
             "docs/MIGRATION_DUAL_LANE_1.0.md",
             "schemas/evidence-radar-state.schema.json",
             "tools/delivery_contract.py",
             "tools/merge_radar_state.py",
             "tools/package_work_delivery.py",
+            "tools/render_report_from_artifacts.py",
+            "tools/run_github_radar.py",
             "tools/validate_delivery_bundle.py",
             "tools/validate_gpt_work_artifacts.py",
         ):
             self.assertIn(required, paths)
         for forbidden in (
             ".github/workflows/daily-radar.yml",
-            "tools/run_github_radar.py",
             "tools/build_work_pack.py",
             "legacy/python-runtime/src/run.py",
             "state/literature_registry.json",
         ):
             self.assertNotIn(forbidden, paths)
+        for producer_path in WORK_PRODUCER_PATHS:
+            self.assertIn(producer_path, paths)
 
     def test_work_setup_documents_repository_first_and_unique_run_delivery(self) -> None:
         setup = (ROOT / "docs" / "WORK_SETUP.md").read_text(encoding="utf-8")
@@ -52,6 +58,7 @@ class WorkPackTests(unittest.TestCase):
             self.assertIn("main", document)
             self.assertIn("protocol commit", document)
             self.assertIn("tools/package_work_delivery.py", document)
+            self.assertIn("tools/render_report_from_artifacts.py", document)
             self.assertIn("EvidenceRadar-WorkRun-<run_id>.zip", document)
             self.assertIn(".zip.sha256", document)
             self.assertIn("manifest.json", document)
@@ -78,7 +85,7 @@ class WorkPackTests(unittest.TestCase):
                 self.assertEqual("manifest.json", names[-1])
                 manifest = json.loads(archive.read("manifest.json"))
                 self.assertEqual("evidenceradar-work-pack", manifest["format"])
-                self.assertEqual("1.2.0", manifest["pack_version"])
+                self.assertEqual("1.3.0", manifest["pack_version"])
                 self.assertEqual(len(manifest["files"]), manifest["file_count"])
                 self.assertTrue(manifest["reproducible"])
                 for item in manifest["files"]:
@@ -93,13 +100,14 @@ class WorkPackTests(unittest.TestCase):
                     self.assertNotIn("..", path.parts)
                     self.assertEqual((1980, 1, 1, 0, 0, 0), info.date_time)
 
-    def test_archive_excludes_history_credentials_and_active_crawler(self) -> None:
+    def test_archive_excludes_history_credentials_and_legacy_crawler(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             result = build_work_pack(ROOT, Path(directory), source_date_epoch=0)
             with ZipFile(result.archive_path) as archive:
                 names = archive.namelist()
                 self.assertFalse(any(name.startswith(("daily/", "state/", "legacy/", ".github/")) for name in names))
-                self.assertNotIn("tools/run_github_radar.py", names)
+                self.assertIn("tools/run_github_radar.py", names)
+                self.assertIn("tools/render_report_from_artifacts.py", names)
                 self.assertNotIn("tools/build_work_pack.py", names)
                 self.assertFalse(any(".env" in name.casefold() for name in names))
 
@@ -128,6 +136,15 @@ class WorkPackTests(unittest.TestCase):
                 check=False,
             )
             self.assertEqual(0, delivery_help.returncode, delivery_help.stdout)
+            renderer_help = subprocess.run(
+                [sys.executable, "tools/render_report_from_artifacts.py", "--help"],
+                cwd=extracted,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                check=False,
+            )
+            self.assertEqual(0, renderer_help.returncode, renderer_help.stdout)
             merged_dir = temporary / "merged"
             merged_dir.mkdir()
             merged_state = merged_dir / "EvidenceRadar_State.json"

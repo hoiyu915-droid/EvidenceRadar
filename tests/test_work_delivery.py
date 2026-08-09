@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import hashlib
 import json
-import shutil
 import tempfile
 import unittest
 from pathlib import Path
 from zipfile import ZipFile
 
+from tests.test_delivery_bundle import create_bundle
 from tools.package_work_delivery import CANONICAL_FILES, WorkDeliveryError, package_work_delivery
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -17,8 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 class WorkDeliveryTests(unittest.TestCase):
     def _copy_current_bundle(self, root: Path) -> Path:
-        source = root / "run"
-        shutil.copytree(ROOT / "artifacts" / "current", source)
+        source, _canonical = create_bundle(root)
         return source
 
     def test_package_contains_canonical_files_manifest_and_sidecar(self) -> None:

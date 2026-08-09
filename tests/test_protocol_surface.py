@@ -101,11 +101,41 @@ class ProtocolSurfaceTests(unittest.TestCase):
         self.assertTrue((ROOT / "tools" / "merge_radar_state.py").exists())
         self.assertTrue((ROOT / "tools" / "build_work_pack.py").exists())
         self.assertTrue((ROOT / "tools" / "validate_delivery_bundle.py").exists())
+        self.assertTrue((ROOT / "tools" / "render_report_from_artifacts.py").exists())
         self.assertTrue((ROOT / "tools" / "build_pages_site.py").exists())
         self.assertTrue((ROOT / "release" / "work-pack-manifest.json").exists())
         self.assertTrue((ROOT / "docs" / "GITHUB_DEPLOYMENT.md").exists())
         self.assertTrue((ROOT / "docs" / "WORK_SETUP.md").exists())
         self.assertTrue((ROOT / "docs" / "MIGRATION_DUAL_LANE_1.0.md").exists())
+        self.assertTrue((ROOT / "docs" / "SEMANTIC_CONTRACT_V3.md").exists())
+
+    def test_v3_semantic_contract_is_executable_public_surface(self) -> None:
+        protocol = (ROOT / "EVIDENCE_RADAR_PROTOCOL.md").read_text(encoding="utf-8")
+        semantic = (ROOT / "docs" / "SEMANTIC_CONTRACT_V3.md").read_text(encoding="utf-8")
+        instructions = (ROOT / "templates" / "gpt-work-instructions.md").read_text(encoding="utf-8")
+        validator = (ROOT / "tools" / "validate_delivery_bundle.py").read_text(encoding="utf-8")
+        runner = (ROOT / "tools" / "run_github_radar.py").read_text(encoding="utf-8")
+        for marker in (
+            "SEMANTIC_CONTRACT_V3",
+            "retrieval_attempts",
+            "source_registry",
+            "source_observations",
+            "claim_origin",
+            "citation_bindings",
+            "effect_estimates",
+            "conflict_groups",
+            "followup_attempts",
+            "MODEL_INFERENCE",
+            "topic_alignments",
+            "render_report_from_artifacts.py",
+        ):
+            self.assertTrue(
+                any(marker in document for document in (protocol, semantic, instructions, validator, runner)),
+                marker,
+            )
+        self.assertIn("byte-identical", validator)
+        self.assertIn("navigation_summary", runner)
+        self.assertIn("substantive_claim", runner)
 
     def test_protocol_declares_required_artifacts_and_statuses(self) -> None:
         protocol = (ROOT / "EVIDENCE_RADAR_PROTOCOL.md").read_text(encoding="utf-8")

@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
-"""Build a deterministic, dependency-free EvidenceRadar ChatGPT Work Pack.
+"""Build an EvidenceRadar ChatGPT Work Pack deterministically.
 
 The builder deliberately has a narrow allow-list. It packages the protocol,
-configuration, taxonomy, templates, schemas, examples, setup/migration guides
-and dependency-free State/delivery validation tools; runtime history, crawlers,
-legacy code, CI files and secret-bearing material stay out of the archive. The
+configuration, taxonomy, templates, schemas, examples, setup/migration guides,
+the active V3 renderer/runner and validation tools; runtime history, the legacy
+crawler, CI files and secret-bearing material stay out of the archive. The
 resulting manifest records every included file's digest and the source Git
-revision so a release can be audited after extraction.
+revision so a release can be audited after extraction.  The builder itself is
+standard-library only; the included active runner uses the pinned packages in
+``requirements.txt``.
 """
 
 from __future__ import annotations

@@ -99,6 +99,7 @@ class GithubDeploymentSurfaceTests(unittest.TestCase):
         self.assertIn("python tools/validate_delivery_bundle.py", self.workflow)
         self.assertIn('--expected-protocol-commit "$GITHUB_SHA"', self.workflow)
         self.assertIn("--require-current-producer", self.workflow)
+        self.assertIn("--require-semantic-contract-v3", self.workflow)
         self.assertIn("uses: actions/upload-artifact@v7.0.1", self.workflow)
         self.assertIn("if-no-files-found: error", self.workflow)
         self.assertIn("cmp --silent", self.workflow)
@@ -159,6 +160,7 @@ class GithubDeploymentSurfaceTests(unittest.TestCase):
         self.assertIn("--bundle artifacts/current", self.public_release_workflow)
         self.assertIn("--canonical-state state/current/EvidenceRadar_State.json", self.public_release_workflow)
         self.assertIn("--require-current-producer", self.public_release_workflow)
+        self.assertIn("--require-semantic-contract-v3", self.public_release_workflow)
 
     def test_pages_deploys_only_a_validated_bundle_and_emits_links(self) -> None:
         for marker in (

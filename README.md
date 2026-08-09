@@ -4,6 +4,12 @@ EvidenceRadar 是一套可公開自行部署、可稽核的近期研究雷達。
 與「證據已核實」分開，使用事件窗、publication identity、來源覆蓋、claim ledger
 與可攜 State 防止重複通知和過度宣稱。
 
+新的 `SEMANTIC_CONTRACT_V3` 再把 discovery、content fetch、claim verification、
+source identity/access observation、citation binding、model inference、數字前提與
+衝突拆開。完整規格見
+[`docs/SEMANTIC_CONTRACT_V3.md`](docs/SEMANTIC_CONTRACT_V3.md)；舊 V2 bundle
+仍可驗證，新 V3 bundle 則啟用額外 fail-closed 規則。
+
 GitHub Actions and ChatGPT Work are the two supported EvidenceRadar execution lanes.
 兩條 lane 共用同一份 protocol、config、schema 與四個 artifact 契約，但驗證能力
 保持可見差異：
@@ -50,10 +56,10 @@ EvidenceRadar-WorkPack-v<VERSION>.zip.sha256
 ```
 
 驗證 checksum、解壓並上傳到自己的 ChatGPT Work project。首次可沒有 State；
-第二次起另外帶入最新 `EvidenceRadar_State.json`。Work Pack 只有 protocol、設定、
-schema、template、範例、migration、manifest 與 dependency-free 的 State merge、
-四件套 validation 及 run-id delivery packager，不含 credentials、歷史 State、
-每日報告或 Python crawler。
+第二次起另外帶入最新 `EvidenceRadar_State.json`。Work Pack 包含 protocol、設定、
+schema、template、範例、migration、manifest、V3 canonical renderer、目前 GitHub
+runner、State merge、四件套 validation、run-id delivery packager 與 requirements；
+不含 credentials、歷史 State、每日報告、CI 或 legacy crawler。
 
 這條 lane 不宣稱能把含 Work Pack 檔案的 project 直接變成 unattended scheduled
 run。OpenAI 目前說明：[在含檔案的 project 建立 Scheduled Task 時，該 task
@@ -150,6 +156,24 @@ provenance、canonical State、source coverage、完整候選 ledger、Featured/
 probe 的來源才能支持 `SUPPORTED` claim。這道閘門防止舊 runner、手填狀態或舊
 Work Pack 在新版合併後覆寫 current。
 
+V3 的每項 query／fetch／claim verification 都要有 executor receipt，逐一對帳
+query、source access、CHECK、candidate IDs 與 pagination；「模型說查過」不算。
+來源以 canonical URL 重用 stable source ID，實際存取另存 append-only observation。
+Follow-up 必須由既有 gap 觸發並受 attempt/cooldown 上限控制。Claim 必須綁
+source、locator、origin 與 access depth；`MODEL_INFERENCE` 只進 inference ledger。
+數字則保存 population、exposure、comparator、outcome、timeframe、effect measure、
+analysis set 與不確定性，衝突保留為結構資料。
+
+ChatGPT Work 先完成三份 JSON，再執行：
+
+```sh
+python3 tools/render_report_from_artifacts.py --bundle "$WORK_RUN_DIR"
+```
+
+最終 HTML 只能是這個 canonical projection。候選中文簡述是 navigation text；實質
+claim 以 claim ID 綁 Evidence。手動加進 HTML 的結論或數字會被 byte-parity gate
+拒絕。
+
 Work 與 GitHub 從不同 State 分支執行時，使用 deterministic union，不能用較新的
 檔案直接覆蓋另一條 lane：
 
@@ -193,10 +217,12 @@ Run status 只可使用 `COMPLETE`、`PARTIAL_SOURCE_COVERAGE`、
 - [`tools/merge_radar_state.py`](tools/merge_radar_state.py)：雙 lane State union
 - [`tools/build_work_pack.py`](tools/build_work_pack.py)：可重現 Work Pack builder
 - [`tools/package_work_delivery.py`](tools/package_work_delivery.py)：驗證後建立唯一 run-id Work ZIP／manifest／checksum
+- [`tools/render_report_from_artifacts.py`](tools/render_report_from_artifacts.py)：由 V3 JSON canonical render HTML
 - [`tools/validate_delivery_bundle.py`](tools/validate_delivery_bundle.py)：四件套與 HTML 一致性／producer 閘門
 - [`tools/build_pages_site.py`](tools/build_pages_site.py)：產生 Pages 站點與 `links.json`
 - [`templates/gpt-work-instructions.md`](templates/gpt-work-instructions.md)：Work 指令
 - [`docs/MIGRATION_DUAL_LANE_1.0.md`](docs/MIGRATION_DUAL_LANE_1.0.md)：相容性與 rollback
+- [`docs/SEMANTIC_CONTRACT_V3.md`](docs/SEMANTIC_CONTRACT_V3.md)：retrieval／source／claim／gap／numeric V3 契約
 - [`LEGACY_RUNTIME.md`](LEGACY_RUNTIME.md)：2026-08-08 前 runtime provenance
 
 ## Runtime and maintainer tooling

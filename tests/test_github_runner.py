@@ -18,6 +18,8 @@ from tools.run_github_radar import (
     _request,
     candidate_content_summary,
     candidate_source_excerpt,
+    build_retrieval_ledger,
+    build_gap_backlog,
     build_state,
     event_class,
     fulltext_metadata,
@@ -29,9 +31,11 @@ from tools.run_github_radar import (
     fetch_openalex,
     fetch_pubmed,
     load_prior_state,
+    load_prior_state_snapshot,
     probe_publisher_pages,
     state_sha256,
     translate_candidate_summaries_zh_tw,
+    write_state_atomic,
 )
 
 
@@ -87,6 +91,29 @@ class FakeSession:
 
 
 class GithubRunnerTests(unittest.TestCase):
+    def test_not_attempted_access_receipt_has_bounded_error_class(self) -> None:
+        observed_at = datetime(2026, 8, 9, 12, 0, tzinfo=TZ)
+        attempts, _expansions = build_retrieval_ledger(
+            run_id="not-attempted-fixture",
+            queries=[],
+            source_access=[
+                {
+                    "source_id": "publisher-not-attempted",
+                    "provider": "publisher",
+                    "url": "https://example.test/not-attempted",
+                    "accessed_at": observed_at.isoformat(),
+                    "status": "NOT_ATTEMPTED",
+                    "result_count": 0,
+                }
+            ],
+            source_coverage={"checks": []},
+            candidate_records=[],
+            start=observed_at - timedelta(hours=72),
+            end=observed_at,
+            per_query_limit=40,
+        )
+        self.assertEqual("REQUEST_NOT_ATTEMPTED", attempts[0]["error_class"])
+
     def test_discovery_checks_every_configured_discovery_source(self) -> None:
         configured = {
             "pubmed",
@@ -244,6 +271,124 @@ class GithubRunnerTests(unittest.TestCase):
             )
         self.assertIsNone(loaded)
         self.assertEqual("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", digest)
+
+    def test_state_compare_and_swap_rejects_stale_snapshot(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "EvidenceRadar_State.json"
+            initial = {
+                "schema_version": "1.0",
+                "artifact_type": "EvidenceRadar_State",
+                "generated_at": "2026-08-09T00:00:00+00:00",
+                "timezone": "UTC",
+                "history_status": "COMPLETE",
+                "last_run_id": "run-initial",
+                "dedupe_priority": ["doi", "pmid", "normalized_title"],
+                "works": [],
+                "notified_events": [],
+            }
+            write_state_atomic(path, initial)
+            _loaded, _semantic_hash, file_fingerprint = load_prior_state_snapshot(path)
+            external = {**initial, "last_run_id": "run-external"}
+            write_state_atomic(path, external)
+
+            with self.assertRaisesRegex(RadarRuntimeError, "changed during execution"):
+                write_state_atomic(
+                    path,
+                    {**initial, "last_run_id": "run-stale"},
+                    expected_file_fingerprint=file_fingerprint,
+                )
+            self.assertEqual(
+                "run-external", json.loads(path.read_text())["last_run_id"]
+            )
+
+    def test_failed_aggregate_source_check_does_not_resolve_gap(self) -> None:
+        generated_at = datetime(2026, 8, 9, 12, 0, tzinfo=TZ)
+        coverage = {
+            "checks": [
+                {
+                    "source_id": "publisher",
+                    "stage": "bounded_verification",
+                    "status": "FAILED",
+                    "checked_at": generated_at.isoformat(),
+                    "result_count": 1,
+                    "summary": "One access succeeded and another failed.",
+                }
+            ]
+        }
+        attempts = [
+            {
+                "attempt_id": "attempt-ok",
+                "stage": "CONTENT_FETCH",
+                "source_id": "publisher",
+                "status": "SUCCESS",
+            },
+            {
+                "attempt_id": "attempt-fail",
+                "stage": "CONTENT_FETCH",
+                "source_id": "publisher",
+                "status": "FAILED",
+            },
+        ]
+        gaps, _followups = build_gap_backlog(
+            prior_state=None,
+            run_id="run-mixed-publisher",
+            generated_at=generated_at,
+            source_coverage=coverage,
+            source_access=[],
+            retrieval_attempts=attempts,
+        )
+        self.assertEqual(1, len(gaps))
+        self.assertEqual("OPEN", gaps[0]["status"])
+        self.assertNotIn("resolution_receipt_id", gaps[0])
+        self.assertEqual(
+            ["attempt-fail", "attempt-ok"], gaps[0]["receipt_ids"]
+        )
+
+    def test_failed_aggregate_check_with_results_emits_partial_receipt(self) -> None:
+        generated_at = datetime(2026, 8, 9, 12, 0, tzinfo=TZ)
+        coverage = {
+            "checks": [
+                {
+                    "source_id": "formal_proceedings_or_publisher",
+                    "stage": "bounded_verification",
+                    "status": "FAILED",
+                    "checked_at": generated_at.isoformat(),
+                    "result_count": 2,
+                    "summary": "Two accesses succeeded and thirteen failed.",
+                }
+            ]
+        }
+
+        attempts, expansions = build_retrieval_ledger(
+            run_id="run-mixed-aggregate",
+            queries=[],
+            source_access=[],
+            source_coverage=coverage,
+            candidate_records=[],
+            start=generated_at - timedelta(days=1),
+            end=generated_at,
+            per_query_limit=40,
+        )
+
+        self.assertEqual([], expansions)
+        self.assertEqual(1, len(attempts))
+        self.assertEqual("PARTIAL", attempts[0]["status"])
+        self.assertEqual(2, attempts[0]["result_count"])
+        self.assertEqual(1, attempts[0]["pagination"]["pages_received"])
+        self.assertEqual(
+            "AGGREGATE_PARTIAL_FAILURE", attempts[0]["error_class"]
+        )
+
+        gaps, _followups = build_gap_backlog(
+            prior_state=None,
+            run_id="run-mixed-aggregate",
+            generated_at=generated_at,
+            source_coverage=coverage,
+            source_access=[],
+            retrieval_attempts=attempts,
+        )
+        self.assertEqual(1, len(gaps))
+        self.assertEqual("OPEN", gaps[0]["status"])
 
     def test_pubmed_adapter_preserves_identity_and_date_precision(self) -> None:
         class ApiResponse:
@@ -407,6 +552,7 @@ class GithubRunnerTests(unittest.TestCase):
                 "url": items[0].landing_url,
                 "accessed_at": end_at.isoformat(),
                 "status": "SUCCESS",
+                "http_status": 200,
                 "result_count": 1,
             }
             return [(items[0], access)], [access], []
@@ -514,6 +660,12 @@ class GithubRunnerTests(unittest.TestCase):
             self.assertEqual(2, second_state["works"][0]["seen_count"])
             self.assertEqual(["github-actions-first"], second_state["parent_run_ids"])
             self.assertNotEqual("0" * 64, second_state["base_state_sha256"])
+            self.assertEqual([], second_run["followup_attempts"])
+            self.assertTrue(second_state["gaps"])
+            self.assertEqual(
+                {0},
+                {gap["attempt_count"] for gap in second_state["gaps"]},
+            )
 
     def test_candidate_display_and_state_are_not_capped_by_publisher_budget(self) -> None:
         end_at = datetime(2026, 8, 9, 12, 0, tzinfo=TZ)
@@ -585,7 +737,7 @@ class GithubRunnerTests(unittest.TestCase):
         self.assertEqual(0, run["counts"]["fulltext_failed"])
         self.assertEqual(160, len(state["works"]))
         self.assertEqual(15, len(state["notified_events"]))
-        self.assertEqual(15, len(evidence["works"]))
+        self.assertEqual(160, len(evidence["works"]))
         self.assertTrue(all(item["content_summary"] for item in run["candidates"]))
         self.assertEqual(
             {"TITLE_ONLY_ZH_TW"},
@@ -661,11 +813,27 @@ class GithubRunnerTests(unittest.TestCase):
             )
             run = json.loads((output / "EvidenceRadar_Run.json").read_text())
             state = json.loads((output / "EvidenceRadar_State.json").read_text())
+            evidence = json.loads((output / "EvidenceRadar_Evidence.json").read_text())
 
         self.assertEqual(1, summary["publisher_attempted"])
         self.assertEqual("YES", run["candidates"][0]["oa_status"])
         self.assertEqual("BLOCKED", run["candidates"][0]["access_status"])
+        self.assertEqual("METADATA", run["candidates"][0]["access_depth"])
         self.assertEqual("BLOCKED", state["works"][0]["access_status"])
+        direct_observation = next(
+            item
+            for item in state["source_observations"]
+            if item["url"].rstrip("/") == direct_url.rstrip("/")
+        )
+        self.assertEqual("NONE", direct_observation["access_depth"])
+        self.assertEqual("BLOCKED", direct_observation["access_outcome"])
+        direct_source = next(
+            item
+            for item in evidence["sources"]
+            if item["url"].rstrip("/") == direct_url.rstrip("/")
+        )
+        self.assertEqual("BLOCKED", direct_source["access_probe_status"])
+        self.assertEqual("REPOSITORY", direct_source["fulltext_kind"])
         self.assertEqual([], state["notified_events"])
 
     def test_candidate_content_summary_is_zh_tw_and_source_excerpt_is_bounded(self) -> None:

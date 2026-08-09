@@ -76,6 +76,30 @@
         "$ref": "#/$defs/notified_event"
       }
     },
+    "source_registry": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/source_registry_entry" }
+    },
+    "source_observations": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/source_observation" }
+    },
+    "gaps": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/gap" }
+    },
+    "work_relations": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/work_relation" }
+    },
+    "claim_relations": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/claim_relation" }
+    },
+    "claim_registry": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/claim_registry_entry" }
+    },
     "notes": {
       "type": "array",
       "items": {
@@ -156,6 +180,7 @@
           "type": "string",
           "minLength": 1
         },
+        "identity_status": { "type": "string", "enum": ["RESOLVED", "UNRESOLVED", "CONFLICT"] },
         "title": {
           "type": "string",
           "minLength": 1
@@ -223,6 +248,8 @@
           "type": "string",
           "enum": ["ACCESSIBLE", "BLOCKED", "PAYWALLED", "FAILED", "NOT_CHECKED"]
         },
+        "access_depth": { "type": "string", "enum": ["NONE", "METADATA", "LANDING_PAGE", "ABSTRACT", "FULL_TEXT"] },
+        "access_outcome": { "type": "string", "enum": ["ACCESSIBLE", "BLOCKED", "PAYWALLED", "FAILED", "NOT_ATTEMPTED", "NOT_CHECKED"] },
         "fulltext_kind": {
           "type": "string",
           "enum": ["PDF", "HTML", "REPOSITORY", "ABSTRACT_ONLY", "UNKNOWN"]
@@ -262,7 +289,178 @@
             "type": "string",
             "minLength": 1
           }
+        },
+        "topic_alignments": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/topic_alignment" }
         }
+      }
+    },
+    "topic_alignment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["criterion_id", "status", "basis"],
+      "properties": {
+        "criterion_id": { "type": "string", "minLength": 1 },
+        "status": {
+          "type": "string",
+          "enum": ["DIRECT", "PARTIAL", "MECHANISM_CONFLICT", "OUT_OF_SCOPE", "UNCERTAIN"]
+        },
+        "basis": { "type": "string", "enum": ["RULE", "FULLTEXT", "ABSTRACT", "MODEL_INFERENCE"] },
+        "reason": { "type": "string", "minLength": 1 }
+      }
+    },
+    "source_registry_entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_id", "work_id", "canonical_url", "source_type", "source_role",
+        "identifiers", "first_seen_run", "last_seen_run"
+      ],
+      "properties": {
+        "source_id": { "type": "string", "minLength": 1 },
+        "work_id": { "type": "string", "minLength": 1 },
+        "canonical_url": { "type": "string", "pattern": "^https?://\\S+$" },
+        "source_type": { "type": "string", "minLength": 1 },
+        "source_role": {
+          "type": "string",
+          "enum": [
+            "PRIMARY_RESEARCH", "SYSTEMATIC_SYNTHESIS", "OFFICIAL_AUTHORITY",
+            "FORMAL_PUBLICATION", "SECONDARY_REPORT", "DISCOVERY_ONLY",
+            "SELF_STATEMENT", "OTHER"
+          ]
+        },
+        "identifiers": { "$ref": "#/$defs/identifiers" },
+        "first_seen_run": { "type": "string", "minLength": 1 },
+        "last_seen_run": { "type": "string", "minLength": 1 }
+      }
+    },
+    "source_observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "observation_id", "source_id", "run_id", "attempt_id", "observed_at",
+        "access_depth", "access_outcome", "url"
+      ],
+      "properties": {
+        "observation_id": { "type": "string", "minLength": 1 },
+        "source_id": { "type": "string", "minLength": 1 },
+        "run_id": { "type": "string", "minLength": 1 },
+        "attempt_id": { "type": "string", "minLength": 1 },
+        "observed_at": { "type": "string", "format": "date-time" },
+        "access_depth": {
+          "type": "string",
+          "enum": ["NONE", "METADATA", "LANDING_PAGE", "ABSTRACT", "FULL_TEXT"]
+        },
+        "access_outcome": {
+          "type": "string",
+          "enum": ["ACCESSIBLE", "BLOCKED", "PAYWALLED", "FAILED", "NOT_ATTEMPTED", "NOT_CHECKED"]
+        },
+        "url": { "type": "string", "pattern": "^https?://\\S+$" },
+        "http_status": { "type": "integer", "minimum": 100, "maximum": 599 }
+      }
+    },
+    "gap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "gap_id", "gap_type", "scope_type", "scope_id", "first_seen_run",
+        "last_attempt_run", "attempt_count", "status", "max_attempts",
+        "resolution_criteria", "receipt_ids"
+      ],
+      "properties": {
+        "gap_id": { "type": "string", "minLength": 1 },
+        "gap_type": {
+          "type": "string",
+          "enum": ["SOURCE_UNAVAILABLE", "CONTENT_INACCESSIBLE", "IDENTITY_UNRESOLVED", "CLAIM_UNVERIFIED", "NUMERIC_CONFLICT"]
+        },
+        "scope_type": { "type": "string", "enum": ["SOURCE_SYSTEM", "SOURCE", "WORK", "CLAIM"] },
+        "scope_id": { "type": "string", "minLength": 1 },
+        "first_seen_run": { "type": "string", "minLength": 1 },
+        "last_attempt_run": { "type": "string", "minLength": 1 },
+        "attempt_count": { "type": "integer", "minimum": 0 },
+        "status": { "type": "string", "enum": ["OPEN", "RESOLVED", "DEFERRED", "UNRESOLVABLE"] },
+        "max_attempts": { "type": "integer", "minimum": 1 },
+        "cooldown_until": { "type": "string", "format": "date-time" },
+        "resolution_criteria": { "type": "string", "minLength": 1 },
+        "receipt_ids": {
+          "type": "array", "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "resolution_receipt_id": { "type": "string", "minLength": 1 }
+      }
+    },
+    "work_relation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "relation_id", "from_work_id", "to_work_id", "relation_type",
+        "comparison_basis", "review_status", "observed_run_id"
+      ],
+      "properties": {
+        "relation_id": { "type": "string", "minLength": 1 },
+        "from_work_id": { "type": "string", "minLength": 1 },
+        "to_work_id": { "type": "string", "minLength": 1 },
+        "relation_type": {
+          "type": "string",
+          "enum": ["NEW_VERSION", "PREPRINT_TO_VOR", "CORRECTION", "RETRACTION", "DUPLICATE_REPORT"]
+        },
+        "comparison_basis": { "type": "string", "minLength": 1 },
+        "review_status": { "type": "string", "enum": ["AUTO_DETECTED", "REVIEWED", "REJECTED"] },
+        "observed_run_id": { "type": "string", "minLength": 1 }
+      }
+    },
+    "claim_relation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "relation_id", "from_claim_id", "to_claim_id", "relation_type",
+        "comparison_basis", "review_status", "observed_run_id"
+      ],
+      "properties": {
+        "relation_id": { "type": "string", "minLength": 1 },
+        "from_claim_id": { "type": "string", "minLength": 1 },
+        "to_claim_id": { "type": "string", "minLength": 1 },
+        "relation_type": { "type": "string", "enum": ["SUPPORTS", "CONTRADICTS", "SUPERSEDES"] },
+        "comparison_basis": { "type": "string", "minLength": 1 },
+        "review_status": { "type": "string", "enum": ["AUTO_DETECTED", "REVIEWED", "REJECTED"] },
+        "observed_run_id": { "type": "string", "minLength": 1 }
+      }
+    },
+    "claim_registry_entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "claim_id", "work_id", "claim_kind", "claim_origin", "claim_text_sha256",
+        "status", "source_ids", "status_binding_ids", "first_seen_run",
+        "last_seen_run", "last_status_change_run"
+      ],
+      "properties": {
+        "claim_id": { "type": "string", "minLength": 1 },
+        "work_id": { "type": "string", "minLength": 1 },
+        "claim_kind": {
+          "type": "string",
+          "enum": ["SCIENTIFIC_FINDING", "OFFICIAL_STATISTIC", "ATTRIBUTION", "POLICY_STATEMENT", "BIBLIOGRAPHIC_FACT", "OTHER"]
+        },
+        "claim_origin": {
+          "type": "string",
+          "enum": ["FULLTEXT_EXTRACTED", "ABSTRACT_EXTRACTED", "METADATA_REPORTED", "EXTERNAL_REPORT"]
+        },
+        "claim_text_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "status": { "type": "string", "enum": ["SUPPORTED", "PARTIAL", "CONFLICT", "UNVERIFIED"] },
+        "source_ids": {
+          "type": "array", "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "status_binding_ids": {
+          "type": "array", "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "first_seen_run": { "type": "string", "minLength": 1 },
+        "last_seen_run": { "type": "string", "minLength": 1 },
+        "last_status_change_run": { "type": "string", "minLength": 1 }
       }
     },
     "oa_evidence": {

@@ -181,6 +181,7 @@ def package_work_delivery(
         expected_lane=expected_lane,
         expected_protocol_commit=protocol_commit,
         require_current_producer=require_current_producer,
+        require_semantic_contract_v3=True,
     )
     if delivery_errors:
         raise WorkDeliveryError("delivery validation failed: " + " | ".join(delivery_errors))

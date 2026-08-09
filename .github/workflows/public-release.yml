@@ -35,6 +35,7 @@ jobs:
             --bundle artifacts/current \
             --canonical-state state/current/EvidenceRadar_State.json \
             --require-current-producer \
+            --require-semantic-contract-v3 \
             --reject-dirty
       - name: Run standard-library tests
         run: python -m unittest discover -s tests -v

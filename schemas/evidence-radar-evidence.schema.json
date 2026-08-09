@@ -62,6 +62,30 @@
         "$ref": "#/$defs/claim"
       }
     },
+    "source_registry": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/source_registry_entry" }
+    },
+    "source_observations": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/source_observation" }
+    },
+    "citation_bindings": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/citation_binding" }
+    },
+    "effect_estimates": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/effect_estimate" }
+    },
+    "conflict_groups": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/conflict_group" }
+    },
+    "inferences": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/inference" }
+    },
     "notes": {
       "type": "array",
       "items": {
@@ -324,6 +348,7 @@
           "type": "string",
           "minLength": 1
         },
+        "identity_status": { "type": "string", "enum": ["RESOLVED", "UNRESOLVED", "CONFLICT"] },
         "title": {
           "type": "string",
           "minLength": 1
@@ -372,6 +397,8 @@
           "type": "string",
           "enum": ["ACCESSIBLE", "BLOCKED", "PAYWALLED", "FAILED", "NOT_CHECKED"]
         },
+        "access_depth": { "type": "string", "enum": ["NONE", "METADATA", "LANDING_PAGE", "ABSTRACT", "FULL_TEXT"] },
+        "access_outcome": { "type": "string", "enum": ["ACCESSIBLE", "BLOCKED", "PAYWALLED", "FAILED", "NOT_ATTEMPTED", "NOT_CHECKED"] },
         "fulltext_kind": {
           "type": "string",
           "enum": ["PDF", "HTML", "REPOSITORY", "ABSTRACT_ONLY", "UNKNOWN"]
@@ -385,7 +412,201 @@
           "type": "array",
           "uniqueItems": true,
           "items": { "$ref": "#/$defs/fulltext_location" }
+        },
+        "topic_alignments": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/topic_alignment" }
         }
+      }
+    },
+    "identifiers": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "doi": { "type": "string", "minLength": 1 },
+        "pmid": { "type": "string", "minLength": 1 },
+        "pmcid": { "type": "string", "minLength": 1 },
+        "arxiv_id": { "type": "string", "minLength": 1 },
+        "anthology_id": { "type": "string", "minLength": 1 },
+        "openalex_id": { "type": "string", "minLength": 1 }
+      }
+    },
+    "topic_alignment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["criterion_id", "status", "basis"],
+      "properties": {
+        "criterion_id": { "type": "string", "minLength": 1 },
+        "status": {
+          "type": "string",
+          "enum": ["DIRECT", "PARTIAL", "MECHANISM_CONFLICT", "OUT_OF_SCOPE", "UNCERTAIN"]
+        },
+        "basis": { "type": "string", "enum": ["RULE", "FULLTEXT", "ABSTRACT", "MODEL_INFERENCE"] },
+        "reason": { "type": "string", "minLength": 1 }
+      }
+    },
+    "source_registry_entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_id", "work_id", "canonical_url", "source_type", "source_role",
+        "identifiers", "first_seen_run", "last_seen_run"
+      ],
+      "properties": {
+        "source_id": { "type": "string", "minLength": 1 },
+        "work_id": { "type": "string", "minLength": 1 },
+        "canonical_url": { "type": "string", "pattern": "^https?://\\S+$" },
+        "source_type": { "type": "string", "minLength": 1 },
+        "source_role": {
+          "type": "string",
+          "enum": [
+            "PRIMARY_RESEARCH", "SYSTEMATIC_SYNTHESIS", "OFFICIAL_AUTHORITY",
+            "FORMAL_PUBLICATION", "SECONDARY_REPORT", "DISCOVERY_ONLY",
+            "SELF_STATEMENT", "OTHER"
+          ]
+        },
+        "identifiers": { "$ref": "#/$defs/identifiers" },
+        "first_seen_run": { "type": "string", "minLength": 1 },
+        "last_seen_run": { "type": "string", "minLength": 1 }
+      }
+    },
+    "source_observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "observation_id", "source_id", "run_id", "attempt_id", "observed_at",
+        "access_depth", "access_outcome", "url"
+      ],
+      "properties": {
+        "observation_id": { "type": "string", "minLength": 1 },
+        "source_id": { "type": "string", "minLength": 1 },
+        "run_id": { "type": "string", "minLength": 1 },
+        "attempt_id": { "type": "string", "minLength": 1 },
+        "observed_at": { "type": "string", "format": "date-time" },
+        "access_depth": { "type": "string", "enum": ["NONE", "METADATA", "LANDING_PAGE", "ABSTRACT", "FULL_TEXT"] },
+        "access_outcome": { "type": "string", "enum": ["ACCESSIBLE", "BLOCKED", "PAYWALLED", "FAILED", "NOT_ATTEMPTED", "NOT_CHECKED"] },
+        "url": { "type": "string", "pattern": "^https?://\\S+$" },
+        "http_status": { "type": "integer", "minimum": 100, "maximum": 599 }
+      }
+    },
+    "citation_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "binding_id", "claim_id", "source_id", "extraction_origin",
+        "access_depth", "source_url", "locator", "support_scope"
+      ],
+      "properties": {
+        "binding_id": { "type": "string", "minLength": 1 },
+        "claim_id": { "type": "string", "minLength": 1 },
+        "source_id": { "type": "string", "minLength": 1 },
+        "extraction_origin": {
+          "type": "string",
+          "enum": ["FULLTEXT_EXTRACTED", "ABSTRACT_EXTRACTED", "METADATA_REPORTED", "EXTERNAL_REPORT"]
+        },
+        "access_depth": { "type": "string", "enum": ["METADATA", "ABSTRACT", "FULL_TEXT"] },
+        "source_url": { "type": "string", "pattern": "^https?://\\S+$" },
+        "locator": { "type": "string", "minLength": 1 },
+        "support_scope": { "type": "string", "enum": ["EXACT", "QUALIFIED", "CONTEXT_ONLY"] },
+        "supporting_quote": { "type": "string", "minLength": 1 }
+      }
+    },
+    "effect_estimate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "estimate_id", "claim_id", "value", "measure", "unit", "population",
+        "exposure", "comparator", "outcome", "denominator", "timeframe",
+        "analysis_set", "estimator", "method", "uncertainty"
+      ],
+      "properties": {
+        "estimate_id": { "type": "string", "minLength": 1 },
+        "claim_id": { "type": "string", "minLength": 1 },
+        "value": { "type": ["number", "string", "null"] },
+        "measure": { "type": "string", "minLength": 1 },
+        "unit": {
+          "oneOf": [
+            { "type": "string", "minLength": 1 },
+            { "type": "null" }
+          ]
+        },
+        "population": { "type": "string", "minLength": 1 },
+        "exposure": { "type": "string", "minLength": 1 },
+        "comparator": { "type": "string", "minLength": 1 },
+        "outcome": { "type": "string", "minLength": 1 },
+        "denominator": { "type": "string", "minLength": 1 },
+        "timeframe": { "type": "string", "minLength": 1 },
+        "analysis_set": { "type": "string", "minLength": 1 },
+        "estimator": { "type": "string", "minLength": 1 },
+        "method": { "type": "string", "minLength": 1 },
+        "uncertainty": { "type": "string", "minLength": 1 },
+        "ci_95": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": { "type": ["number", "string", "null"] }
+        }
+      }
+    },
+    "conflict_group": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["conflict_id", "claim_ids", "dimensions", "status"],
+      "allOf": [
+        {
+          "oneOf": [
+            {
+              "properties": {
+                "status": { "enum": ["OPEN", "EXPLAINED"] }
+              },
+              "required": ["status"]
+            },
+            {
+              "properties": {
+                "status": { "const": "RESOLVED" }
+              },
+              "required": ["status", "resolution"]
+            }
+          ]
+        }
+      ],
+      "properties": {
+        "conflict_id": { "type": "string", "minLength": 1 },
+        "claim_ids": {
+          "type": "array", "minItems": 2, "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "dimensions": {
+          "type": "array", "minItems": 1, "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "enum": [
+              "POPULATION", "EXPOSURE", "COMPARATOR", "OUTCOME", "DENOMINATOR",
+              "TIMEFRAME", "EFFECT_MEASURE", "ANALYSIS_SET", "ESTIMATOR",
+              "METHOD", "UNCERTAINTY"
+            ]
+          }
+        },
+        "status": { "type": "string", "enum": ["OPEN", "EXPLAINED", "RESOLVED"] },
+        "resolution": { "type": "string", "minLength": 1 }
+      }
+    },
+    "inference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["inference_id", "claim_id", "origin", "text", "basis_binding_ids", "status"],
+      "properties": {
+        "inference_id": { "type": "string", "minLength": 1 },
+        "claim_id": { "type": "string", "minLength": 1 },
+        "origin": { "type": "string", "const": "MODEL_INFERENCE" },
+        "text": { "type": "string", "minLength": 1 },
+        "basis_binding_ids": {
+          "type": "array", "minItems": 1, "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "status": { "type": "string", "enum": ["UNVERIFIED", "QUALIFIED"] }
       }
     },
     "oa_evidence": {
@@ -454,7 +675,13 @@
         "comparison_group": {
           "type": "string",
           "minLength": 1
-        }
+        },
+        "population": { "type": "string", "minLength": 1 },
+        "denominator": { "type": "string", "minLength": 1 },
+        "timeframe": { "type": "string", "minLength": 1 },
+        "estimator": { "type": "string", "minLength": 1 },
+        "method": { "type": "string", "minLength": 1 },
+        "uncertainty": { "type": "string", "minLength": 1 }
       }
     },
     "claim": {
@@ -526,6 +753,29 @@
         "caveat": {
           "type": "string",
           "minLength": 1
+        },
+        "claim_kind": {
+          "type": "string",
+          "enum": ["SCIENTIFIC_FINDING", "OFFICIAL_STATISTIC", "ATTRIBUTION", "POLICY_STATEMENT", "BIBLIOGRAPHIC_FACT", "OTHER"]
+        },
+        "claim_origin": {
+          "type": "string",
+          "enum": [
+            "FULLTEXT_EXTRACTED", "ABSTRACT_EXTRACTED", "METADATA_REPORTED",
+            "EXTERNAL_REPORT", "MODEL_INFERENCE"
+          ]
+        },
+        "citation_binding_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "support_reason": { "type": "string", "minLength": 1 },
+        "effect_estimate_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
         }
       }
     }

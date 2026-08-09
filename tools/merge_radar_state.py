@@ -30,6 +30,7 @@ import datetime as _datetime
 import hashlib
 import json
 import os
+import sys
 import tempfile
 from collections import defaultdict
 from pathlib import Path
@@ -37,6 +38,13 @@ from typing import Any, Iterable, Mapping, Sequence
 
 
 JsonObject = dict[str, Any]
+
+# ``python tools/merge_radar_state.py`` makes ``tools/`` (not the pack root)
+# the first import location.  Add the immutable checkout / extracted Work Pack
+# root so the V3 schema validator remains available from the documented CLI.
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 _IDENTIFIER_FIELDS = (
     "doi",
@@ -154,6 +162,104 @@ def _require_state(state: Mapping[str, Any], label: str) -> None:
         event_id = event.get("event_id")
         if not isinstance(event_id, str) or not event_id.strip():
             raise StateMergeError(f"{label}.notified_events[{index}].event_id must be non-empty")
+
+    v3_requirements = {
+        "source_registry": (
+            "source_id", "work_id", "canonical_url", "source_type", "source_role",
+            "identifiers", "first_seen_run", "last_seen_run",
+        ),
+        "source_observations": (
+            "observation_id", "source_id", "run_id", "attempt_id", "observed_at",
+            "access_depth", "access_outcome", "url",
+        ),
+        "gaps": (
+            "gap_id", "gap_type", "scope_type", "scope_id", "first_seen_run",
+            "last_attempt_run", "attempt_count", "status", "max_attempts",
+            "resolution_criteria", "receipt_ids",
+        ),
+        "work_relations": (
+            "relation_id", "from_work_id", "to_work_id", "relation_type",
+            "comparison_basis", "review_status", "observed_run_id",
+        ),
+        "claim_relations": (
+            "relation_id", "from_claim_id", "to_claim_id", "relation_type",
+            "comparison_basis", "review_status", "observed_run_id",
+        ),
+        "claim_registry": (
+            "claim_id", "work_id", "claim_kind", "claim_origin",
+            "claim_text_sha256", "status", "source_ids", "status_binding_ids",
+            "first_seen_run", "last_seen_run", "last_status_change_run",
+        ),
+    }
+    for field, required_fields in v3_requirements.items():
+        if field not in state:
+            continue
+        values = state[field]
+        if not isinstance(values, list):
+            raise StateMergeError(f"{label}.{field} must be a list")
+        for index, value in enumerate(values):
+            if not isinstance(value, Mapping):
+                raise StateMergeError(f"{label}.{field}[{index}] must be an object")
+            missing_fields = [name for name in required_fields if name not in value]
+            if missing_fields:
+                raise StateMergeError(
+                    f"{label}.{field}[{index}] is missing required fields: "
+                    + ", ".join(missing_fields)
+                )
+    if any(field in state for field in v3_requirements):
+        try:
+            from tools.validate_gpt_work_artifacts import load_json, validate_document
+
+            schema_path = (
+                Path(__file__).resolve().parents[1]
+                / "schemas"
+                / "evidence-radar-state.schema.json"
+            )
+            schema_errors = validate_document(state, load_json(schema_path))
+        except (OSError, json.JSONDecodeError, ImportError) as exc:
+            raise StateMergeError(f"{label} schema validation is unavailable: {exc}") from exc
+        if schema_errors:
+            raise StateMergeError(
+                f"{label} fails the State schema: {schema_errors[0]}"
+            )
+        for index, item in enumerate(state.get("source_registry", [])):
+            expected = _v3_id("src", item.get("canonical_url"))
+            if item.get("source_id") != expected:
+                raise StateMergeError(
+                    f"{label}.source_registry[{index}].source_id is not stable"
+                )
+        for index, item in enumerate(state.get("source_observations", [])):
+            expected = _v3_id(
+                "obs", item.get("source_id"), item.get("run_id"), item.get("attempt_id")
+            )
+            if item.get("observation_id") != expected:
+                raise StateMergeError(
+                    f"{label}.source_observations[{index}].observation_id is not stable"
+                )
+        for index, item in enumerate(state.get("gaps", [])):
+            expected = _v3_id("gap", item.get("gap_type"), item.get("scope_id"))
+            if item.get("gap_id") != expected:
+                raise StateMergeError(f"{label}.gaps[{index}].gap_id is not stable")
+        relation_specs = (
+            ("work_relations", "workrel", "from_work_id", "to_work_id"),
+            ("claim_relations", "claimrel", "from_claim_id", "to_claim_id"),
+        )
+        for field, prefix, left, right in relation_specs:
+            for index, item in enumerate(state.get(field, [])):
+                if item.get(left) == item.get(right):
+                    raise StateMergeError(
+                        f"{label}.{field}[{index}] is self-referential"
+                    )
+                expected = _v3_id(
+                    prefix,
+                    item.get(left),
+                    item.get(right),
+                    item.get("relation_type"),
+                )
+                if item.get("relation_id") != expected:
+                    raise StateMergeError(
+                        f"{label}.{field}[{index}].relation_id is not stable"
+                    )
 
 
 def _work_tokens(work: Mapping[str, Any], priority: Sequence[str]) -> dict[str, str]:
@@ -376,6 +482,7 @@ def _merge_work(records: Sequence[Mapping[str, Any]], tokens: Sequence[Mapping[s
         "notes",
         "download_urls",
         "oa_evidence",
+        "topic_alignments",
     )
     for field in list_fields:
         values = [value for record in records for value in (record.get(field) or [])]
@@ -451,6 +558,17 @@ def _merge_work(records: Sequence[Mapping[str, Any]], tokens: Sequence[Mapping[s
     ]
     access_status = _latest_value(actual_access_records or records, "access_status")
     merged["access_status"] = access_status or "NOT_CHECKED"
+    merged["access_outcome"] = merged["access_status"]
+
+    identity_values = {
+        str(record.get("identity_status") or "UNRESOLVED") for record in records
+    }
+    if "CONFLICT" in identity_values:
+        merged["identity_status"] = "CONFLICT"
+    elif "RESOLVED" in identity_values or identifiers:
+        merged["identity_status"] = "RESOLVED"
+    else:
+        merged["identity_status"] = "UNRESOLVED"
 
     location_statuses = {
         str(location.get("access_status"))
@@ -478,6 +596,17 @@ def _merge_work(records: Sequence[Mapping[str, Any]], tokens: Sequence[Mapping[s
     else:
         fulltext_kind = _latest_value(records, "fulltext_kind")
         merged["fulltext_kind"] = fulltext_kind or "UNKNOWN"
+    depth_rank = {
+        "NONE": 0,
+        "METADATA": 1,
+        "LANDING_PAGE": 2,
+        "ABSTRACT": 3,
+        "FULL_TEXT": 4,
+    }
+    merged["access_depth"] = max(
+        (str(record.get("access_depth") or "NONE") for record in records),
+        key=lambda value: (depth_rank.get(value, -1), value),
+    )
     merged.setdefault("download_urls", [])
     merged.setdefault("oa_evidence", [])
     return merged
@@ -516,6 +645,381 @@ def _merge_event_candidates(candidates: Sequence[Mapping[str, Any]]) -> JsonObje
             ),
         )
     )
+
+
+def _v3_id(prefix: str, *parts: Any) -> str:
+    digest = hashlib.sha256(
+        canonical_json([str(part) for part in parts]).encode("utf-8")
+    ).hexdigest()[:24]
+    return f"{prefix}-{digest}"
+
+
+def _merge_v3_collections(
+    base: Mapping[str, Any],
+    incoming: Mapping[str, Any],
+    work_id_map: Mapping[str, str],
+) -> JsonObject:
+    """Deterministically union V3 registries, observations, gaps and relations."""
+
+    result: JsonObject = {}
+    def snapshot_key(state: Mapping[str, Any]) -> tuple[tuple[float, str], str]:
+        return (
+            _time_key(state.get("generated_at"), canonical_json(state)),
+            canonical_json(state),
+        )
+
+    registry_groups: dict[
+        str, list[tuple[tuple[tuple[float, str], str], JsonObject]]
+    ] = defaultdict(list)
+    for state in (base, incoming):
+        state_key = snapshot_key(state)
+        for value in state.get("source_registry", []) or []:
+            if not isinstance(value, Mapping) or not value.get("source_id"):
+                continue
+            item = copy.deepcopy(dict(value))
+            work_id = str(item.get("work_id") or "")
+            if work_id in work_id_map:
+                item["work_id"] = work_id_map[work_id]
+            registry_groups[str(item["source_id"])].append((state_key, item))
+    merged_registry: list[JsonObject] = []
+    for source_id in sorted(registry_groups):
+        tagged_records = registry_groups[source_id]
+        records = [item for _state_key, item in tagged_records]
+        for field in ("canonical_url", "source_type", "source_role", "work_id"):
+            values = {canonical_json(item.get(field)) for item in records}
+            if len(values) > 1:
+                raise StateMergeError(
+                    f"source_id collision for {source_id!r}: immutable field {field!r} conflicts"
+                )
+        merged = copy.deepcopy(records[0])
+        identifiers: dict[str, Any] = {}
+        for record in records:
+            for field, value in (record.get("identifiers") or {}).items():
+                if value in (None, ""):
+                    continue
+                previous = identifiers.get(str(field))
+                if previous not in (None, "") and _canonical_identifier(str(field), previous) != _canonical_identifier(str(field), value):
+                    raise StateMergeError(
+                        f"source_id collision for {source_id!r}: identifier {field!r} conflicts"
+                    )
+                identifiers[str(field)] = value
+        merged["identifiers"] = identifiers
+        merged["first_seen_run"] = str(
+            min(tagged_records, key=lambda pair: (pair[0], canonical_json(pair[1])))[1].get(
+                "first_seen_run"
+            )
+            or ""
+        )
+        merged["last_seen_run"] = str(
+            max(tagged_records, key=lambda pair: (pair[0], canonical_json(pair[1])))[1].get(
+                "last_seen_run"
+            )
+            or ""
+        )
+        merged_registry.append(merged)
+    if merged_registry or "source_registry" in base or "source_registry" in incoming:
+        result["source_registry"] = merged_registry
+
+    def exact_union(field: str, key: str) -> list[JsonObject]:
+        groups: dict[str, list[JsonObject]] = defaultdict(list)
+        for state in (base, incoming):
+            for value in state.get(field, []) or []:
+                if isinstance(value, Mapping) and value.get(key):
+                    groups[str(value[key])].append(copy.deepcopy(dict(value)))
+        merged: list[JsonObject] = []
+        for identifier in sorted(groups):
+            records = groups[identifier]
+            canonical = {canonical_json(item) for item in records}
+            if len(canonical) > 1:
+                raise StateMergeError(
+                    f"{field} collision for {identifier!r}: immutable record conflicts"
+                )
+            merged.append(records[0])
+        return merged
+
+    observations = exact_union("source_observations", "observation_id")
+    if observations or "source_observations" in base or "source_observations" in incoming:
+        result["source_observations"] = observations
+
+    gap_groups: dict[
+        str, list[tuple[tuple[tuple[float, str], str], JsonObject]]
+    ] = defaultdict(list)
+    for state in (base, incoming):
+        state_key = snapshot_key(state)
+        for value in state.get("gaps", []) or []:
+            if isinstance(value, Mapping) and value.get("gap_id"):
+                item = copy.deepcopy(dict(value))
+                if item.get("scope_type") == "WORK":
+                    scope_id = str(item.get("scope_id") or "")
+                    if scope_id in work_id_map:
+                        item["scope_id"] = work_id_map[scope_id]
+                # A title-only work can acquire a stronger identity on another
+                # lane.  The semantic gap follows the canonical scope rather
+                # than preserving a stale ID derived from the old work_id.
+                item["gap_id"] = _v3_id(
+                    "gap", item.get("gap_type"), item.get("scope_id")
+                )
+                gap_groups[str(item["gap_id"])].append((state_key, item))
+    merged_gaps: list[JsonObject] = []
+    for gap_id in sorted(gap_groups):
+        tagged_records = gap_groups[gap_id]
+        records = [item for _state_key, item in tagged_records]
+        for field in ("gap_type", "scope_type", "scope_id", "max_attempts", "resolution_criteria"):
+            values = {canonical_json(item.get(field)) for item in records}
+            if len(values) > 1:
+                raise StateMergeError(
+                    f"gap_id collision for {gap_id!r}: immutable field {field!r} conflicts"
+                )
+        latest_key, latest_record = max(
+            tagged_records, key=lambda pair: (pair[0], canonical_json(pair[1]))
+        )
+        del latest_key
+        merged = copy.deepcopy(latest_record)
+        merged["first_seen_run"] = str(
+            min(tagged_records, key=lambda pair: (pair[0], canonical_json(pair[1])))[1].get(
+                "first_seen_run"
+            )
+            or ""
+        )
+        receipt_sets = [
+            {str(receipt) for receipt in (item.get("receipt_ids") or [])}
+            for item in records
+        ]
+        merged_receipts = _stable_unique(
+            [receipt for item in records for receipt in (item.get("receipt_ids") or [])],
+            text=True,
+        )
+        merged["receipt_ids"] = merged_receipts
+        counts = [int(item.get("attempt_count", 0)) for item in records]
+        histories_are_nested = any(
+            all(other <= candidate for other in receipt_sets)
+            for candidate in receipt_sets
+        )
+        if histories_are_nested:
+            # A later cumulative snapshot already includes the earlier history.
+            merged_attempt_count = max(counts)
+        else:
+            # Divergent lanes consumed distinct bounded follow-ups.  Summing is
+            # deliberately conservative: an ambiguous merge must never create
+            # extra retry budget by under-counting concurrent attempts.
+            merged_attempt_count = sum(counts)
+        merged["attempt_count"] = min(
+            int(merged.get("max_attempts", merged_attempt_count)),
+            merged_attempt_count,
+        )
+        merged["last_attempt_run"] = str(
+            max(tagged_records, key=lambda pair: (pair[0], canonical_json(pair[1])))[1].get(
+                "last_attempt_run"
+            )
+            or ""
+        )
+        merged["status"] = str(latest_record.get("status") or "OPEN")
+        if (
+            merged["status"] != "RESOLVED"
+            and merged["attempt_count"] >= int(merged.get("max_attempts", 0))
+        ):
+            merged["status"] = "UNRESOLVABLE"
+        if merged["status"] == "RESOLVED":
+            resolution = str(latest_record.get("resolution_receipt_id") or "")
+            if not resolution or resolution not in set(merged_receipts):
+                raise StateMergeError(
+                    f"gap_id collision for {gap_id!r}: latest RESOLVED state lacks its receipt"
+                )
+            merged["resolution_receipt_id"] = resolution
+        else:
+            merged.pop("resolution_receipt_id", None)
+        if merged["status"] != "OPEN" or not latest_record.get("cooldown_until"):
+            merged.pop("cooldown_until", None)
+        merged_gaps.append(merged)
+    if merged_gaps or "gaps" in base or "gaps" in incoming:
+        result["gaps"] = merged_gaps
+
+    def merge_relations(
+        *,
+        field: str,
+        prefix: str,
+        left_field: str,
+        right_field: str,
+        remap_work_ids: bool,
+    ) -> list[JsonObject]:
+        groups: dict[
+            str, list[tuple[tuple[tuple[float, str], str], JsonObject]]
+        ] = defaultdict(list)
+        for state in (base, incoming):
+            state_key = snapshot_key(state)
+            for value in state.get(field, []) or []:
+                if not isinstance(value, Mapping):
+                    continue
+                item = copy.deepcopy(dict(value))
+                original_left = str(item.get(left_field) or "")
+                original_right = str(item.get(right_field) or "")
+                if not original_left or not original_right:
+                    raise StateMergeError(
+                        f"{field} contains a relation with an empty endpoint"
+                    )
+                if original_left == original_right:
+                    raise StateMergeError(
+                        f"{field} contains a self-referential relation"
+                    )
+                left = original_left
+                right = original_right
+                if remap_work_ids:
+                    left = work_id_map.get(left, left)
+                    right = work_id_map.get(right, right)
+                if left == right:
+                    # Two formerly distinct aliases collapsed into one
+                    # canonical work; the relation no longer has two nodes.
+                    continue
+                item[left_field] = left
+                item[right_field] = right
+                item["relation_id"] = _v3_id(
+                    prefix, left, right, item.get("relation_type")
+                )
+                groups[str(item["relation_id"])].append((state_key, item))
+
+        merged_relations: list[JsonObject] = []
+        for relation_id in sorted(groups):
+            tagged_records = groups[relation_id]
+            records = [item for _state_key, item in tagged_records]
+            for immutable_field in (left_field, right_field, "relation_type"):
+                values = {
+                    canonical_json(item.get(immutable_field)) for item in records
+                }
+                if len(values) > 1:
+                    raise StateMergeError(
+                        f"{field} collision for {relation_id!r}: immutable field "
+                        f"{immutable_field!r} conflicts"
+                    )
+            human_statuses = {
+                str(item.get("review_status"))
+                for item in records
+                if item.get("review_status") in {"REVIEWED", "REJECTED"}
+            }
+            if len(human_statuses) > 1:
+                raise StateMergeError(
+                    f"{field} collision for {relation_id!r}: human review conflicts"
+                )
+            merged = copy.deepcopy(
+                min(records, key=lambda item: canonical_json(item))
+            )
+            merged["comparison_basis"] = " | ".join(
+                sorted(
+                    {
+                        str(item.get("comparison_basis") or "").strip()
+                        for item in records
+                        if str(item.get("comparison_basis") or "").strip()
+                    }
+                )
+            )
+            merged["review_status"] = (
+                next(iter(human_statuses)) if human_statuses else "AUTO_DETECTED"
+            )
+            merged["observed_run_id"] = str(
+                max(
+                    tagged_records,
+                    key=lambda pair: (pair[0], canonical_json(pair[1])),
+                )[1].get("observed_run_id")
+                or ""
+            )
+            merged_relations.append(merged)
+        return merged_relations
+
+    work_relations = merge_relations(
+        field="work_relations",
+        prefix="workrel",
+        left_field="from_work_id",
+        right_field="to_work_id",
+        remap_work_ids=True,
+    )
+    if work_relations or "work_relations" in base or "work_relations" in incoming:
+        result["work_relations"] = work_relations
+
+    claim_groups: dict[
+        str, list[tuple[tuple[tuple[float, str], str], JsonObject]]
+    ] = defaultdict(list)
+    for state in (base, incoming):
+        state_key = snapshot_key(state)
+        for value in state.get("claim_registry", []) or []:
+            if not isinstance(value, Mapping) or not value.get("claim_id"):
+                continue
+            item = copy.deepcopy(dict(value))
+            work_id = str(item.get("work_id") or "")
+            if work_id in work_id_map:
+                item["work_id"] = work_id_map[work_id]
+            claim_groups[str(item["claim_id"])].append((state_key, item))
+    merged_claims: list[JsonObject] = []
+    conservative_status_rank = {
+        "SUPPORTED": 0,
+        "PARTIAL": 1,
+        "UNVERIFIED": 2,
+        "CONFLICT": 3,
+    }
+    for claim_id in sorted(claim_groups):
+        tagged_records = claim_groups[claim_id]
+        records = [item for _state_key, item in tagged_records]
+        for field in ("work_id", "claim_kind", "claim_origin", "claim_text_sha256"):
+            values = {canonical_json(item.get(field)) for item in records}
+            if len(values) > 1:
+                raise StateMergeError(
+                    f"claim_id collision for {claim_id!r}: immutable field {field!r} conflicts"
+                )
+        merged = copy.deepcopy(records[0])
+        merged["source_ids"] = _stable_unique(
+            [source_id for item in records for source_id in (item.get("source_ids") or [])],
+            text=True,
+        )
+        merged["status_binding_ids"] = _stable_unique(
+            [
+                binding_id
+                for item in records
+                for binding_id in (item.get("status_binding_ids") or [])
+            ],
+            text=True,
+        )
+        merged["first_seen_run"] = str(
+            min(tagged_records, key=lambda pair: (pair[0], canonical_json(pair[1])))[1].get(
+                "first_seen_run"
+            )
+            or ""
+        )
+        merged["last_seen_run"] = str(
+            max(tagged_records, key=lambda pair: (pair[0], canonical_json(pair[1])))[1].get(
+                "last_seen_run"
+            )
+            or ""
+        )
+        merged["status"] = max(
+            (str(item.get("status") or "UNVERIFIED") for item in records),
+            key=lambda value: (conservative_status_rank.get(value, 99), value),
+        )
+        status_records = [
+            pair
+            for pair in tagged_records
+            if str(pair[1].get("status") or "UNVERIFIED") == merged["status"]
+        ]
+        merged["last_status_change_run"] = str(
+            max(status_records, key=lambda pair: (pair[0], canonical_json(pair[1])))[1].get(
+                "last_status_change_run"
+            )
+            or max(status_records, key=lambda pair: (pair[0], canonical_json(pair[1])))[1].get(
+                "last_seen_run"
+            )
+            or ""
+        )
+        merged_claims.append(merged)
+    if merged_claims or "claim_registry" in base or "claim_registry" in incoming:
+        result["claim_registry"] = merged_claims
+
+    claim_relations = merge_relations(
+        field="claim_relations",
+        prefix="claimrel",
+        left_field="from_claim_id",
+        right_field="to_claim_id",
+        remap_work_ids=False,
+    )
+    if claim_relations or "claim_relations" in base or "claim_relations" in incoming:
+        result["claim_relations"] = claim_relations
+    return result
 
 
 def _merge_provenance(
@@ -667,6 +1171,7 @@ def merge_states(
         "works": merged_works,
         "notified_events": merged_events,
     }
+    result.update(_merge_v3_collections(base, incoming, work_id_map))
     result.update(_merge_provenance(
             base,
             incoming,

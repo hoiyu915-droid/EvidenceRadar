@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 
+from tests.test_delivery_bundle import create_bundle
 from tools.merge_radar_state import (
     StateMergeError,
     canonical_json,
@@ -93,6 +97,386 @@ def _state(*, generated: str, run_id: str, works: list[dict], events: list[dict]
 
 
 class StateMergeTests(unittest.TestCase):
+    def test_v3_cli_loads_schema_validator_from_pack_root_outside_cwd(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            temporary = Path(directory)
+            bundle, _canonical = create_bundle(temporary / "fixture")
+            state_path = bundle / "EvidenceRadar_State.json"
+            output_path = temporary / "merged" / "EvidenceRadar_State.json"
+            outside_cwd = temporary / "outside-cwd"
+            outside_cwd.mkdir()
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    str(ROOT / "tools" / "merge_radar_state.py"),
+                    str(state_path),
+                    str(state_path),
+                    "--output",
+                    str(output_path),
+                ],
+                cwd=outside_cwd,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(0, completed.returncode, completed.stderr)
+            schema = load_json(ROOT / "schemas" / "evidence-radar-state.schema.json")
+            self.assertEqual([], validate_document(load_json(output_path), schema))
+
+    def test_v3_relation_merge_is_order_independent_and_preserves_review(self) -> None:
+        def relation_id(prefix: str, left: str, right: str, kind: str) -> str:
+            digest = hashlib.sha256(
+                json.dumps(
+                    [left, right, kind],
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ).encode("utf-8")
+            ).hexdigest()[:24]
+            return f"{prefix}-{digest}"
+
+        left = "doi:10.1000/left"
+        right = "doi:10.1000/right"
+        relation = relation_id("workrel", left, right, "NEW_VERSION")
+
+        def state(run_id: str, status: str, basis: str) -> dict:
+            return _state(
+                generated=f"2026-08-0{1 if run_id == 'run-a' else 2}T00:00:00+00:00",
+                run_id=run_id,
+                works=[
+                    _work(
+                        left,
+                        title="Left version",
+                        normalized_title="left version",
+                        identifiers={"doi": "10.1000/left"},
+                    ),
+                    _work(
+                        right,
+                        title="Right version",
+                        normalized_title="right version",
+                        identifiers={"doi": "10.1000/right"},
+                    ),
+                ],
+                events=[],
+                work_relations=[
+                    {
+                        "relation_id": relation,
+                        "from_work_id": left,
+                        "to_work_id": right,
+                        "relation_type": "NEW_VERSION",
+                        "comparison_basis": basis,
+                        "review_status": status,
+                        "observed_run_id": run_id,
+                    }
+                ],
+            )
+
+        base = state("run-a", "AUTO_DETECTED", "title continuity")
+        incoming = state("run-b", "REVIEWED", "identifier review")
+        forward = merge_states(base, incoming)
+        reverse = merge_states(incoming, base)
+        self.assertEqual(forward["work_relations"], reverse["work_relations"])
+        self.assertEqual("REVIEWED", forward["work_relations"][0]["review_status"])
+        self.assertEqual(
+            "identifier review | title continuity",
+            forward["work_relations"][0]["comparison_basis"],
+        )
+        self.assertEqual("run-b", forward["work_relations"][0]["observed_run_id"])
+
+    def test_v3_gap_merge_uses_latest_status_and_counts_divergent_attempts(self) -> None:
+        gap_id = "gap-" + hashlib.sha256(
+            json.dumps(
+                ["SOURCE_UNAVAILABLE", "pubmed"],
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest()[:24]
+
+        def state(
+            *, generated: str, run_id: str, status: str, receipt: str,
+            resolution: str | None = None,
+        ) -> dict:
+            gap = {
+                "gap_id": gap_id,
+                "gap_type": "SOURCE_UNAVAILABLE",
+                "scope_type": "SOURCE_SYSTEM",
+                "scope_id": "pubmed",
+                "first_seen_run": "run-old",
+                "last_attempt_run": run_id,
+                "attempt_count": 1,
+                "status": status,
+                "max_attempts": 3,
+                "resolution_criteria": "A successful executor receipt.",
+                "receipt_ids": [receipt],
+            }
+            if resolution is not None:
+                gap["resolution_receipt_id"] = resolution
+            return _state(
+                generated=generated,
+                run_id=run_id,
+                works=[_work("pmid:gap", identifiers={"pmid": "gap"})],
+                events=[],
+                source_registry=[],
+                source_observations=[],
+                gaps=[gap],
+                work_relations=[],
+                claim_relations=[],
+                claim_registry=[],
+            )
+
+        older = state(
+            generated="2026-08-01T00:00:00+00:00",
+            run_id="run-old",
+            status="RESOLVED",
+            receipt="attempt-ok",
+            resolution="attempt-ok",
+        )
+        newer = state(
+            generated="2026-08-02T00:00:00+00:00",
+            run_id="run-new",
+            status="OPEN",
+            receipt="attempt-fail",
+        )
+        forward = merge_states(older, newer)
+        reverse = merge_states(newer, older)
+        self.assertEqual(forward["gaps"], reverse["gaps"])
+        self.assertEqual("OPEN", forward["gaps"][0]["status"])
+        self.assertEqual(2, forward["gaps"][0]["attempt_count"])
+        self.assertEqual(
+            ["attempt-fail", "attempt-ok"], forward["gaps"][0]["receipt_ids"]
+        )
+        self.assertNotIn("resolution_receipt_id", forward["gaps"][0])
+
+    def test_v3_relation_merge_rejects_self_relation(self) -> None:
+        state = _state(
+            generated="2026-08-01T00:00:00+00:00",
+            run_id="run-self",
+            works=[_work("pmid:self", identifiers={"pmid": "self"})],
+            events=[],
+            source_registry=[],
+            source_observations=[],
+            gaps=[],
+            work_relations=[
+                {
+                    "relation_id": "workrel-self",
+                    "from_work_id": "pmid:self",
+                    "to_work_id": "pmid:self",
+                    "relation_type": "NEW_VERSION",
+                    "comparison_basis": "invalid self edge",
+                    "review_status": "AUTO_DETECTED",
+                    "observed_run_id": "run-self",
+                }
+            ],
+            claim_relations=[],
+            claim_registry=[],
+        )
+        with self.assertRaisesRegex(StateMergeError, "self-referential"):
+            merge_states(state, copy.deepcopy(state))
+
+    def test_v3_state_merge_rejects_schema_invalid_registry_enum(self) -> None:
+        state = _state(
+            generated="2026-08-01T00:00:00+00:00",
+            run_id="run-invalid-source",
+            works=[_work("pmid:invalid", identifiers={"pmid": "invalid"})],
+            events=[],
+            source_registry=[
+                {
+                    "source_id": "src-invalid",
+                    "work_id": "pmid:invalid",
+                    "canonical_url": "https://example.test/invalid",
+                    "source_type": "publisher",
+                    "source_role": "INVALID_ROLE",
+                    "identifiers": {"pmid": "invalid"},
+                    "first_seen_run": "run-invalid-source",
+                    "last_seen_run": "run-invalid-source",
+                }
+            ],
+            source_observations=[],
+            gaps=[],
+            work_relations=[],
+            claim_relations=[],
+            claim_registry=[],
+        )
+        with self.assertRaisesRegex(StateMergeError, "fails the State schema"):
+            merge_states(state, copy.deepcopy(state))
+
+    def test_v3_state_merge_rejects_unstable_source_id(self) -> None:
+        state = _state(
+            generated="2026-08-01T00:00:00+00:00",
+            run_id="run-unstable-source",
+            works=[_work("pmid:unstable", identifiers={"pmid": "unstable"})],
+            events=[],
+            source_registry=[
+                {
+                    "source_id": "src-not-stable",
+                    "work_id": "pmid:unstable",
+                    "canonical_url": "https://example.test/source",
+                    "source_type": "publisher",
+                    "source_role": "FORMAL_PUBLICATION",
+                    "identifiers": {"pmid": "unstable"},
+                    "first_seen_run": "run-unstable-source",
+                    "last_seen_run": "run-unstable-source",
+                }
+            ],
+            source_observations=[],
+            gaps=[],
+            work_relations=[],
+            claim_relations=[],
+            claim_registry=[],
+        )
+        with self.assertRaisesRegex(StateMergeError, "source_id is not stable"):
+            merge_states(state, copy.deepcopy(state))
+
+    def test_v3_first_and_last_run_follow_snapshot_time_not_lexical_id(self) -> None:
+        source_url = "https://example.org/chronology"
+        source_digest = hashlib.sha256(
+            json.dumps(
+                [source_url],
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest()[:24]
+        source_id = f"src-{source_digest}"
+
+        def state(generated: str, run_id: str) -> dict:
+            return _state(
+                generated=generated,
+                run_id=run_id,
+                works=[
+                    _work(
+                        "pmid:chronology",
+                        identifiers={"pmid": "chronology"},
+                    )
+                ],
+                events=[],
+                source_registry=[
+                    {
+                        "source_id": source_id,
+                        "work_id": "pmid:chronology",
+                        "canonical_url": source_url,
+                        "source_type": "publisher",
+                        "source_role": "FORMAL_PUBLICATION",
+                        "identifiers": {"pmid": "chronology"},
+                        "first_seen_run": run_id,
+                        "last_seen_run": run_id,
+                    }
+                ],
+                source_observations=[],
+                gaps=[],
+                work_relations=[],
+                claim_relations=[],
+                claim_registry=[],
+            )
+
+        older = state("2026-08-01T00:00:00+00:00", "run-9")
+        newer = state("2026-08-02T00:00:00+00:00", "run-10")
+        forward = merge_states(older, newer)
+        reverse = merge_states(newer, older)
+        self.assertEqual(forward["source_registry"], reverse["source_registry"])
+        self.assertEqual("run-9", forward["source_registry"][0]["first_seen_run"])
+        self.assertEqual("run-10", forward["source_registry"][0]["last_seen_run"])
+
+    def test_v3_registry_gap_and_claim_state_follow_canonical_work_identity(self) -> None:
+        def stable_id(prefix: str, *parts: object) -> str:
+            digest = hashlib.sha256(
+                json.dumps(
+                    [str(part) for part in parts],
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ).encode("utf-8")
+            ).hexdigest()[:24]
+            return f"{prefix}-{digest}"
+
+        source_url = "https://example.org/stable-source"
+        source_id = stable_id("src", source_url)
+        claim_id = "claim-stable"
+        base_gap_id = stable_id("gap", "CONTENT_INACCESSIBLE", "title-only")
+        incoming_gap_id = stable_id("gap", "CONTENT_INACCESSIBLE", "pmid:2")
+
+        def v3_extra(work_id: str, run_id: str, gap_id: str, status: str) -> dict:
+            return {
+                "source_registry": [
+                    {
+                        "source_id": source_id,
+                        "work_id": work_id,
+                        "canonical_url": source_url,
+                        "source_type": "publisher",
+                        "source_role": "FORMAL_PUBLICATION",
+                        "identifiers": {"pmid": "2"} if work_id == "pmid:2" else {},
+                        "first_seen_run": run_id,
+                        "last_seen_run": run_id,
+                    }
+                ],
+                "source_observations": [],
+                "gaps": [
+                    {
+                        "gap_id": gap_id,
+                        "gap_type": "CONTENT_INACCESSIBLE",
+                        "scope_type": "WORK",
+                        "scope_id": work_id,
+                        "first_seen_run": run_id,
+                        "last_attempt_run": run_id,
+                        "attempt_count": 1,
+                        "status": "OPEN",
+                        "max_attempts": 3,
+                        "resolution_criteria": "A direct content receipt succeeds.",
+                        "receipt_ids": [f"attempt-{run_id}"],
+                    }
+                ],
+                "work_relations": [],
+                "claim_relations": [],
+                "claim_registry": [
+                    {
+                        "claim_id": claim_id,
+                        "work_id": work_id,
+                        "claim_kind": "BIBLIOGRAPHIC_FACT",
+                        "claim_origin": "METADATA_REPORTED",
+                        "claim_text_sha256": "a" * 64,
+                        "status": status,
+                        "source_ids": [source_id],
+                        "status_binding_ids": [f"binding-{run_id}"],
+                        "first_seen_run": run_id,
+                        "last_seen_run": run_id,
+                        "last_status_change_run": run_id,
+                    }
+                ],
+            }
+
+        base = _state(
+            generated="2026-08-01T00:00:00+00:00",
+            run_id="run-a",
+            works=[_work("title-only", identifiers={})],
+            events=[],
+            **v3_extra("title-only", "run-a", base_gap_id, "SUPPORTED"),
+        )
+        incoming = _state(
+            generated="2026-08-02T00:00:00+00:00",
+            run_id="run-b",
+            works=[_work("pmid:2", identifiers={"pmid": "2"})],
+            events=[],
+            **v3_extra("pmid:2", "run-b", incoming_gap_id, "UNVERIFIED"),
+        )
+
+        merged = merge_states(base, incoming)
+        self.assertEqual("pmid:2", merged["works"][0]["work_id"])
+        self.assertEqual("pmid:2", merged["source_registry"][0]["work_id"])
+        self.assertEqual("run-a", merged["source_registry"][0]["first_seen_run"])
+        self.assertEqual("run-b", merged["source_registry"][0]["last_seen_run"])
+        self.assertEqual(1, len(merged["gaps"]))
+        self.assertEqual(
+            stable_id("gap", "CONTENT_INACCESSIBLE", "pmid:2"),
+            merged["gaps"][0]["gap_id"],
+        )
+        self.assertEqual(["attempt-run-a", "attempt-run-b"], merged["gaps"][0]["receipt_ids"])
+        self.assertEqual("UNVERIFIED", merged["claim_registry"][0]["status"])
+        self.assertEqual("pmid:2", merged["claim_registry"][0]["work_id"])
+
+        schema = load_json(ROOT / "schemas" / "evidence-radar-state.schema.json")
+        self.assertEqual([], validate_document(merged, schema))
+
     def test_stale_union_preserves_bounds_counts_lists_and_is_idempotent(self) -> None:
         base = _state(
             generated="2026-08-01T01:00:00+00:00",
