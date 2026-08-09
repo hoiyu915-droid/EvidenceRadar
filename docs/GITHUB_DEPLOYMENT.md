@@ -24,8 +24,11 @@ credentials，也不把其中一條的執行誤當成另一條的 source verific
 | 名稱 | 類型 | 用途／缺少時的行為 |
 |---|---|---|
 | `OPENALEX_API_KEY` | Secret | OpenAlex discovery 必要；缺少時該來源 fail closed 並記錄 gap |
+| `OPENREVIEW_TOKEN` | Secret | 選用；公開 OpenReview search 被限制時可改用 authenticated access |
 | `NCBI_EMAIL` | Variable | NCBI 建議的 E-utilities client identification |
 | `NCBI_API_KEY` | Secret | 選用；PubMed 從每秒 3 次提高到預設每秒 10 次 |
+| `EVIDENCERADAR_TRANSLATION_API_KEY` | Secret | 選用；將 provider abstract 批次整理為繁中，缺少時使用繁中 metadata fallback |
+| `EVIDENCERADAR_TRANSLATION_MODEL` | Variable | 選用；覆寫翻譯模型，預設 `gpt-5-mini` |
 
 不要把 token 寫入 YAML、config、report 或 Work Pack。Workflow 只以 environment
 reference 讀取這些值，不輸出值本身。
@@ -38,16 +41,28 @@ Provider 基線以 [NCBI E-utilities usage guidelines](https://www.ncbi.nlm.nih.
 
 `.github/workflows/daily-radar.yml` 每日於 `06:17 Asia/Tokyo` 執行，刻意避開
 整點尖峰。GitHub 的 [`schedule` syntax](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onschedule)
-使用 IANA timezone。**Run workflow** 可覆寫本輪 publisher 輸出範圍：
+使用 IANA timezone。**Run workflow** 可覆寫本輪 publisher 網路存取預算：
 
 | input | 預設 | 意義 |
 | --- | ---: | --- |
-| `publisher_target_min` | 10 | 本輪目標下限 |
-| `publisher_hard_max` | 15 | 本輪硬上限；runner 拒絕任何大於 15 的值 |
+| `publisher_target_min` | 10 | 本輪成功存取目標下限 |
+| `publisher_hard_max` | 15 | 本輪網路探測硬上限；runner 拒絕任何大於 15 的值 |
 
 每輪以 10 筆成功的 publisher/source-page audit records 為目標，publisher-page
 candidate attempts 的硬上限為 15；這不是補足數量的承諾。來源被擋、來源不足或
 不合格時，runner 保留 gap/警告並低於 target 結束；禁止用未驗證項目 padding。
+這個 10–15 預算不限制候選顯示：HTML 按類別顯示本輪所有去重候選，Run JSON
+保存相同的完整候選 ledger。候選的 routing score 只影響排序，`LOWER_PRIORITY`、
+`FAILED` 或 `NOT_ATTEMPTED` 都不代表候選沒有研究價值。
+
+報告是單一 self-contained HTML，包含本機可用的搜尋、類別／triage／source 篩選、
+分類收合與逐 item 稽核詳情。每筆內容簡述固定使用繁體中文，並標記為 AI 輔助翻譯、
+來源繁中摘要、metadata template 或題名層級 fallback；全部都只是導航資訊，不是已核實結論。
+
+若要把 provider abstract 翻譯為繁中，在 repository secrets 設定
+`EVIDENCERADAR_TRANSLATION_API_KEY`；可選擇在 repository variables 設定
+`EVIDENCERADAR_TRANSLATION_MODEL`，預設為 `gpt-5-mini`。憑證只透過 Actions secret
+注入，不會寫入 artifact 或 log。沒有設定時 runner 仍輸出繁中保守簡述，不會退回英文。
 
 Workflow 宣告 `permissions: contents: write`，只為了將產生的 artifact、state
 與 `runs/` 歷史寫回同一個 repository。提交步驟使用 `EvidenceRadar bot` 身份，
@@ -64,10 +79,21 @@ artifacts/current/EvidenceRadar_Run.json
 state/current/EvidenceRadar_State.json
 ```
 
-`EvidenceRadar_State.json` 是 GitHub lane 的 canonical cross-run state；runner
+`EvidenceRadar_State.json` 是 GitHub lane 的 canonical cross-run state，保存所有
+去重候選的 first/last seen 與通知歷史；runner
 也會把四檔保存到 `runs/<run_id>/` 作 immutable run record，並在提交前確認
 current State 與 canonical State byte-identical。不要手動刪除 state 來繞過
 dedupe 或 publisher hard max；先檢查 run log、source access 與 schema validation。
+
+每輪 Run 的 `source_coverage` 與 Evidence 的 `coverage` 都會逐一列出每個
+configured source 的 CHECK summary。欄位 `requested`、`checked`、`searched`、
+`unavailable` 與 `all_configured_sources_checked` 描述覆蓋集合；`checks` 內每筆
+摘要則包含 `source_id`、`stage`、`status`、`checked_at`、`result_count` 與
+`summary`。`checked` 只代表 CHECK 記錄存在，不代表成功；狀態可以是
+`SUCCESS`、`NO_RESULTS`、`FAILED` 或 `NOT_ATTEMPTED`。`publisher` 與
+`formal_proceedings_or_publisher` 屬於 `bounded_verification` stage，即使
+10–15 publisher budget 沒有候選，仍要留下 check summary，避免把未嘗試誤報成
+完整 source coverage。
 
 ## ChatGPT Work 匯入邊界
 

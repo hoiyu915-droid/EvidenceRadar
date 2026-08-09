@@ -13,6 +13,30 @@
   "run_status": "COMPLETE",
   "history_status": "COMPLETE",
   "coverage_status": "COMPLETE",
+  "source_coverage": {
+    "requested": [
+      "publisher"
+    ],
+    "checked": [
+      "publisher"
+    ],
+    "searched": [
+      "publisher"
+    ],
+    "unavailable": [],
+    "all_configured_sources_checked": true,
+    "checks": [
+      {
+        "source_id": "publisher",
+        "stage": "bounded_verification",
+        "status": "SUCCESS",
+        "checked_at": "2026-08-08T10:08:00+08:00",
+        "result_count": 1,
+        "summary": "Example publisher source check completed.",
+        "url": "https://example.org/article/2026.001"
+      }
+    ]
+  },
   "queries": [
     {
       "query_id": "query-clinical-001",

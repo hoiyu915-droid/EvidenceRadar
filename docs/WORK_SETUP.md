@@ -81,6 +81,13 @@ must agree with the evidence ledger and run status. If no prior State is
 available or it is invalid, use `STATE_HISTORY_INCOMPLETE` while retaining
 same-run deduplication and recording the limitation.
 
+Every displayed candidate must carry `content_summary`, `summary_basis` and
+`summary_language: zh-TW`. Write the summary directly in Traditional Chinese
+after reading the source. Use `PROVIDER_ABSTRACT_ZH_TW` when the provider
+already supplies Chinese, `TRANSLATED_ABSTRACT_EXCERPT_ZH_TW` for a faithful
+translation, and `TITLE_ONLY_ZH_TW` only when no abstract is available. A
+summary is navigation text and must not be promoted to a verified claim.
+
 The examples are structural fixtures only. Replace their placeholder claims,
 dates, identifiers, and URLs with values observed during the current run; do
 not treat an example as current research evidence.

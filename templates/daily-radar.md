@@ -35,6 +35,7 @@
 - **Qualifying event:** {{ event_type }} · {{ event_at }}
 - **Event evidence:** [{{ event_source }} · {{ event_source_field }}]({{ event_url }}) · {{ event_precision }} · {{ event_confidence }}
 - **Design:** {{ study_design }}
+- **內容簡述（繁中）:** {{ content_summary }} · `{{ summary_basis }}`
 - **Claim:** `{{ support_state }}` — {{ claim_text }}
 - **Numeric surface:** {{ numeric_surface }}
 - **Locator:** {{ locator }}
@@ -43,7 +44,7 @@
 {{/reported_items}}
 
 {{#candidate_only_items}}
-- `UNVERIFIED` [{{ title }}]({{ primary_url }}) — {{ audit_reason }}
+- `UNVERIFIED` [{{ title }}]({{ primary_url }}) — {{ content_summary }} · {{ audit_reason }}
 {{/candidate_only_items}}
 {{/categories}}
 

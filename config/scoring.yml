@@ -73,12 +73,17 @@ sections:
     min_interest: 85
     min_relevance: 65
 
-hard_exclusions:
-  - correspondence_or_editorial
-  - protocol_or_design_paper
-  - retracted_or_flagged
-  - title_primary_relevance_failed
-  - missing_qualifying_event
+candidate_routing:
+  preservation: retain_all_deduplicated_candidates
+  review_required:
+    - retracted_or_flagged
+  lower_priority:
+    - correspondence_or_editorial
+    - protocol_or_design_paper
+    - title_primary_relevance_failed
+    - missing_qualifying_event
+  hard_exclusions:
+    - malformed_or_unidentifiable_record
 
 evidence_governance:
   allowed_support_states:

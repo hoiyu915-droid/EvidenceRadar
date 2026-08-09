@@ -16,6 +16,11 @@ Apply identity priority:
 
 Every reported item needs a qualifying event, direct source URL, source field, event time/precision/confidence, research design, main claim, caveat and correction/retraction status. Every visible number must preserve sign, unit, direction, comparator, semantic surface and source locator.
 
+Every candidate shown in HTML must also have a concise Traditional Chinese
+`content_summary`, `summary_language: zh-TW`, and an explicit `summary_basis`.
+Write it from the source you actually read; do not paste an English abstract
+into the preview. The summary is navigation text, not evidence for a claim.
+
 Use only `SUPPORTED`, `PARTIAL`, `CONFLICT` or `UNVERIFIED` for claim support. Unverified claims cannot become report conclusions.
 
 Use only `COMPLETE`, `PARTIAL_SOURCE_COVERAGE`, `SOURCE_ACCESS_GAP`, `STATE_HISTORY_INCOMPLETE` or `NO_QUALIFYING_ITEMS` for the primary run status. Missing prior State requires `STATE_HISTORY_INCOMPLETE`. `NO_QUALIFYING_ITEMS` requires complete source coverage.

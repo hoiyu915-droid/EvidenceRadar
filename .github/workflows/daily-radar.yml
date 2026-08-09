@@ -9,12 +9,12 @@ on:
   workflow_dispatch:
     inputs:
       publisher_target_min:
-        description: "Per-run publisher target minimum (default: 10)"
+        description: "Per-run successful publisher access target (default: 10)"
         required: false
         default: 10
         type: number
       publisher_hard_max:
-        description: "Per-run publisher hard maximum (default: 15)"
+        description: "Per-run publisher network-attempt hard maximum (default: 15)"
         required: false
         default: 15
         type: number
@@ -42,8 +42,13 @@ env:
   PUBLISHER_TARGET_MIN: ${{ inputs.publisher_target_min || 10 }}
   PUBLISHER_HARD_MAX: ${{ inputs.publisher_hard_max || 15 }}
   OPENALEX_API_KEY: ${{ secrets.OPENALEX_API_KEY }}
+  OPENREVIEW_TOKEN: ${{ secrets.OPENREVIEW_TOKEN }}
   NCBI_EMAIL: ${{ vars.NCBI_EMAIL }}
   NCBI_API_KEY: ${{ secrets.NCBI_API_KEY }}
+  # Optional.  When absent, every card still receives a conservative zh-TW
+  # metadata summary and no English abstract excerpt is rendered.
+  EVIDENCERADAR_TRANSLATION_API_KEY: ${{ secrets.EVIDENCERADAR_TRANSLATION_API_KEY }}
+  EVIDENCERADAR_TRANSLATION_MODEL: ${{ vars.EVIDENCERADAR_TRANSLATION_MODEL || 'gpt-5-mini' }}
 
 jobs:
   daily-radar:

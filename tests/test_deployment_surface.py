@@ -72,6 +72,11 @@ class GithubDeploymentSurfaceTests(unittest.TestCase):
         self.assertIn("OPENALEX_API_KEY: ${{ secrets.OPENALEX_API_KEY }}", self.workflow)
         self.assertIn("NCBI_EMAIL: ${{ vars.NCBI_EMAIL }}", self.workflow)
         self.assertIn("NCBI_API_KEY: ${{ secrets.NCBI_API_KEY }}", self.workflow)
+        self.assertIn(
+            "EVIDENCERADAR_TRANSLATION_API_KEY: ${{ secrets.EVIDENCERADAR_TRANSLATION_API_KEY }}",
+            self.workflow,
+        )
+        self.assertNotIn("Bearer ", self.workflow)
 
     def test_four_artifacts_are_checked_validated_and_uploaded(self) -> None:
         for artifact in (
@@ -105,6 +110,7 @@ class GithubDeploymentSurfaceTests(unittest.TestCase):
             "OPENALEX_API_KEY",
             "NCBI_EMAIL",
             "NCBI_API_KEY",
+            "EVIDENCERADAR_TRANSLATION_API_KEY",
             "contents: write",
             "60 天",
             "ChatGPT Work",
