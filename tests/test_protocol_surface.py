@@ -31,7 +31,7 @@ class ProtocolSurfaceTests(unittest.TestCase):
         self.assertIn("python tools/validate_public_release.py", maintenance)
         self.assertIn("contents: read", maintenance)
         self.assertNotIn("schedule:", maintenance)
-        self.assertNotIn("workflow_dispatch:", maintenance)
+        self.assertIn("workflow_dispatch:", maintenance)
         self.assertNotIn("python src/run.py", maintenance)
         self.assertNotIn("contents: write", maintenance)
 

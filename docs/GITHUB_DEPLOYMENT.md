@@ -127,6 +127,12 @@ Pages workflow 的 deployment 成功前，不應把推算網址宣稱為已可�
 公開連結，先交付實際 HTML 檔，再經審閱的 GitHub publication 更新 bundle；部署
 完成後讀取 `links.json` 回傳網址。
 
+每日 workflow 使用內建 `GITHUB_TOKEN` 完成 CAS push；這類 push 不會再次觸發
+其他 `push` workflows。因此成功寫回後會 explicit workflow_dispatch
+`public-release.yml` 與 `pages.yml`，讓 canonical bundle 的驗證和公開 Pages 都跟上
+剛寫入的 commit。任一 dispatch 失敗會讓 daily run 顯示失敗，不會把 recovery
+artifact 誤當成已更新的公開網站。
+
 每日 workflow 不再對更新過的 default branch 執行 `pull --rebase`。它在 push 前
 比較 remote SHA 與啟動時 `GITHUB_SHA`；任何 Work／maintainer／另一 lane 的新
 commit 都會讓 stale bundle 停止發布。第一次 CAS conflict 會先保留唯一 run-id
