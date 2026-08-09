@@ -9,6 +9,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github" / "workflows" / "daily-radar.yml"
+PAGES_WORKFLOW = ROOT / ".github" / "workflows" / "pages.yml"
+PUBLIC_RELEASE_WORKFLOW = ROOT / ".github" / "workflows" / "public-release.yml"
 DOC = ROOT / "docs" / "GITHUB_DEPLOYMENT.md"
 
 
@@ -16,6 +18,8 @@ class GithubDeploymentSurfaceTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.workflow = WORKFLOW.read_text(encoding="utf-8")
+        cls.pages_workflow = PAGES_WORKFLOW.read_text(encoding="utf-8")
+        cls.public_release_workflow = PUBLIC_RELEASE_WORKFLOW.read_text(encoding="utf-8")
         cls.documentation = DOC.read_text(encoding="utf-8")
 
     def test_daily_schedule_uses_tokyo_non_top_of_hour(self) -> None:
@@ -88,6 +92,9 @@ class GithubDeploymentSurfaceTests(unittest.TestCase):
             self.assertIn(artifact, self.workflow)
         self.assertIn("Verify four EvidenceRadar artifacts", self.workflow)
         self.assertIn("python tools/validate_gpt_work_artifacts.py", self.workflow)
+        self.assertIn("python tools/validate_delivery_bundle.py", self.workflow)
+        self.assertIn('--expected-protocol-commit "$GITHUB_SHA"', self.workflow)
+        self.assertIn("--require-current-producer", self.workflow)
         self.assertIn("uses: actions/upload-artifact@v7.0.1", self.workflow)
         self.assertIn("if-no-files-found: error", self.workflow)
         self.assertIn("cmp --silent", self.workflow)
@@ -98,8 +105,31 @@ class GithubDeploymentSurfaceTests(unittest.TestCase):
         self.assertNotRegex(self.workflow, r"git\s+add\s+(?:--all|-A|\.)\b")
         self.assertIn("git diff --cached --quiet", self.workflow)
         self.assertIn("No generated changes; safe exit.", self.workflow)
-        self.assertIn("git pull --rebase origin", self.workflow)
+        self.assertNotIn("git pull --rebase origin", self.workflow)
+        self.assertIn('remote_sha="$(git rev-parse "origin/$GITHUB_REF_NAME")"', self.workflow)
+        self.assertIn('if [ "$remote_sha" != "$GITHUB_SHA" ]', self.workflow)
         self.assertIn("git push origin", self.workflow)
+
+    def test_public_release_validates_the_canonical_current_bundle(self) -> None:
+        self.assertIn("fetch-depth: 0", self.public_release_workflow)
+        self.assertIn("Validate canonical delivery bundle", self.public_release_workflow)
+        self.assertIn("--bundle artifacts/current", self.public_release_workflow)
+        self.assertIn("--canonical-state state/current/EvidenceRadar_State.json", self.public_release_workflow)
+        self.assertIn("--require-current-producer", self.public_release_workflow)
+
+    def test_pages_deploys_only_a_validated_bundle_and_emits_links(self) -> None:
+        for marker in (
+            "permissions:",
+            "pages: write",
+            "id-token: write",
+            "actions/configure-pages@v6.0.0",
+            "python tools/build_pages_site.py",
+            "--bundle artifacts/current",
+            "actions/upload-pages-artifact@v5.0.0",
+            "actions/deploy-pages@v5.0.0",
+            "links.json",
+        ):
+            self.assertIn(marker, self.pages_workflow)
 
     def test_documentation_covers_template_secrets_state_and_work_boundary(self) -> None:
         for marker in (
@@ -117,6 +147,8 @@ class GithubDeploymentSurfaceTests(unittest.TestCase):
             "EvidenceRadar_State.json",
             "publisher_target_min",
             "publisher_hard_max",
+            "Settings → Pages",
+            "links.json",
         ):
             self.assertIn(marker, self.documentation)
 

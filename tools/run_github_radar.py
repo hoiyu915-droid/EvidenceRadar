@@ -2654,6 +2654,9 @@ def build_evidence(
 def render_report(
     candidate_records: list[dict[str, Any]],
     *,
+    run_id: str,
+    execution_lane: str,
+    protocol_commit: str,
     generated_at: datetime,
     start: datetime,
     end: datetime,
@@ -2765,6 +2768,7 @@ def render_report(
             detail_id = f"candidate-{rank:04d}"
             cards.append(
                 f'<article class="paper-card" id="{detail_id}" '
+                f'data-evidenceradar-work-id="{html.escape(str(item["work_id"]), quote=True)}" '
                 f'data-category="{html.escape(category, quote=True)}" '
                 f'data-triage="{html.escape(triage_status, quote=True)}" '
                 f'data-source="{html.escape("|".join(discovery_sources), quote=True)}" '
@@ -2973,6 +2977,10 @@ h1{margin:.1rem 0 .45rem;font-size:clamp(2rem,5vw,3.5rem);line-height:1.08;lette
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="evidenceradar-run-id" content="{html.escape(run_id, quote=True)}">
+<meta name="evidenceradar-execution-lane" content="{html.escape(execution_lane, quote=True)}">
+<meta name="evidenceradar-protocol-commit" content="{html.escape(protocol_commit, quote=True)}">
+<meta name="evidenceradar-displayed-candidates" content="{len(displayed)}">
 <title>EvidenceRadar｜近期研究候選報告</title>
 <style>{style}</style>
 </head>
@@ -3485,6 +3493,9 @@ def execute(
     validate_documents(root, documents)
     report = render_report(
         candidate_records,
+        run_id=run_id,
+        execution_lane=execution_lane,
+        protocol_commit=commit,
         generated_at=finished_at,
         start=start,
         end=end_at,
@@ -3497,6 +3508,26 @@ def execute(
         publisher_accessible=publisher_accessible,
         source_coverage=source_coverage,
     )
+    # The four files form one delivery contract.  Validate cross-file
+    # provenance, counts and HTML item markers before writing any current or
+    # immutable output, so a structurally valid JSON file cannot hide an empty
+    # or stale report.
+    sys.path.insert(0, str(root))
+    from tools.validate_delivery_bundle import validate_delivery_payload
+
+    delivery_errors = validate_delivery_payload(
+        root,
+        report_html=report,
+        state=state,
+        evidence=evidence,
+        run=run,
+        expected_lane=execution_lane,
+        expected_protocol_commit=commit,
+    )
+    if delivery_errors:
+        raise RadarRuntimeError(
+            "delivery bundle validation failed:\n" + "\n".join(delivery_errors)
+        )
     write_bundle(output_dir, report, documents)
     immutable_output: Path | None = None
     if runs_dir is not None:

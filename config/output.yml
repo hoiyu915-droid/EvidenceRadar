@@ -33,6 +33,8 @@ artifacts:
       - identifiers
       - direct_links
       - conflicts_and_gaps
+      - delivery_provenance_meta
+      - data_evidenceradar_work_id_per_displayed_candidate
   state:
     filename: EvidenceRadar_State.json
     schema: schemas/evidence-radar-state.schema.json
@@ -66,6 +68,13 @@ provenance:
     - base_state_sha256
     - parent_run_ids
   execution_lanes: [chatgpt_work, github_actions]
+
+delivery_validation:
+  tool: tools/validate_delivery_bundle.py
+  schema_only_is_sufficient: false
+  require_candidate_ledger_html_parity: true
+  require_state_run_provenance_parity: true
+  require_current_producer_for_publication: true
 
 publisher_output:
   settings_file: config/deployment.yml

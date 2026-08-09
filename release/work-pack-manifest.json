@@ -1,7 +1,7 @@
 {
   "format": "evidenceradar-work-pack-manifest",
   "manifest_version": "1",
-  "pack_version": "1.0.0",
+  "pack_version": "1.1.0",
   "schema_version": "1.0",
   "archive_manifest_path": "manifest.json",
   "required": [
@@ -9,7 +9,9 @@
     "docs/WORK_SETUP.md",
     "docs/research_taxonomy.md",
     "docs/MIGRATION_DUAL_LANE_1.0.md",
+    "tools/delivery_contract.py",
     "tools/merge_radar_state.py",
+    "tools/validate_delivery_bundle.py",
     "tools/validate_gpt_work_artifacts.py"
   ],
   "include": [
@@ -22,7 +24,9 @@
     "templates/**",
     "schemas/**",
     "examples/**",
+    "tools/delivery_contract.py",
     "tools/merge_radar_state.py",
+    "tools/validate_delivery_bundle.py",
     "tools/validate_gpt_work_artifacts.py"
   ],
   "exclude": [

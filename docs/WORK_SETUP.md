@@ -101,6 +101,26 @@ python3 tools/validate_gpt_work_artifacts.py \
   EvidenceRadar_Run.json
 ```
 
+The schema validator is necessary but not sufficient for delivery. The second
+validator checks all four artifacts together, including Run/State provenance,
+source coverage, candidate counts and the actual HTML item markers:
+
+```sh
+python3 tools/validate_delivery_bundle.py \
+  --root . \
+  --bundle . \
+  --expected-lane chatgpt_work \
+  --manifest manifest.json
+```
+
+`EvidenceRadar_Report.html` must be returned by Work as an actual downloadable
+file. A local Work filesystem path is not a clickable public link. For a stable
+browser URL, the validated bundle must be reviewed and published to a GitHub
+repository with Pages enabled. After the Pages deployment succeeds, use the
+deployed `links.json`; its `report_url` points to the current report and
+`immutable_run.report_html` points to the preserved run. Do not announce a
+guessed Pages URL before the deployment reports success.
+
 ## 4. Configuration and boundaries
 
 Change selection, source, scoring, and rendering policy in `config/` and keep

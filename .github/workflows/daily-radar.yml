@@ -113,6 +113,14 @@ jobs:
             "$RADAR_STATE_PATH" \
             "$RADAR_EVIDENCE_PATH" \
             "$RADAR_RUN_PATH"
+          python tools/validate_delivery_bundle.py \
+            --root "$RADAR_ROOT" \
+            --bundle "$RADAR_OUTPUT_DIR" \
+            --canonical-state "$RADAR_STATE_PATH" \
+            --expected-lane "$EXECUTION_LANE" \
+            --expected-protocol-commit "$GITHUB_SHA" \
+            --require-current-producer \
+            --reject-dirty
           cmp --silent \
             "$RADAR_OUTPUT_DIR/EvidenceRadar_State.json" \
             "$RADAR_STATE_PATH"
@@ -148,5 +156,15 @@ jobs:
           fi
 
           git commit -m "chore: update EvidenceRadar GitHub artifacts"
-          git pull --rebase origin "$GITHUB_REF_NAME"
+
+          # Compare-and-swap writeback: a Work publication, maintainer commit,
+          # or another lane that advanced main while this run was searching
+          # must make this push fail.  Never rebase a stale generated bundle
+          # on top of newer canonical State/artifacts.
+          git fetch origin "$GITHUB_REF_NAME"
+          remote_sha="$(git rev-parse "origin/$GITHUB_REF_NAME")"
+          if [ "$remote_sha" != "$GITHUB_SHA" ]; then
+            echo "::error::canonical branch advanced from $GITHUB_SHA to $remote_sha; generated bundle was not published"
+            exit 1
+          fi
           git push origin "HEAD:$GITHUB_REF_NAME"

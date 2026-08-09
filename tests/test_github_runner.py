@@ -435,6 +435,7 @@ class GithubRunnerTests(unittest.TestCase):
             evidence = json.loads((first_output / "EvidenceRadar_Evidence.json").read_text())
             state = json.loads((first_output / "EvidenceRadar_State.json").read_text())
             run = json.loads((first_output / "EvidenceRadar_Run.json").read_text())
+            report = (first_output / "EvidenceRadar_Report.html").read_text()
             self.assertEqual([], evidence["claims"])
             self.assertEqual("github_actions", state["execution_lane"])
             self.assertEqual("a" * 40, state["protocol_commit"])
@@ -442,6 +443,15 @@ class GithubRunnerTests(unittest.TestCase):
             self.assertEqual(0, run["counts"]["verified_works"])
             self.assertEqual(1, run["counts"]["notified_events"])
             self.assertEqual("a" * 40, run["protocol_commit"])
+            self.assertIn(
+                '<meta name="evidenceradar-run-id" content="github-actions-first">',
+                report,
+            )
+            self.assertIn(
+                '<meta name="evidenceradar-execution-lane" content="github_actions">',
+                report,
+            )
+            self.assertIn("data-evidenceradar-work-id=", report)
             warning_codes = {warning["code"] for warning in run["warnings"]}
             self.assertNotIn("AUTOMATED_SOURCE_ADAPTER_GAP", warning_codes)
             self.assertIn("SOURCE_ADAPTER_FAILED", warning_codes)

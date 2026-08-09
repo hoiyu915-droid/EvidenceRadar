@@ -3,7 +3,7 @@
 
 The builder deliberately has a narrow allow-list. It packages the protocol,
 configuration, taxonomy, templates, schemas, examples, setup/migration guides
-and two dependency-free State/validation tools; runtime history, crawlers,
+and dependency-free State/delivery validation tools; runtime history, crawlers,
 legacy code, CI files and secret-bearing material stay out of the archive. The
 resulting manifest records every included file's digest and the source Git
 revision so a release can be audited after extraction.

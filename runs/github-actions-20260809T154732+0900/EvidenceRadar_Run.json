@@ -6,7 +6,7 @@
     "run_json": "EvidenceRadar_Run.json",
     "state_json": "EvidenceRadar_State.json"
   },
-  "base_state_sha256": "48b690e53ae6d531cacef7bdd7faee6e0fcf9340042d66363a56ecf5cca0c58e",
+  "base_state_sha256": "44f8dee0661f22cafc57ea10694a55182c9f9a62b7af6a84e659d1ec91a9d3f2",
   "candidates": [
     {
       "authors": [
@@ -189,15 +189,17 @@
       ],
       "displayed_in_report": true,
       "event_id": "event:88b32c40f969c1157d85fb69809ababae42133247efe1ea26861b089e16f14b9",
-      "event_status": "ALREADY_NOTIFIED",
+      "event_status": "QUALIFYING",
       "identifiers": {
         "doi": "10.1097/md.0000000000050157",
         "pmid": "42566629"
       },
       "is_preprint": false,
       "publication_date": "2026-08-07",
-      "publisher_access_reason": "ALREADY_NOTIFIED",
-      "publisher_access_status": "NOT_ATTEMPTED",
+      "publisher_access_id": "publisher-002",
+      "publisher_access_reason": "PUBLISHER_ACCESS_SUCCEEDED",
+      "publisher_access_status": "SUCCESS",
+      "publisher_http_status": 200,
       "qualifying_event": {
         "confidence": "provider_metadata",
         "event_type": "first_formal_indexing",
@@ -214,7 +216,8 @@
       "routing_score": 84,
       "source_urls": [
         "https://doi.org/10.1097/md.0000000000050157",
-        "https://pubmed.ncbi.nlm.nih.gov/42566629/"
+        "https://pubmed.ncbi.nlm.nih.gov/42566629/",
+        "https://www.ovid.com/jnls/md-journal/fulltext/10.1097/md.0000000000050157~risk-factors-associated-with-delirium-in-older-emergency"
       ],
       "streams": [
         "clinical_medicine"
@@ -256,7 +259,7 @@
       },
       "is_preprint": false,
       "publication_date": "2026-08-07",
-      "publisher_access_id": "publisher-003",
+      "publisher_access_id": "publisher-004",
       "publisher_access_reason": "PUBLISHER_ACCESS_FAILED",
       "publisher_access_status": "FAILED",
       "publisher_error": "publisher blocked automated access with HTTP 403",
@@ -325,10 +328,11 @@
       },
       "is_preprint": false,
       "publication_date": "2026-08-07",
-      "publisher_access_id": "publisher-004",
-      "publisher_access_reason": "PUBLISHER_ACCESS_SUCCEEDED",
-      "publisher_access_status": "SUCCESS",
-      "publisher_http_status": 200,
+      "publisher_access_id": "publisher-005",
+      "publisher_access_reason": "PUBLISHER_ACCESS_FAILED",
+      "publisher_access_status": "FAILED",
+      "publisher_error": "publisher domain budget reached before access: www.ovid.com",
+      "publisher_http_status": 302,
       "qualifying_event": {
         "confidence": "provider_metadata",
         "event_type": "first_formal_indexing",
@@ -346,7 +350,7 @@
       "source_urls": [
         "https://doi.org/10.1097/md.0000000000050096",
         "https://pubmed.ncbi.nlm.nih.gov/42566576/",
-        "https://www.ovid.com/jnls/md-journal/fulltext/10.1097/md.0000000000050096~association-of-oral-vancomycin-prophylaxis-with-clostridium"
+        "https://www.ovid.com/10.1097/MD.0000000000050096"
       ],
       "streams": [
         "clinical_medicine"
@@ -391,7 +395,7 @@
       },
       "is_preprint": false,
       "publication_date": "2026-08-07",
-      "publisher_access_id": "publisher-005",
+      "publisher_access_id": "publisher-006",
       "publisher_access_reason": "PUBLISHER_ACCESS_FAILED",
       "publisher_access_status": "FAILED",
       "publisher_error": "publisher domain budget reached before access: www.ovid.com",
@@ -449,7 +453,7 @@
       },
       "is_preprint": false,
       "publication_date": "2026-08-08",
-      "publisher_access_id": "publisher-006",
+      "publisher_access_id": "publisher-007",
       "publisher_access_reason": "PUBLISHER_ACCESS_FAILED",
       "publisher_access_status": "FAILED",
       "publisher_error": "publisher redirect loop detected",
@@ -506,7 +510,7 @@
       },
       "is_preprint": false,
       "publication_date": "2026-08-07",
-      "publisher_access_id": "publisher-007",
+      "publisher_access_id": "publisher-008",
       "publisher_access_reason": "PUBLISHER_ACCESS_FAILED",
       "publisher_access_status": "FAILED",
       "publisher_error": "publisher domain budget reached before access: www.ovid.com",
@@ -572,7 +576,7 @@
       },
       "is_preprint": false,
       "publication_date": "2026-08-07",
-      "publisher_access_id": "publisher-008",
+      "publisher_access_id": "publisher-009",
       "publisher_access_reason": "PUBLISHER_ACCESS_FAILED",
       "publisher_access_status": "FAILED",
       "publisher_error": "publisher domain budget reached before access: www.ovid.com",
@@ -633,7 +637,7 @@
       },
       "is_preprint": false,
       "publication_date": "2026-08-06",
-      "publisher_access_id": "publisher-009",
+      "publisher_access_id": "publisher-010",
       "publisher_access_reason": "PUBLISHER_ACCESS_FAILED",
       "publisher_access_status": "FAILED",
       "publisher_error": "publisher blocked automated access with HTTP 403",
@@ -699,7 +703,7 @@
       },
       "is_preprint": false,
       "publication_date": "2026-08-08",
-      "publisher_access_id": "publisher-010",
+      "publisher_access_id": "publisher-012",
       "publisher_access_reason": "PUBLISHER_ACCESS_FAILED",
       "publisher_access_status": "FAILED",
       "publisher_error": "publisher domain budget reached before access: link.springer.com",
@@ -755,7 +759,7 @@
       },
       "is_preprint": false,
       "publication_date": "2026-08-07",
-      "publisher_access_id": "publisher-011",
+      "publisher_access_id": "publisher-013",
       "publisher_access_reason": "PUBLISHER_ACCESS_FAILED",
       "publisher_access_status": "FAILED",
       "publisher_error": "publisher domain budget reached before access: www.ovid.com",
@@ -815,7 +819,7 @@
       },
       "is_preprint": false,
       "publication_date": "2026-08-07",
-      "publisher_access_id": "publisher-012",
+      "publisher_access_id": "publisher-014",
       "publisher_access_reason": "PUBLISHER_ACCESS_FAILED",
       "publisher_access_status": "FAILED",
       "publisher_error": "publisher domain budget reached before access: www.ovid.com",
@@ -877,11 +881,8 @@
       },
       "is_preprint": false,
       "publication_date": "2026-08-08",
-      "publisher_access_id": "publisher-014",
-      "publisher_access_reason": "PUBLISHER_ACCESS_FAILED",
-      "publisher_access_status": "FAILED",
-      "publisher_error": "publisher domain budget reached before access: link.springer.com",
-      "publisher_http_status": 302,
+      "publisher_access_reason": "PUBLISHER_BUDGET_OR_DOMAIN_GUARD",
+      "publisher_access_status": "NOT_ATTEMPTED",
       "qualifying_event": {
         "confidence": "publisher_supplied_citation",
         "event_type": "version_of_record_first_online",
@@ -898,7 +899,6 @@
       "routing_score": 69,
       "source_urls": [
         "https://doi.org/10.1007/s12012-026-10170-3",
-        "https://link.springer.com/10.1007/s12012-026-10170-3",
         "https://pubmed.ncbi.nlm.nih.gov/42570142/"
       ],
       "streams": [
@@ -10281,7 +10281,8 @@
         "arxiv"
       ],
       "displayed_in_report": true,
-      "event_status": "NO_QUALIFYING_EVENT",
+      "event_id": "event:c4044d8aec71cb518ae522384a8ee372c2c52df6220c4983f6a04be32f4a4bf8",
+      "event_status": "QUALIFYING",
       "identifiers": {
         "arxiv_id": "2608.05651"
       },
@@ -10290,7 +10291,15 @@
       "publication_date": "2026-08-06",
       "publisher_access_reason": "LOWER_PRIORITY_ROUTING",
       "publisher_access_status": "NOT_ATTEMPTED",
-      "qualifying_event": null,
+      "qualifying_event": {
+        "confidence": "provider_metadata",
+        "event_type": "oa_fulltext_first_available",
+        "occurred_at": "2026-08-06T06:48:08Z",
+        "precision": "instant",
+        "source": "arXiv",
+        "source_field": "atom:published",
+        "source_url": "https://arxiv.org/abs/2608.05651v1"
+      },
       "query_ids": [
         "query-030",
         "query-055",
@@ -12243,7 +12252,7 @@
       },
       "is_preprint": false,
       "publication_date": "2026-01-01",
-      "publisher_access_id": "publisher-013",
+      "publisher_access_id": "publisher-015",
       "publisher_access_reason": "PUBLISHER_ACCESS_FAILED",
       "publisher_access_status": "FAILED",
       "publisher_error": "publisher blocked automated access with HTTP 403",
@@ -19082,7 +19091,7 @@
       },
       "is_preprint": false,
       "publication_date": "2026-08-06",
-      "publisher_access_id": "publisher-002",
+      "publisher_access_id": "publisher-003",
       "publisher_access_reason": "PUBLISHER_ACCESS_FAILED",
       "publisher_access_status": "FAILED",
       "publisher_error": "publisher domain budget reached before access: www.thieme-connect.de",
@@ -19137,7 +19146,7 @@
       ],
       "displayed_in_report": true,
       "event_id": "event:96af3b37cc4f43681023b14ea974dbe9f39bf82a7d974c260127fcfcd3f5a9d9",
-      "event_status": "ALREADY_NOTIFIED",
+      "event_status": "QUALIFYING",
       "identifiers": {
         "doi": "10.3389/fphys.2026.1878224",
         "pmid": "42558951"
@@ -19145,8 +19154,10 @@
       "is_preprint": false,
       "open_access": false,
       "publication_date": "2026-07-22",
-      "publisher_access_reason": "ALREADY_NOTIFIED",
-      "publisher_access_status": "NOT_ATTEMPTED",
+      "publisher_access_id": "publisher-011",
+      "publisher_access_reason": "PUBLISHER_ACCESS_SUCCEEDED",
+      "publisher_access_status": "SUCCESS",
+      "publisher_http_status": 200,
       "qualifying_event": {
         "confidence": "provider_metadata",
         "event_type": "first_formal_indexing",
@@ -19164,7 +19175,8 @@
       "routing_score": 75,
       "source_urls": [
         "https://doi.org/10.3389/fphys.2026.1878224",
-        "https://europepmc.org/article/MED/42558951"
+        "https://europepmc.org/article/MED/42558951",
+        "https://www.frontiersin.org/journals/physiology/articles/10.3389/fphys.2026.1878224/full"
       ],
       "streams": [
         "sport_science"
@@ -19200,11 +19212,8 @@
       "is_preprint": false,
       "open_access": false,
       "publication_date": "2026-02-26",
-      "publisher_access_id": "publisher-015",
-      "publisher_access_reason": "PUBLISHER_ACCESS_FAILED",
-      "publisher_access_status": "FAILED",
-      "publisher_error": "publisher domain budget reached before access: link.springer.com",
-      "publisher_http_status": 302,
+      "publisher_access_reason": "PUBLISHER_BUDGET_OR_DOMAIN_GUARD",
+      "publisher_access_status": "NOT_ATTEMPTED",
       "qualifying_event": {
         "confidence": "provider_metadata",
         "event_type": "first_formal_indexing",
@@ -19221,8 +19230,7 @@
       "routing_score": 69,
       "source_urls": [
         "https://doi.org/10.1007/s43465-026-01718-0",
-        "https://europepmc.org/article/MED/42558852",
-        "https://link.springer.com/10.1007/s43465-026-01718-0"
+        "https://europepmc.org/article/MED/42558852"
       ],
       "streams": [
         "sport_science"
@@ -25499,13 +25507,13 @@
     "deduplicated_candidates": 435,
     "displayed_candidates": 435,
     "lower_priority_candidates": 346,
-    "notified_events": 1,
+    "notified_events": 2,
     "priority_candidates": 89,
-    "publisher_accessible": 1,
+    "publisher_accessible": 2,
     "publisher_attempted": 15,
-    "publisher_failed": 14,
+    "publisher_failed": 13,
     "publisher_not_attempted": 420,
-    "qualifying_event_candidates": 390,
+    "qualifying_event_candidates": 391,
     "queries": 128,
     "raw_candidates": 1073,
     "review_pending": 435,
@@ -25519,7 +25527,7 @@
   },
   "coverage_status": "SOURCE_ACCESS_GAP",
   "execution_lane": "github_actions",
-  "finished_at": "2026-08-09T15:57:53.458630+09:00",
+  "finished_at": "2026-08-09T15:50:33.416917+09:00",
   "history_status": "STATE_HISTORY_INCOMPLETE",
   "mode": "daily",
   "notes": [
@@ -25527,7 +25535,7 @@
     "The automated lane does not promote unreviewed scientific claims."
   ],
   "parent_run_ids": [
-    "github-actions-20260809T145807+0900"
+    "github-actions-20260809T143450+0900"
   ],
   "protocol_commit": "9234b3f79e2bf9f3ed99242a0f1c63174347e4fb",
   "queries": [
@@ -25536,7 +25544,7 @@
       "query": "((\"JAMA Netw Open\"[Journal] OR \"EClinicalMedicine\"[Journal] OR \"BMC Med\"[Journal] OR \"BMJ Open\"[Journal] OR \"Commun Med (Lond)\"[Journal] OR \"PLoS Med\"[Journal] OR \"BMJ Med\"[Journal] OR \"Lancet Reg Health West Pac\"[Journal] OR \"Lancet Reg Health Eur\"[Journal] OR \"Lancet Reg Health Am\"[Journal]) NOT (protocol[Title] OR letter[Publication Type] OR editorial[Publication Type] OR comment[Publication Type]))",
       "query_id": "query-001",
       "result_count": 40,
-      "searched_at": "2026-08-09T15:54:56.513896+09:00",
+      "searched_at": "2026-08-09T15:47:32.998944+09:00",
       "source_ids": [
         "pubmed"
       ],
@@ -25547,7 +25555,7 @@
       "query": "((\"JAMA Netw Open\"[Journal] OR \"EClinicalMedicine\"[Journal] OR \"BMC Med\"[Journal] OR \"BMJ Open\"[Journal] OR \"Commun Med (Lond)\"[Journal] OR \"PLoS Med\"[Journal] OR \"BMJ Med\"[Journal] OR \"Lancet Reg Health West Pac\"[Journal] OR \"Lancet Reg Health Eur\"[Journal] OR \"Lancet Reg Health Am\"[Journal]) NOT (protocol[Title] OR letter[Publication Type] OR editorial[Publication Type] OR comment[Publication Type]))",
       "query_id": "query-002",
       "result_count": 40,
-      "searched_at": "2026-08-09T15:55:00.024694+09:00",
+      "searched_at": "2026-08-09T15:47:36.510166+09:00",
       "source_ids": [
         "europe_pmc"
       ],
@@ -25558,7 +25566,7 @@
       "query": "(((meta-analysis[Publication Type] OR systematic review[Publication Type] OR randomized controlled trial[Publication Type] OR practice guideline[Publication Type]) AND humans[MeSH Terms]) NOT (protocol[Title] OR letter[Publication Type] OR editorial[Publication Type] OR comment[Publication Type]))",
       "query_id": "query-003",
       "result_count": 40,
-      "searched_at": "2026-08-09T15:55:02.475037+09:00",
+      "searched_at": "2026-08-09T15:47:38.974700+09:00",
       "source_ids": [
         "pubmed"
       ],
@@ -25569,7 +25577,7 @@
       "query": "(((meta-analysis[Publication Type] OR systematic review[Publication Type] OR randomized controlled trial[Publication Type] OR practice guideline[Publication Type]) AND humans[MeSH Terms]) NOT (protocol[Title] OR letter[Publication Type] OR editorial[Publication Type] OR comment[Publication Type]))",
       "query_id": "query-004",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:55:05.867425+09:00",
+      "searched_at": "2026-08-09T15:47:42.638613+09:00",
       "source_ids": [
         "europe_pmc"
       ],
@@ -25580,7 +25588,7 @@
       "query": "((\"N Engl J Med\"[Journal] OR Lancet[Journal] OR JAMA[Journal] OR BMJ[Journal] OR \"Ann Intern Med\"[Journal] OR \"Nat Med\"[Journal]) AND (clinical trial[Publication Type] OR randomized controlled trial[Publication Type] OR meta-analysis[Publication Type] OR systematic review[Publication Type]) NOT (protocol[Title] OR letter[Publication Type] OR editorial[Publication Type]))",
       "query_id": "query-005",
       "result_count": 8,
-      "searched_at": "2026-08-09T15:55:06.216699+09:00",
+      "searched_at": "2026-08-09T15:47:42.969279+09:00",
       "source_ids": [
         "pubmed"
       ],
@@ -25591,7 +25599,7 @@
       "query": "((\"N Engl J Med\"[Journal] OR Lancet[Journal] OR JAMA[Journal] OR BMJ[Journal] OR \"Ann Intern Med\"[Journal] OR \"Nat Med\"[Journal]) AND (clinical trial[Publication Type] OR randomized controlled trial[Publication Type] OR meta-analysis[Publication Type] OR systematic review[Publication Type]) NOT (protocol[Title] OR letter[Publication Type] OR editorial[Publication Type]))",
       "query_id": "query-006",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:55:09.062811+09:00",
+      "searched_at": "2026-08-09T15:47:45.909483+09:00",
       "source_ids": [
         "europe_pmc"
       ],
@@ -25602,7 +25610,7 @@
       "query": "((\"exercise physiology\"[Title/Abstract] OR \"resistance training\"[Title/Abstract] OR \"endurance training\"[Title/Abstract] OR \"athletic performance\"[Title/Abstract] OR \"muscle hypertrophy\"[Title/Abstract] OR biomechanics[Title/Abstract] OR \"training load\"[Title/Abstract]) NOT (protocol[Title] OR letter[Publication Type] OR editorial[Publication Type] OR comment[Publication Type]))",
       "query_id": "query-007",
       "result_count": 40,
-      "searched_at": "2026-08-09T15:55:09.409566+09:00",
+      "searched_at": "2026-08-09T15:47:46.374077+09:00",
       "source_ids": [
         "pubmed"
       ],
@@ -25613,7 +25621,7 @@
       "query": "((\"exercise physiology\"[Title/Abstract] OR \"resistance training\"[Title/Abstract] OR \"endurance training\"[Title/Abstract] OR \"athletic performance\"[Title/Abstract] OR \"muscle hypertrophy\"[Title/Abstract] OR biomechanics[Title/Abstract] OR \"training load\"[Title/Abstract]) NOT (protocol[Title] OR letter[Publication Type] OR editorial[Publication Type] OR comment[Publication Type]))",
       "query_id": "query-008",
       "result_count": 40,
-      "searched_at": "2026-08-09T15:55:12.169790+09:00",
+      "searched_at": "2026-08-09T15:47:49.917233+09:00",
       "source_ids": [
         "europe_pmc"
       ],
@@ -25624,7 +25632,7 @@
       "query": "((exercise[Title] OR athlete*[Title] OR sport*[Title] OR muscle[Title] OR training[Title]) AND (fatigue[Title/Abstract] OR recovery[Title/Abstract] OR strength[Title/Abstract] OR power[Title/Abstract] OR adaptation[Title/Abstract]) NOT (protocol[Title] OR letter[Publication Type] OR editorial[Publication Type] OR comment[Publication Type]))",
       "query_id": "query-009",
       "result_count": 40,
-      "searched_at": "2026-08-09T15:55:12.837883+09:00",
+      "searched_at": "2026-08-09T15:47:50.582753+09:00",
       "source_ids": [
         "pubmed"
       ],
@@ -25635,7 +25643,7 @@
       "query": "((exercise[Title] OR athlete*[Title] OR sport*[Title] OR muscle[Title] OR training[Title]) AND (fatigue[Title/Abstract] OR recovery[Title/Abstract] OR strength[Title/Abstract] OR power[Title/Abstract] OR adaptation[Title/Abstract]) NOT (protocol[Title] OR letter[Publication Type] OR editorial[Publication Type] OR comment[Publication Type]))",
       "query_id": "query-010",
       "result_count": 40,
-      "searched_at": "2026-08-09T15:55:15.974327+09:00",
+      "searched_at": "2026-08-09T15:47:53.781364+09:00",
       "source_ids": [
         "europe_pmc"
       ],
@@ -25646,7 +25654,7 @@
       "query": "((\"sports nutrition\"[Title/Abstract] OR \"energy availability\"[Title/Abstract] OR RED-S[Title/Abstract] OR \"relative energy deficiency\"[Title/Abstract] OR \"carbohydrate availability\"[Title/Abstract]) NOT (protocol[Title] OR letter[Publication Type] OR editorial[Publication Type]))",
       "query_id": "query-011",
       "result_count": 4,
-      "searched_at": "2026-08-09T15:55:16.571631+09:00",
+      "searched_at": "2026-08-09T15:47:54.473168+09:00",
       "source_ids": [
         "pubmed"
       ],
@@ -25657,7 +25665,7 @@
       "query": "((\"sports nutrition\"[Title/Abstract] OR \"energy availability\"[Title/Abstract] OR RED-S[Title/Abstract] OR \"relative energy deficiency\"[Title/Abstract] OR \"carbohydrate availability\"[Title/Abstract]) NOT (protocol[Title] OR letter[Publication Type] OR editorial[Publication Type]))",
       "query_id": "query-012",
       "result_count": 18,
-      "searched_at": "2026-08-09T15:55:18.963465+09:00",
+      "searched_at": "2026-08-09T15:47:57.372991+09:00",
       "source_ids": [
         "europe_pmc"
       ],
@@ -25668,7 +25676,7 @@
       "query": "((athlete*[Title] OR sport*[Title] OR exercise[Title] OR training[Title] OR performance[Title] OR recovery[Title]) AND (protein[Title] OR carbohydrate*[Title] OR creatine[Title] OR hydration[Title] OR rehydration[Title] OR supplement*[Title] OR nutrition*[Title] OR diet*[Title]) NOT (protocol[Title] OR letter[Publication Type] OR editorial[Publication Type]))",
       "query_id": "query-013",
       "result_count": 19,
-      "searched_at": "2026-08-09T15:55:19.484052+09:00",
+      "searched_at": "2026-08-09T15:47:57.883900+09:00",
       "source_ids": [
         "pubmed"
       ],
@@ -25679,7 +25687,7 @@
       "query": "((athlete*[Title] OR sport*[Title] OR exercise[Title] OR training[Title] OR performance[Title] OR recovery[Title]) AND (protein[Title] OR carbohydrate*[Title] OR creatine[Title] OR hydration[Title] OR rehydration[Title] OR supplement*[Title] OR nutrition*[Title] OR diet*[Title]) NOT (protocol[Title] OR letter[Publication Type] OR editorial[Publication Type]))",
       "query_id": "query-014",
       "result_count": 23,
-      "searched_at": "2026-08-09T15:55:22.414265+09:00",
+      "searched_at": "2026-08-09T15:48:00.521740+09:00",
       "source_ids": [
         "europe_pmc"
       ],
@@ -25690,7 +25698,7 @@
       "query": "((\"physical fitness\"[Title/Abstract] OR \"cardiorespiratory fitness\"[Title/Abstract] OR \"muscular strength\"[Title/Abstract] OR \"step count\"[Title/Abstract] OR \"sedentary behavior\"[Title/Abstract] OR \"sedentary behaviour\"[Title/Abstract]) NOT (protocol[Title] OR letter[Publication Type] OR editorial[Publication Type]))",
       "query_id": "query-015",
       "result_count": 24,
-      "searched_at": "2026-08-09T15:55:22.935766+09:00",
+      "searched_at": "2026-08-09T15:48:01.994296+09:00",
       "source_ids": [
         "pubmed"
       ],
@@ -25701,7 +25709,7 @@
       "query": "((\"physical fitness\"[Title/Abstract] OR \"cardiorespiratory fitness\"[Title/Abstract] OR \"muscular strength\"[Title/Abstract] OR \"step count\"[Title/Abstract] OR \"sedentary behavior\"[Title/Abstract] OR \"sedentary behaviour\"[Title/Abstract]) NOT (protocol[Title] OR letter[Publication Type] OR editorial[Publication Type]))",
       "query_id": "query-016",
       "result_count": 28,
-      "searched_at": "2026-08-09T15:55:25.781651+09:00",
+      "searched_at": "2026-08-09T15:48:04.515737+09:00",
       "source_ids": [
         "europe_pmc"
       ],
@@ -25712,7 +25720,7 @@
       "query": "(((\"physical activity\"[Title] OR exercise[Title] OR walking[Title] OR sarcopenia[Title]) AND (mortality[Title/Abstract] OR aging[Title/Abstract] OR \"dose-response\"[Title/Abstract] OR health[Title/Abstract])) NOT (protocol[Title] OR letter[Publication Type] OR editorial[Publication Type]))",
       "query_id": "query-017",
       "result_count": 40,
-      "searched_at": "2026-08-09T15:55:26.339300+09:00",
+      "searched_at": "2026-08-09T15:48:05.082636+09:00",
       "source_ids": [
         "pubmed"
       ],
@@ -25723,7 +25731,7 @@
       "query": "(((\"physical activity\"[Title] OR exercise[Title] OR walking[Title] OR sarcopenia[Title]) AND (mortality[Title/Abstract] OR aging[Title/Abstract] OR \"dose-response\"[Title/Abstract] OR health[Title/Abstract])) NOT (protocol[Title] OR letter[Publication Type] OR editorial[Publication Type]))",
       "query_id": "query-018",
       "result_count": 40,
-      "searched_at": "2026-08-09T15:55:29.342999+09:00",
+      "searched_at": "2026-08-09T15:48:08.077993+09:00",
       "source_ids": [
         "europe_pmc"
       ],
@@ -25737,7 +25745,7 @@
       "query": "large language model instruction following sycophancy calibration",
       "query_id": "query-019",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:55:30.058108+09:00",
+      "searched_at": "2026-08-09T15:48:08.717035+09:00",
       "source_ids": [
         "openalex"
       ],
@@ -25748,7 +25756,7 @@
       "query": "large language model instruction following sycophancy calibration",
       "query_id": "query-020",
       "result_count": 15,
-      "searched_at": "2026-08-09T15:55:30.058300+09:00",
+      "searched_at": "2026-08-09T15:48:08.717225+09:00",
       "source_ids": [
         "arxiv"
       ],
@@ -25759,7 +25767,7 @@
       "query": "large language model instruction following sycophancy calibration",
       "query_id": "query-021",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:55:33.458637+09:00",
+      "searched_at": "2026-08-09T15:48:12.142744+09:00",
       "source_ids": [
         "openreview"
       ],
@@ -25770,7 +25778,7 @@
       "query": "large language model instruction following sycophancy calibration",
       "query_id": "query-022",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:55:35.707300+09:00",
+      "searched_at": "2026-08-09T15:48:13.828396+09:00",
       "source_ids": [
         "acl_anthology"
       ],
@@ -25781,7 +25789,7 @@
       "query": "large language model instruction following sycophancy calibration",
       "query_id": "query-023",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:55:37.381103+09:00",
+      "searched_at": "2026-08-09T15:48:15.512874+09:00",
       "source_ids": [
         "pmlr"
       ],
@@ -25795,7 +25803,7 @@
       "query": "large language model hallucination robustness jailbreak alignment evaluation",
       "query_id": "query-024",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:55:39.003265+09:00",
+      "searched_at": "2026-08-09T15:48:18.742583+09:00",
       "source_ids": [
         "openalex"
       ],
@@ -25806,7 +25814,7 @@
       "query": "large language model hallucination robustness jailbreak alignment evaluation",
       "query_id": "query-025",
       "result_count": 40,
-      "searched_at": "2026-08-09T15:55:39.003275+09:00",
+      "searched_at": "2026-08-09T15:48:18.742595+09:00",
       "source_ids": [
         "arxiv"
       ],
@@ -25817,7 +25825,7 @@
       "query": "large language model hallucination robustness jailbreak alignment evaluation",
       "query_id": "query-026",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:55:42.259450+09:00",
+      "searched_at": "2026-08-09T15:48:22.091559+09:00",
       "source_ids": [
         "openreview"
       ],
@@ -25828,7 +25836,7 @@
       "query": "large language model hallucination robustness jailbreak alignment evaluation",
       "query_id": "query-027",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:55:44.441969+09:00",
+      "searched_at": "2026-08-09T15:48:24.090834+09:00",
       "source_ids": [
         "acl_anthology"
       ],
@@ -25839,7 +25847,7 @@
       "query": "large language model hallucination robustness jailbreak alignment evaluation",
       "query_id": "query-028",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:55:44.442793+09:00",
+      "searched_at": "2026-08-09T15:48:24.091537+09:00",
       "source_ids": [
         "pmlr"
       ],
@@ -25853,7 +25861,7 @@
       "query": "large language model long context context compression in-context learning",
       "query_id": "query-029",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:55:44.442846+09:00",
+      "searched_at": "2026-08-09T15:48:24.091592+09:00",
       "source_ids": [
         "openalex"
       ],
@@ -25864,7 +25872,7 @@
       "query": "large language model long context context compression in-context learning",
       "query_id": "query-030",
       "result_count": 39,
-      "searched_at": "2026-08-09T15:55:44.442851+09:00",
+      "searched_at": "2026-08-09T15:48:24.091596+09:00",
       "source_ids": [
         "arxiv"
       ],
@@ -25875,7 +25883,7 @@
       "query": "large language model long context context compression in-context learning",
       "query_id": "query-031",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:55:47.592873+09:00",
+      "searched_at": "2026-08-09T15:48:27.377034+09:00",
       "source_ids": [
         "openreview"
       ],
@@ -25886,7 +25894,7 @@
       "query": "large language model long context context compression in-context learning",
       "query_id": "query-032",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:55:50.588151+09:00",
+      "searched_at": "2026-08-09T15:48:29.937101+09:00",
       "source_ids": [
         "acl_anthology"
       ],
@@ -25897,7 +25905,7 @@
       "query": "large language model long context context compression in-context learning",
       "query_id": "query-033",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:55:50.589159+09:00",
+      "searched_at": "2026-08-09T15:48:29.937785+09:00",
       "source_ids": [
         "pmlr"
       ],
@@ -25911,7 +25919,7 @@
       "query": "large language model test-time compute reasoning verification self-reflection",
       "query_id": "query-034",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:55:50.589206+09:00",
+      "searched_at": "2026-08-09T15:48:29.937836+09:00",
       "source_ids": [
         "openalex"
       ],
@@ -25922,7 +25930,7 @@
       "query": "large language model test-time compute reasoning verification self-reflection",
       "query_id": "query-035",
       "result_count": 37,
-      "searched_at": "2026-08-09T15:55:50.589210+09:00",
+      "searched_at": "2026-08-09T15:48:29.937840+09:00",
       "source_ids": [
         "arxiv"
       ],
@@ -25933,7 +25941,7 @@
       "query": "large language model test-time compute reasoning verification self-reflection",
       "query_id": "query-036",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:55:53.688116+09:00",
+      "searched_at": "2026-08-09T15:48:33.095866+09:00",
       "source_ids": [
         "openreview"
       ],
@@ -25944,7 +25952,7 @@
       "query": "large language model test-time compute reasoning verification self-reflection",
       "query_id": "query-037",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:55:55.772057+09:00",
+      "searched_at": "2026-08-09T15:48:35.272718+09:00",
       "source_ids": [
         "acl_anthology"
       ],
@@ -25955,7 +25963,7 @@
       "query": "large language model test-time compute reasoning verification self-reflection",
       "query_id": "query-038",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:55:55.772737+09:00",
+      "searched_at": "2026-08-09T15:48:35.273446+09:00",
       "source_ids": [
         "pmlr"
       ],
@@ -25969,7 +25977,7 @@
       "query": "large language model retrieval reranking grounding evidence selection",
       "query_id": "query-039",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:55:55.772793+09:00",
+      "searched_at": "2026-08-09T15:48:35.273500+09:00",
       "source_ids": [
         "openalex"
       ],
@@ -25980,7 +25988,7 @@
       "query": "large language model retrieval reranking grounding evidence selection",
       "query_id": "query-040",
       "result_count": 39,
-      "searched_at": "2026-08-09T15:55:55.772797+09:00",
+      "searched_at": "2026-08-09T15:48:35.273504+09:00",
       "source_ids": [
         "arxiv"
       ],
@@ -25991,7 +25999,7 @@
       "query": "large language model retrieval reranking grounding evidence selection",
       "query_id": "query-041",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:55:58.879968+09:00",
+      "searched_at": "2026-08-09T15:48:38.382016+09:00",
       "source_ids": [
         "openreview"
       ],
@@ -26002,7 +26010,7 @@
       "query": "large language model retrieval reranking grounding evidence selection",
       "query_id": "query-042",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:56:00.774338+09:00",
+      "searched_at": "2026-08-09T15:48:40.211469+09:00",
       "source_ids": [
         "acl_anthology"
       ],
@@ -26013,7 +26021,7 @@
       "query": "large language model retrieval reranking grounding evidence selection",
       "query_id": "query-043",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:56:00.775026+09:00",
+      "searched_at": "2026-08-09T15:48:40.212302+09:00",
       "source_ids": [
         "pmlr"
       ],
@@ -26027,7 +26035,7 @@
       "query": "retrieval augmented generation citation verification source authority safety",
       "query_id": "query-044",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:56:00.775075+09:00",
+      "searched_at": "2026-08-09T15:48:40.212363+09:00",
       "source_ids": [
         "openalex"
       ],
@@ -26038,7 +26046,7 @@
       "query": "retrieval augmented generation citation verification source authority safety",
       "query_id": "query-045",
       "result_count": 1,
-      "searched_at": "2026-08-09T15:56:00.775079+09:00",
+      "searched_at": "2026-08-09T15:48:40.212367+09:00",
       "source_ids": [
         "arxiv"
       ],
@@ -26049,7 +26057,7 @@
       "query": "retrieval augmented generation citation verification source authority safety",
       "query_id": "query-046",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:56:03.842381+09:00",
+      "searched_at": "2026-08-09T15:48:43.282080+09:00",
       "source_ids": [
         "openreview"
       ],
@@ -26060,7 +26068,7 @@
       "query": "retrieval augmented generation citation verification source authority safety",
       "query_id": "query-047",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:56:04.848152+09:00",
+      "searched_at": "2026-08-09T15:48:44.474718+09:00",
       "source_ids": [
         "acl_anthology"
       ],
@@ -26071,7 +26079,7 @@
       "query": "retrieval augmented generation citation verification source authority safety",
       "query_id": "query-048",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:56:04.848832+09:00",
+      "searched_at": "2026-08-09T15:48:44.475433+09:00",
       "source_ids": [
         "pmlr"
       ],
@@ -26085,7 +26093,7 @@
       "query": "large language model episodic semantic working memory consolidation forgetting",
       "query_id": "query-049",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:56:04.848890+09:00",
+      "searched_at": "2026-08-09T15:48:44.475484+09:00",
       "source_ids": [
         "openalex"
       ],
@@ -26096,7 +26104,7 @@
       "query": "large language model episodic semantic working memory consolidation forgetting",
       "query_id": "query-050",
       "result_count": 28,
-      "searched_at": "2026-08-09T15:56:04.848894+09:00",
+      "searched_at": "2026-08-09T15:48:44.475488+09:00",
       "source_ids": [
         "arxiv"
       ],
@@ -26107,7 +26115,7 @@
       "query": "large language model episodic semantic working memory consolidation forgetting",
       "query_id": "query-051",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:56:07.947181+09:00",
+      "searched_at": "2026-08-09T15:48:47.581424+09:00",
       "source_ids": [
         "openreview"
       ],
@@ -26118,7 +26126,7 @@
       "query": "large language model episodic semantic working memory consolidation forgetting",
       "query_id": "query-052",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:56:09.437063+09:00",
+      "searched_at": "2026-08-09T15:48:49.506308+09:00",
       "source_ids": [
         "acl_anthology"
       ],
@@ -26129,7 +26137,7 @@
       "query": "large language model episodic semantic working memory consolidation forgetting",
       "query_id": "query-053",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:56:09.437721+09:00",
+      "searched_at": "2026-08-09T15:48:49.507081+09:00",
       "source_ids": [
         "pmlr"
       ],
@@ -26143,7 +26151,7 @@
       "query": "large language model personalization user model longitudinal adaptation memory",
       "query_id": "query-054",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:56:09.437767+09:00",
+      "searched_at": "2026-08-09T15:48:49.507132+09:00",
       "source_ids": [
         "openalex"
       ],
@@ -26154,7 +26162,7 @@
       "query": "large language model personalization user model longitudinal adaptation memory",
       "query_id": "query-055",
       "result_count": 26,
-      "searched_at": "2026-08-09T15:56:09.437771+09:00",
+      "searched_at": "2026-08-09T15:48:49.507137+09:00",
       "source_ids": [
         "arxiv"
       ],
@@ -26165,7 +26173,7 @@
       "query": "large language model personalization user model longitudinal adaptation memory",
       "query_id": "query-056",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:56:12.520010+09:00",
+      "searched_at": "2026-08-09T15:48:52.602449+09:00",
       "source_ids": [
         "openreview"
       ],
@@ -26176,7 +26184,7 @@
       "query": "large language model personalization user model longitudinal adaptation memory",
       "query_id": "query-057",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:56:15.689237+09:00",
+      "searched_at": "2026-08-09T15:48:54.786985+09:00",
       "source_ids": [
         "acl_anthology"
       ],
@@ -26187,7 +26195,7 @@
       "query": "large language model personalization user model longitudinal adaptation memory",
       "query_id": "query-058",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:56:15.689922+09:00",
+      "searched_at": "2026-08-09T15:48:54.787695+09:00",
       "source_ids": [
         "pmlr"
       ],
@@ -26201,7 +26209,7 @@
       "query": "large language model agent planning tool use action selection long horizon",
       "query_id": "query-059",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:56:15.689977+09:00",
+      "searched_at": "2026-08-09T15:48:54.787751+09:00",
       "source_ids": [
         "openalex"
       ],
@@ -26212,7 +26220,7 @@
       "query": "large language model agent planning tool use action selection long horizon",
       "query_id": "query-060",
       "result_count": 40,
-      "searched_at": "2026-08-09T15:56:15.689981+09:00",
+      "searched_at": "2026-08-09T15:48:54.787756+09:00",
       "source_ids": [
         "arxiv"
       ],
@@ -26223,7 +26231,7 @@
       "query": "large language model agent planning tool use action selection long horizon",
       "query_id": "query-061",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:56:18.804275+09:00",
+      "searched_at": "2026-08-09T15:48:57.894180+09:00",
       "source_ids": [
         "openreview"
       ],
@@ -26234,7 +26242,7 @@
       "query": "large language model agent planning tool use action selection long horizon",
       "query_id": "query-062",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:56:21.252015+09:00",
+      "searched_at": "2026-08-09T15:49:01.311802+09:00",
       "source_ids": [
         "acl_anthology"
       ],
@@ -26245,7 +26253,7 @@
       "query": "large language model agent planning tool use action selection long horizon",
       "query_id": "query-063",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:56:21.252974+09:00",
+      "searched_at": "2026-08-09T15:49:01.312517+09:00",
       "source_ids": [
         "pmlr"
       ],
@@ -26259,7 +26267,7 @@
       "query": "language model browser computer use autonomous execution agent safety",
       "query_id": "query-064",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:56:21.253024+09:00",
+      "searched_at": "2026-08-09T15:49:01.312567+09:00",
       "source_ids": [
         "openalex"
       ],
@@ -26270,7 +26278,7 @@
       "query": "language model browser computer use autonomous execution agent safety",
       "query_id": "query-065",
       "result_count": 40,
-      "searched_at": "2026-08-09T15:56:21.253028+09:00",
+      "searched_at": "2026-08-09T15:49:01.312572+09:00",
       "source_ids": [
         "arxiv"
       ],
@@ -26281,7 +26289,7 @@
       "query": "language model browser computer use autonomous execution agent safety",
       "query_id": "query-066",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:56:24.352272+09:00",
+      "searched_at": "2026-08-09T15:49:04.423610+09:00",
       "source_ids": [
         "openreview"
       ],
@@ -26292,7 +26300,7 @@
       "query": "language model browser computer use autonomous execution agent safety",
       "query_id": "query-067",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:56:27.600510+09:00",
+      "searched_at": "2026-08-09T15:49:06.051567+09:00",
       "source_ids": [
         "acl_anthology"
       ],
@@ -26303,7 +26311,7 @@
       "query": "language model browser computer use autonomous execution agent safety",
       "query_id": "query-068",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:56:27.601167+09:00",
+      "searched_at": "2026-08-09T15:49:06.052410+09:00",
       "source_ids": [
         "pmlr"
       ],
@@ -26317,7 +26325,7 @@
       "query": "large language model multi-agent coordination role assignment communication",
       "query_id": "query-069",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:56:27.601218+09:00",
+      "searched_at": "2026-08-09T15:49:06.052512+09:00",
       "source_ids": [
         "openalex"
       ],
@@ -26328,7 +26336,7 @@
       "query": "large language model multi-agent coordination role assignment communication",
       "query_id": "query-070",
       "result_count": 18,
-      "searched_at": "2026-08-09T15:56:27.601222+09:00",
+      "searched_at": "2026-08-09T15:49:06.052522+09:00",
       "source_ids": [
         "arxiv"
       ],
@@ -26339,7 +26347,7 @@
       "query": "large language model multi-agent coordination role assignment communication",
       "query_id": "query-071",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:56:30.688742+09:00",
+      "searched_at": "2026-08-09T15:49:09.143161+09:00",
       "source_ids": [
         "openreview"
       ],
@@ -26350,7 +26358,7 @@
       "query": "large language model multi-agent coordination role assignment communication",
       "query_id": "query-072",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:56:32.458240+09:00",
+      "searched_at": "2026-08-09T15:49:11.421352+09:00",
       "source_ids": [
         "acl_anthology"
       ],
@@ -26361,7 +26369,7 @@
       "query": "large language model multi-agent coordination role assignment communication",
       "query_id": "query-073",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:56:32.458900+09:00",
+      "searched_at": "2026-08-09T15:49:11.422048+09:00",
       "source_ids": [
         "pmlr"
       ],
@@ -26375,7 +26383,7 @@
       "query": "language model agents debate cooperation collective failure emergent behavior",
       "query_id": "query-074",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:56:32.458950+09:00",
+      "searched_at": "2026-08-09T15:49:11.422099+09:00",
       "source_ids": [
         "openalex"
       ],
@@ -26386,7 +26394,7 @@
       "query": "language model agents debate cooperation collective failure emergent behavior",
       "query_id": "query-075",
       "result_count": 40,
-      "searched_at": "2026-08-09T15:56:32.458954+09:00",
+      "searched_at": "2026-08-09T15:49:11.422103+09:00",
       "source_ids": [
         "arxiv"
       ],
@@ -26397,7 +26405,7 @@
       "query": "language model agents debate cooperation collective failure emergent behavior",
       "query_id": "query-076",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:56:35.570235+09:00",
+      "searched_at": "2026-08-09T15:49:14.525650+09:00",
       "source_ids": [
         "openreview"
       ],
@@ -26408,7 +26416,7 @@
       "query": "language model agents debate cooperation collective failure emergent behavior",
       "query_id": "query-077",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:56:36.826221+09:00",
+      "searched_at": "2026-08-09T15:49:15.907473+09:00",
       "source_ids": [
         "acl_anthology"
       ],
@@ -26419,7 +26427,7 @@
       "query": "language model agents debate cooperation collective failure emergent behavior",
       "query_id": "query-078",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:56:36.826881+09:00",
+      "searched_at": "2026-08-09T15:49:15.908255+09:00",
       "source_ids": [
         "pmlr"
       ],
@@ -26433,7 +26441,7 @@
       "query": "large language model inference systems runtime orchestration latency reliability",
       "query_id": "query-079",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:56:36.826929+09:00",
+      "searched_at": "2026-08-09T15:49:15.908311+09:00",
       "source_ids": [
         "openalex"
       ],
@@ -26444,7 +26452,7 @@
       "query": "large language model inference systems runtime orchestration latency reliability",
       "query_id": "query-080",
       "result_count": 40,
-      "searched_at": "2026-08-09T15:56:36.826933+09:00",
+      "searched_at": "2026-08-09T15:49:15.908316+09:00",
       "source_ids": [
         "arxiv"
       ],
@@ -26455,7 +26463,7 @@
       "query": "large language model inference systems runtime orchestration latency reliability",
       "query_id": "query-081",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:56:39.935484+09:00",
+      "searched_at": "2026-08-09T15:49:19.022646+09:00",
       "source_ids": [
         "openreview"
       ],
@@ -26466,7 +26474,7 @@
       "query": "large language model inference systems runtime orchestration latency reliability",
       "query_id": "query-082",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:56:41.773726+09:00",
+      "searched_at": "2026-08-09T15:49:20.653228+09:00",
       "source_ids": [
         "acl_anthology"
       ],
@@ -26477,7 +26485,7 @@
       "query": "large language model inference systems runtime orchestration latency reliability",
       "query_id": "query-083",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:56:41.774360+09:00",
+      "searched_at": "2026-08-09T15:49:20.653888+09:00",
       "source_ids": [
         "pmlr"
       ],
@@ -26491,7 +26499,7 @@
       "query": "large language model tool runtime protocol model context protocol sandbox observability",
       "query_id": "query-084",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:56:41.774405+09:00",
+      "searched_at": "2026-08-09T15:49:20.653983+09:00",
       "source_ids": [
         "openalex"
       ],
@@ -26502,7 +26510,7 @@
       "query": "large language model tool runtime protocol model context protocol sandbox observability",
       "query_id": "query-085",
       "result_count": 28,
-      "searched_at": "2026-08-09T15:56:41.774409+09:00",
+      "searched_at": "2026-08-09T15:49:20.653992+09:00",
       "source_ids": [
         "arxiv"
       ],
@@ -26513,7 +26521,7 @@
       "query": "large language model tool runtime protocol model context protocol sandbox observability",
       "query_id": "query-086",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:56:44.873048+09:00",
+      "searched_at": "2026-08-09T15:49:23.756833+09:00",
       "source_ids": [
         "openreview"
       ],
@@ -26524,7 +26532,7 @@
       "query": "large language model tool runtime protocol model context protocol sandbox observability",
       "query_id": "query-087",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:56:46.275442+09:00",
+      "searched_at": "2026-08-09T15:49:25.539523+09:00",
       "source_ids": [
         "acl_anthology"
       ],
@@ -26535,7 +26543,7 @@
       "query": "large language model tool runtime protocol model context protocol sandbox observability",
       "query_id": "query-088",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:56:46.276095+09:00",
+      "searched_at": "2026-08-09T15:49:25.540317+09:00",
       "source_ids": [
         "pmlr"
       ],
@@ -26549,7 +26557,7 @@
       "query": "large language model post-training preference optimization distillation continual learning",
       "query_id": "query-089",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:56:46.276144+09:00",
+      "searched_at": "2026-08-09T15:49:25.540371+09:00",
       "source_ids": [
         "openalex"
       ],
@@ -26560,7 +26568,7 @@
       "query": "large language model post-training preference optimization distillation continual learning",
       "query_id": "query-090",
       "result_count": 38,
-      "searched_at": "2026-08-09T15:56:46.276148+09:00",
+      "searched_at": "2026-08-09T15:49:25.540376+09:00",
       "source_ids": [
         "arxiv"
       ],
@@ -26571,7 +26579,7 @@
       "query": "large language model post-training preference optimization distillation continual learning",
       "query_id": "query-091",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:56:49.383943+09:00",
+      "searched_at": "2026-08-09T15:49:28.649139+09:00",
       "source_ids": [
         "openreview"
       ],
@@ -26582,7 +26590,7 @@
       "query": "large language model post-training preference optimization distillation continual learning",
       "query_id": "query-092",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:56:51.761846+09:00",
+      "searched_at": "2026-08-09T15:49:32.126454+09:00",
       "source_ids": [
         "acl_anthology"
       ],
@@ -26593,7 +26601,7 @@
       "query": "large language model post-training preference optimization distillation continual learning",
       "query_id": "query-093",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:56:51.762747+09:00",
+      "searched_at": "2026-08-09T15:49:32.127322+09:00",
       "source_ids": [
         "pmlr"
       ],
@@ -26607,7 +26615,7 @@
       "query": "large language model architecture mixture of experts PEFT synthetic data curriculum",
       "query_id": "query-094",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:56:51.762842+09:00",
+      "searched_at": "2026-08-09T15:49:32.127426+09:00",
       "source_ids": [
         "openalex"
       ],
@@ -26618,7 +26626,7 @@
       "query": "large language model architecture mixture of experts PEFT synthetic data curriculum",
       "query_id": "query-095",
       "result_count": 29,
-      "searched_at": "2026-08-09T15:56:51.762850+09:00",
+      "searched_at": "2026-08-09T15:49:32.127436+09:00",
       "source_ids": [
         "arxiv"
       ],
@@ -26629,7 +26637,7 @@
       "query": "large language model architecture mixture of experts PEFT synthetic data curriculum",
       "query_id": "query-096",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:56:54.859349+09:00",
+      "searched_at": "2026-08-09T15:49:35.225867+09:00",
       "source_ids": [
         "openreview"
       ],
@@ -26640,7 +26648,7 @@
       "query": "large language model architecture mixture of experts PEFT synthetic data curriculum",
       "query_id": "query-097",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:56:58.411751+09:00",
+      "searched_at": "2026-08-09T15:49:37.712706+09:00",
       "source_ids": [
         "acl_anthology"
       ],
@@ -26651,7 +26659,7 @@
       "query": "large language model architecture mixture of experts PEFT synthetic data curriculum",
       "query_id": "query-098",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:56:58.412457+09:00",
+      "searched_at": "2026-08-09T15:49:37.713592+09:00",
       "source_ids": [
         "pmlr"
       ],
@@ -26665,7 +26673,7 @@
       "query": "large language model benchmark contamination evaluation validity judge reliability",
       "query_id": "query-099",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:56:58.412515+09:00",
+      "searched_at": "2026-08-09T15:49:37.713677+09:00",
       "source_ids": [
         "openalex"
       ],
@@ -26676,7 +26684,7 @@
       "query": "large language model benchmark contamination evaluation validity judge reliability",
       "query_id": "query-100",
       "result_count": 40,
-      "searched_at": "2026-08-09T15:56:58.412519+09:00",
+      "searched_at": "2026-08-09T15:49:37.713682+09:00",
       "source_ids": [
         "arxiv"
       ],
@@ -26687,7 +26695,7 @@
       "query": "large language model benchmark contamination evaluation validity judge reliability",
       "query_id": "query-101",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:57:01.524585+09:00",
+      "searched_at": "2026-08-09T15:49:40.829438+09:00",
       "source_ids": [
         "openreview"
       ],
@@ -26698,7 +26706,7 @@
       "query": "large language model benchmark contamination evaluation validity judge reliability",
       "query_id": "query-102",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:57:03.590088+09:00",
+      "searched_at": "2026-08-09T15:49:42.890869+09:00",
       "source_ids": [
         "acl_anthology"
       ],
@@ -26709,7 +26717,7 @@
       "query": "large language model benchmark contamination evaluation validity judge reliability",
       "query_id": "query-103",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:57:03.590766+09:00",
+      "searched_at": "2026-08-09T15:49:42.892408+09:00",
       "source_ids": [
         "pmlr"
       ],
@@ -26723,7 +26731,7 @@
       "query": "LLM as a judge agent retrieval benchmark longitudinal ecological evaluation",
       "query_id": "query-104",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:57:03.590813+09:00",
+      "searched_at": "2026-08-09T15:49:42.892466+09:00",
       "source_ids": [
         "openalex"
       ],
@@ -26734,7 +26742,7 @@
       "query": "LLM as a judge agent retrieval benchmark longitudinal ecological evaluation",
       "query_id": "query-105",
       "result_count": 40,
-      "searched_at": "2026-08-09T15:57:03.590817+09:00",
+      "searched_at": "2026-08-09T15:49:42.892471+09:00",
       "source_ids": [
         "arxiv"
       ],
@@ -26745,7 +26753,7 @@
       "query": "LLM as a judge agent retrieval benchmark longitudinal ecological evaluation",
       "query_id": "query-106",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:57:06.694398+09:00",
+      "searched_at": "2026-08-09T15:49:46.002361+09:00",
       "source_ids": [
         "openreview"
       ],
@@ -26756,7 +26764,7 @@
       "query": "LLM as a judge agent retrieval benchmark longitudinal ecological evaluation",
       "query_id": "query-107",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:57:10.436454+09:00",
+      "searched_at": "2026-08-09T15:49:48.474891+09:00",
       "source_ids": [
         "acl_anthology"
       ],
@@ -26767,7 +26775,7 @@
       "query": "LLM as a judge agent retrieval benchmark longitudinal ecological evaluation",
       "query_id": "query-108",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:57:10.437782+09:00",
+      "searched_at": "2026-08-09T15:49:48.475638+09:00",
       "source_ids": [
         "pmlr"
       ],
@@ -26781,7 +26789,7 @@
       "query": "AI companion large language model attachment companionship relationship",
       "query_id": "query-109",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:57:10.437885+09:00",
+      "searched_at": "2026-08-09T15:49:48.475705+09:00",
       "source_ids": [
         "openalex"
       ],
@@ -26792,7 +26800,7 @@
       "query": "AI companion large language model attachment companionship relationship",
       "query_id": "query-110",
       "result_count": 7,
-      "searched_at": "2026-08-09T15:57:10.437899+09:00",
+      "searched_at": "2026-08-09T15:49:48.475711+09:00",
       "source_ids": [
         "arxiv"
       ],
@@ -26803,7 +26811,7 @@
       "query": "AI companion large language model attachment companionship relationship",
       "query_id": "query-111",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:57:13.518499+09:00",
+      "searched_at": "2026-08-09T15:49:51.554438+09:00",
       "source_ids": [
         "openreview"
       ],
@@ -26814,7 +26822,7 @@
       "query": "AI companion large language model attachment companionship relationship",
       "query_id": "query-112",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:57:14.905858+09:00",
+      "searched_at": "2026-08-09T15:49:53.218002+09:00",
       "source_ids": [
         "acl_anthology"
       ],
@@ -26825,7 +26833,7 @@
       "query": "AI companion large language model attachment companionship relationship",
       "query_id": "query-113",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:57:14.906512+09:00",
+      "searched_at": "2026-08-09T15:49:53.219030+09:00",
       "source_ids": [
         "pmlr"
       ],
@@ -26839,7 +26847,7 @@
       "query": "chatbot anthropomorphism emotional dependence social connection longitudinal relationship",
       "query_id": "query-114",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:57:14.906559+09:00",
+      "searched_at": "2026-08-09T15:49:53.219126+09:00",
       "source_ids": [
         "openalex"
       ],
@@ -26850,7 +26858,7 @@
       "query": "chatbot anthropomorphism emotional dependence social connection longitudinal relationship",
       "query_id": "query-115",
       "result_count": 1,
-      "searched_at": "2026-08-09T15:57:14.906563+09:00",
+      "searched_at": "2026-08-09T15:49:53.219134+09:00",
       "source_ids": [
         "arxiv"
       ],
@@ -26861,7 +26869,7 @@
       "query": "chatbot anthropomorphism emotional dependence social connection longitudinal relationship",
       "query_id": "query-116",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:57:17.977278+09:00",
+      "searched_at": "2026-08-09T15:49:56.285050+09:00",
       "source_ids": [
         "openreview"
       ],
@@ -26872,7 +26880,7 @@
       "query": "chatbot anthropomorphism emotional dependence social connection longitudinal relationship",
       "query_id": "query-117",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:57:18.738731+09:00",
+      "searched_at": "2026-08-09T15:49:57.012454+09:00",
       "source_ids": [
         "acl_anthology"
       ],
@@ -26883,7 +26891,7 @@
       "query": "chatbot anthropomorphism emotional dependence social connection longitudinal relationship",
       "query_id": "query-118",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:57:18.739422+09:00",
+      "searched_at": "2026-08-09T15:49:57.013994+09:00",
       "source_ids": [
         "pmlr"
       ],
@@ -26897,7 +26905,7 @@
       "query": "human AI interaction HCI interaction design trust agency collaboration",
       "query_id": "query-119",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:57:18.739477+09:00",
+      "searched_at": "2026-08-09T15:49:57.014115+09:00",
       "source_ids": [
         "openalex"
       ],
@@ -26908,7 +26916,7 @@
       "query": "human AI interaction HCI interaction design trust agency collaboration",
       "query_id": "query-120",
       "result_count": 1,
-      "searched_at": "2026-08-09T15:57:18.739481+09:00",
+      "searched_at": "2026-08-09T15:49:57.014125+09:00",
       "source_ids": [
         "arxiv"
       ],
@@ -26919,7 +26927,7 @@
       "query": "human AI interaction HCI interaction design trust agency collaboration",
       "query_id": "query-121",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:57:21.814536+09:00",
+      "searched_at": "2026-08-09T15:50:00.088724+09:00",
       "source_ids": [
         "openreview"
       ],
@@ -26930,7 +26938,7 @@
       "query": "human AI interaction HCI interaction design trust agency collaboration",
       "query_id": "query-122",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:57:22.717564+09:00",
+      "searched_at": "2026-08-09T15:50:01.042031+09:00",
       "source_ids": [
         "acl_anthology"
       ],
@@ -26941,7 +26949,7 @@
       "query": "human AI interaction HCI interaction design trust agency collaboration",
       "query_id": "query-123",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:57:22.718956+09:00",
+      "searched_at": "2026-08-09T15:50:01.043021+09:00",
       "source_ids": [
         "pmlr"
       ],
@@ -26955,7 +26963,7 @@
       "query": "human AI decision support appropriation longitudinal use CSCW",
       "query_id": "query-124",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:57:22.719019+09:00",
+      "searched_at": "2026-08-09T15:50:01.043139+09:00",
       "source_ids": [
         "openalex"
       ],
@@ -26966,7 +26974,7 @@
       "query": "human AI decision support appropriation longitudinal use CSCW",
       "query_id": "query-125",
       "result_count": 2,
-      "searched_at": "2026-08-09T15:57:22.719024+09:00",
+      "searched_at": "2026-08-09T15:50:01.043148+09:00",
       "source_ids": [
         "arxiv"
       ],
@@ -26977,7 +26985,7 @@
       "query": "human AI decision support appropriation longitudinal use CSCW",
       "query_id": "query-126",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:57:25.795017+09:00",
+      "searched_at": "2026-08-09T15:50:04.109182+09:00",
       "source_ids": [
         "openreview"
       ],
@@ -26988,7 +26996,7 @@
       "query": "human AI decision support appropriation longitudinal use CSCW",
       "query_id": "query-127",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:57:29.036430+09:00",
+      "searched_at": "2026-08-09T15:50:05.427905+09:00",
       "source_ids": [
         "acl_anthology"
       ],
@@ -26999,19 +27007,19 @@
       "query": "human AI decision support appropriation longitudinal use CSCW",
       "query_id": "query-128",
       "result_count": 0,
-      "searched_at": "2026-08-09T15:57:29.037079+09:00",
+      "searched_at": "2026-08-09T15:50:05.428743+09:00",
       "source_ids": [
         "pmlr"
       ],
       "status": "NO_RESULTS"
     }
   ],
-  "run_id": "github-actions-20260809T155456+0900",
+  "run_id": "github-actions-20260809T154732+0900",
   "run_status": "STATE_HISTORY_INCOMPLETE",
   "schema_version": "1.0",
   "source_access": [
     {
-      "accessed_at": "2026-08-09T15:54:56.513896+09:00",
+      "accessed_at": "2026-08-09T15:47:32.998944+09:00",
       "provider": "pubmed",
       "result_count": 40,
       "source_id": "query-001-pubmed",
@@ -27019,7 +27027,7 @@
       "url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
     },
     {
-      "accessed_at": "2026-08-09T15:55:00.024694+09:00",
+      "accessed_at": "2026-08-09T15:47:36.510166+09:00",
       "provider": "europe_pmc",
       "result_count": 40,
       "source_id": "query-002-europe_pmc",
@@ -27027,7 +27035,7 @@
       "url": "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
     },
     {
-      "accessed_at": "2026-08-09T15:55:02.475037+09:00",
+      "accessed_at": "2026-08-09T15:47:38.974700+09:00",
       "provider": "pubmed",
       "result_count": 40,
       "source_id": "query-003-pubmed",
@@ -27035,7 +27043,7 @@
       "url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
     },
     {
-      "accessed_at": "2026-08-09T15:55:05.867425+09:00",
+      "accessed_at": "2026-08-09T15:47:42.638613+09:00",
       "provider": "europe_pmc",
       "result_count": 0,
       "source_id": "query-004-europe_pmc",
@@ -27043,7 +27051,7 @@
       "url": "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
     },
     {
-      "accessed_at": "2026-08-09T15:55:06.216699+09:00",
+      "accessed_at": "2026-08-09T15:47:42.969279+09:00",
       "provider": "pubmed",
       "result_count": 8,
       "source_id": "query-005-pubmed",
@@ -27051,7 +27059,7 @@
       "url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
     },
     {
-      "accessed_at": "2026-08-09T15:55:09.062811+09:00",
+      "accessed_at": "2026-08-09T15:47:45.909483+09:00",
       "provider": "europe_pmc",
       "result_count": 0,
       "source_id": "query-006-europe_pmc",
@@ -27059,7 +27067,7 @@
       "url": "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
     },
     {
-      "accessed_at": "2026-08-09T15:55:09.409566+09:00",
+      "accessed_at": "2026-08-09T15:47:46.374077+09:00",
       "provider": "pubmed",
       "result_count": 40,
       "source_id": "query-007-pubmed",
@@ -27067,7 +27075,7 @@
       "url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
     },
     {
-      "accessed_at": "2026-08-09T15:55:12.169790+09:00",
+      "accessed_at": "2026-08-09T15:47:49.917233+09:00",
       "provider": "europe_pmc",
       "result_count": 40,
       "source_id": "query-008-europe_pmc",
@@ -27075,7 +27083,7 @@
       "url": "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
     },
     {
-      "accessed_at": "2026-08-09T15:55:12.837883+09:00",
+      "accessed_at": "2026-08-09T15:47:50.582753+09:00",
       "provider": "pubmed",
       "result_count": 40,
       "source_id": "query-009-pubmed",
@@ -27083,7 +27091,7 @@
       "url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
     },
     {
-      "accessed_at": "2026-08-09T15:55:15.974327+09:00",
+      "accessed_at": "2026-08-09T15:47:53.781364+09:00",
       "provider": "europe_pmc",
       "result_count": 40,
       "source_id": "query-010-europe_pmc",
@@ -27091,7 +27099,7 @@
       "url": "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
     },
     {
-      "accessed_at": "2026-08-09T15:55:16.571631+09:00",
+      "accessed_at": "2026-08-09T15:47:54.473168+09:00",
       "provider": "pubmed",
       "result_count": 4,
       "source_id": "query-011-pubmed",
@@ -27099,7 +27107,7 @@
       "url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
     },
     {
-      "accessed_at": "2026-08-09T15:55:18.963465+09:00",
+      "accessed_at": "2026-08-09T15:47:57.372991+09:00",
       "provider": "europe_pmc",
       "result_count": 18,
       "source_id": "query-012-europe_pmc",
@@ -27107,7 +27115,7 @@
       "url": "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
     },
     {
-      "accessed_at": "2026-08-09T15:55:19.484052+09:00",
+      "accessed_at": "2026-08-09T15:47:57.883900+09:00",
       "provider": "pubmed",
       "result_count": 19,
       "source_id": "query-013-pubmed",
@@ -27115,7 +27123,7 @@
       "url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
     },
     {
-      "accessed_at": "2026-08-09T15:55:22.414265+09:00",
+      "accessed_at": "2026-08-09T15:48:00.521740+09:00",
       "provider": "europe_pmc",
       "result_count": 23,
       "source_id": "query-014-europe_pmc",
@@ -27123,7 +27131,7 @@
       "url": "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
     },
     {
-      "accessed_at": "2026-08-09T15:55:22.935766+09:00",
+      "accessed_at": "2026-08-09T15:48:01.994296+09:00",
       "provider": "pubmed",
       "result_count": 24,
       "source_id": "query-015-pubmed",
@@ -27131,7 +27139,7 @@
       "url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
     },
     {
-      "accessed_at": "2026-08-09T15:55:25.781651+09:00",
+      "accessed_at": "2026-08-09T15:48:04.515737+09:00",
       "provider": "europe_pmc",
       "result_count": 28,
       "source_id": "query-016-europe_pmc",
@@ -27139,7 +27147,7 @@
       "url": "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
     },
     {
-      "accessed_at": "2026-08-09T15:55:26.339300+09:00",
+      "accessed_at": "2026-08-09T15:48:05.082636+09:00",
       "provider": "pubmed",
       "result_count": 40,
       "source_id": "query-017-pubmed",
@@ -27147,7 +27155,7 @@
       "url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
     },
     {
-      "accessed_at": "2026-08-09T15:55:29.342999+09:00",
+      "accessed_at": "2026-08-09T15:48:08.077993+09:00",
       "provider": "europe_pmc",
       "result_count": 40,
       "source_id": "query-018-europe_pmc",
@@ -27155,7 +27163,7 @@
       "url": "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
     },
     {
-      "accessed_at": "2026-08-09T15:55:30.058108+09:00",
+      "accessed_at": "2026-08-09T15:48:08.717035+09:00",
       "error": "OPENALEX_API_KEY is required for the OpenAlex discovery adapter",
       "provider": "openalex",
       "result_count": 0,
@@ -27164,7 +27172,7 @@
       "url": "https://api.openalex.org/works"
     },
     {
-      "accessed_at": "2026-08-09T15:55:30.058300+09:00",
+      "accessed_at": "2026-08-09T15:48:08.717225+09:00",
       "provider": "arxiv",
       "result_count": 15,
       "source_id": "query-020-arxiv",
@@ -27172,7 +27180,7 @@
       "url": "https://export.arxiv.org/api/query"
     },
     {
-      "accessed_at": "2026-08-09T15:55:33.458637+09:00",
+      "accessed_at": "2026-08-09T15:48:12.142744+09:00",
       "provider": "openreview",
       "result_count": 0,
       "source_id": "query-021-openreview",
@@ -27180,7 +27188,7 @@
       "url": "https://api2.openreview.net/notes/search"
     },
     {
-      "accessed_at": "2026-08-09T15:55:35.707300+09:00",
+      "accessed_at": "2026-08-09T15:48:13.828396+09:00",
       "provider": "acl_anthology",
       "result_count": 0,
       "source_id": "query-022-acl_anthology",
@@ -27188,7 +27196,7 @@
       "url": "https://aclanthology.org/papers/index.xml"
     },
     {
-      "accessed_at": "2026-08-09T15:55:37.381103+09:00",
+      "accessed_at": "2026-08-09T15:48:15.512874+09:00",
       "provider": "pmlr",
       "result_count": 0,
       "source_id": "query-023-pmlr",
@@ -27196,7 +27204,7 @@
       "url": "https://proceedings.mlr.press/"
     },
     {
-      "accessed_at": "2026-08-09T15:55:39.003265+09:00",
+      "accessed_at": "2026-08-09T15:48:18.742583+09:00",
       "error": "Provider circuit open after an earlier check failed: OPENALEX_API_KEY is required for the OpenAlex discovery adapter",
       "provider": "openalex",
       "result_count": 0,
@@ -27205,7 +27213,7 @@
       "url": "https://api.openalex.org/works"
     },
     {
-      "accessed_at": "2026-08-09T15:55:39.003275+09:00",
+      "accessed_at": "2026-08-09T15:48:18.742595+09:00",
       "provider": "arxiv",
       "result_count": 40,
       "source_id": "query-025-arxiv",
@@ -27213,7 +27221,7 @@
       "url": "https://export.arxiv.org/api/query"
     },
     {
-      "accessed_at": "2026-08-09T15:55:42.259450+09:00",
+      "accessed_at": "2026-08-09T15:48:22.091559+09:00",
       "provider": "openreview",
       "result_count": 0,
       "source_id": "query-026-openreview",
@@ -27221,7 +27229,7 @@
       "url": "https://api2.openreview.net/notes/search"
     },
     {
-      "accessed_at": "2026-08-09T15:55:44.441969+09:00",
+      "accessed_at": "2026-08-09T15:48:24.090834+09:00",
       "provider": "acl_anthology",
       "result_count": 0,
       "source_id": "query-027-acl_anthology",
@@ -27229,7 +27237,7 @@
       "url": "https://aclanthology.org/papers/index.xml"
     },
     {
-      "accessed_at": "2026-08-09T15:55:44.442793+09:00",
+      "accessed_at": "2026-08-09T15:48:24.091537+09:00",
       "provider": "pmlr",
       "result_count": 0,
       "source_id": "query-028-pmlr",
@@ -27237,7 +27245,7 @@
       "url": "https://proceedings.mlr.press/"
     },
     {
-      "accessed_at": "2026-08-09T15:55:44.442846+09:00",
+      "accessed_at": "2026-08-09T15:48:24.091592+09:00",
       "error": "Provider circuit open after an earlier check failed: OPENALEX_API_KEY is required for the OpenAlex discovery adapter",
       "provider": "openalex",
       "result_count": 0,
@@ -27246,7 +27254,7 @@
       "url": "https://api.openalex.org/works"
     },
     {
-      "accessed_at": "2026-08-09T15:55:44.442851+09:00",
+      "accessed_at": "2026-08-09T15:48:24.091596+09:00",
       "provider": "arxiv",
       "result_count": 39,
       "source_id": "query-030-arxiv",
@@ -27254,7 +27262,7 @@
       "url": "https://export.arxiv.org/api/query"
     },
     {
-      "accessed_at": "2026-08-09T15:55:47.592873+09:00",
+      "accessed_at": "2026-08-09T15:48:27.377034+09:00",
       "provider": "openreview",
       "result_count": 0,
       "source_id": "query-031-openreview",
@@ -27262,7 +27270,7 @@
       "url": "https://api2.openreview.net/notes/search"
     },
     {
-      "accessed_at": "2026-08-09T15:55:50.588151+09:00",
+      "accessed_at": "2026-08-09T15:48:29.937101+09:00",
       "provider": "acl_anthology",
       "result_count": 0,
       "source_id": "query-032-acl_anthology",
@@ -27270,7 +27278,7 @@
       "url": "https://aclanthology.org/papers/index.xml"
     },
     {
-      "accessed_at": "2026-08-09T15:55:50.589159+09:00",
+      "accessed_at": "2026-08-09T15:48:29.937785+09:00",
       "provider": "pmlr",
       "result_count": 0,
       "source_id": "query-033-pmlr",
@@ -27278,7 +27286,7 @@
       "url": "https://proceedings.mlr.press/"
     },
     {
-      "accessed_at": "2026-08-09T15:55:50.589206+09:00",
+      "accessed_at": "2026-08-09T15:48:29.937836+09:00",
       "error": "Provider circuit open after an earlier check failed: OPENALEX_API_KEY is required for the OpenAlex discovery adapter",
       "provider": "openalex",
       "result_count": 0,
@@ -27287,7 +27295,7 @@
       "url": "https://api.openalex.org/works"
     },
     {
-      "accessed_at": "2026-08-09T15:55:50.589210+09:00",
+      "accessed_at": "2026-08-09T15:48:29.937840+09:00",
       "provider": "arxiv",
       "result_count": 37,
       "source_id": "query-035-arxiv",
@@ -27295,7 +27303,7 @@
       "url": "https://export.arxiv.org/api/query"
     },
     {
-      "accessed_at": "2026-08-09T15:55:53.688116+09:00",
+      "accessed_at": "2026-08-09T15:48:33.095866+09:00",
       "provider": "openreview",
       "result_count": 0,
       "source_id": "query-036-openreview",
@@ -27303,7 +27311,7 @@
       "url": "https://api2.openreview.net/notes/search"
     },
     {
-      "accessed_at": "2026-08-09T15:55:55.772057+09:00",
+      "accessed_at": "2026-08-09T15:48:35.272718+09:00",
       "provider": "acl_anthology",
       "result_count": 0,
       "source_id": "query-037-acl_anthology",
@@ -27311,7 +27319,7 @@
       "url": "https://aclanthology.org/papers/index.xml"
     },
     {
-      "accessed_at": "2026-08-09T15:55:55.772737+09:00",
+      "accessed_at": "2026-08-09T15:48:35.273446+09:00",
       "provider": "pmlr",
       "result_count": 0,
       "source_id": "query-038-pmlr",
@@ -27319,7 +27327,7 @@
       "url": "https://proceedings.mlr.press/"
     },
     {
-      "accessed_at": "2026-08-09T15:55:55.772793+09:00",
+      "accessed_at": "2026-08-09T15:48:35.273500+09:00",
       "error": "Provider circuit open after an earlier check failed: OPENALEX_API_KEY is required for the OpenAlex discovery adapter",
       "provider": "openalex",
       "result_count": 0,
@@ -27328,7 +27336,7 @@
       "url": "https://api.openalex.org/works"
     },
     {
-      "accessed_at": "2026-08-09T15:55:55.772797+09:00",
+      "accessed_at": "2026-08-09T15:48:35.273504+09:00",
       "provider": "arxiv",
       "result_count": 39,
       "source_id": "query-040-arxiv",
@@ -27336,7 +27344,7 @@
       "url": "https://export.arxiv.org/api/query"
     },
     {
-      "accessed_at": "2026-08-09T15:55:58.879968+09:00",
+      "accessed_at": "2026-08-09T15:48:38.382016+09:00",
       "provider": "openreview",
       "result_count": 0,
       "source_id": "query-041-openreview",
@@ -27344,7 +27352,7 @@
       "url": "https://api2.openreview.net/notes/search"
     },
     {
-      "accessed_at": "2026-08-09T15:56:00.774338+09:00",
+      "accessed_at": "2026-08-09T15:48:40.211469+09:00",
       "provider": "acl_anthology",
       "result_count": 0,
       "source_id": "query-042-acl_anthology",
@@ -27352,7 +27360,7 @@
       "url": "https://aclanthology.org/papers/index.xml"
     },
     {
-      "accessed_at": "2026-08-09T15:56:00.775026+09:00",
+      "accessed_at": "2026-08-09T15:48:40.212302+09:00",
       "provider": "pmlr",
       "result_count": 0,
       "source_id": "query-043-pmlr",
@@ -27360,7 +27368,7 @@
       "url": "https://proceedings.mlr.press/"
     },
     {
-      "accessed_at": "2026-08-09T15:56:00.775075+09:00",
+      "accessed_at": "2026-08-09T15:48:40.212363+09:00",
       "error": "Provider circuit open after an earlier check failed: OPENALEX_API_KEY is required for the OpenAlex discovery adapter",
       "provider": "openalex",
       "result_count": 0,
@@ -27369,7 +27377,7 @@
       "url": "https://api.openalex.org/works"
     },
     {
-      "accessed_at": "2026-08-09T15:56:00.775079+09:00",
+      "accessed_at": "2026-08-09T15:48:40.212367+09:00",
       "provider": "arxiv",
       "result_count": 1,
       "source_id": "query-045-arxiv",
@@ -27377,7 +27385,7 @@
       "url": "https://export.arxiv.org/api/query"
     },
     {
-      "accessed_at": "2026-08-09T15:56:03.842381+09:00",
+      "accessed_at": "2026-08-09T15:48:43.282080+09:00",
       "provider": "openreview",
       "result_count": 0,
       "source_id": "query-046-openreview",
@@ -27385,7 +27393,7 @@
       "url": "https://api2.openreview.net/notes/search"
     },
     {
-      "accessed_at": "2026-08-09T15:56:04.848152+09:00",
+      "accessed_at": "2026-08-09T15:48:44.474718+09:00",
       "provider": "acl_anthology",
       "result_count": 0,
       "source_id": "query-047-acl_anthology",
@@ -27393,7 +27401,7 @@
       "url": "https://aclanthology.org/papers/index.xml"
     },
     {
-      "accessed_at": "2026-08-09T15:56:04.848832+09:00",
+      "accessed_at": "2026-08-09T15:48:44.475433+09:00",
       "provider": "pmlr",
       "result_count": 0,
       "source_id": "query-048-pmlr",
@@ -27401,7 +27409,7 @@
       "url": "https://proceedings.mlr.press/"
     },
     {
-      "accessed_at": "2026-08-09T15:56:04.848890+09:00",
+      "accessed_at": "2026-08-09T15:48:44.475484+09:00",
       "error": "Provider circuit open after an earlier check failed: OPENALEX_API_KEY is required for the OpenAlex discovery adapter",
       "provider": "openalex",
       "result_count": 0,
@@ -27410,7 +27418,7 @@
       "url": "https://api.openalex.org/works"
     },
     {
-      "accessed_at": "2026-08-09T15:56:04.848894+09:00",
+      "accessed_at": "2026-08-09T15:48:44.475488+09:00",
       "provider": "arxiv",
       "result_count": 28,
       "source_id": "query-050-arxiv",
@@ -27418,7 +27426,7 @@
       "url": "https://export.arxiv.org/api/query"
     },
     {
-      "accessed_at": "2026-08-09T15:56:07.947181+09:00",
+      "accessed_at": "2026-08-09T15:48:47.581424+09:00",
       "provider": "openreview",
       "result_count": 0,
       "source_id": "query-051-openreview",
@@ -27426,7 +27434,7 @@
       "url": "https://api2.openreview.net/notes/search"
     },
     {
-      "accessed_at": "2026-08-09T15:56:09.437063+09:00",
+      "accessed_at": "2026-08-09T15:48:49.506308+09:00",
       "provider": "acl_anthology",
       "result_count": 0,
       "source_id": "query-052-acl_anthology",
@@ -27434,7 +27442,7 @@
       "url": "https://aclanthology.org/papers/index.xml"
     },
     {
-      "accessed_at": "2026-08-09T15:56:09.437721+09:00",
+      "accessed_at": "2026-08-09T15:48:49.507081+09:00",
       "provider": "pmlr",
       "result_count": 0,
       "source_id": "query-053-pmlr",
@@ -27442,7 +27450,7 @@
       "url": "https://proceedings.mlr.press/"
     },
     {
-      "accessed_at": "2026-08-09T15:56:09.437767+09:00",
+      "accessed_at": "2026-08-09T15:48:49.507132+09:00",
       "error": "Provider circuit open after an earlier check failed: OPENALEX_API_KEY is required for the OpenAlex discovery adapter",
       "provider": "openalex",
       "result_count": 0,
@@ -27451,7 +27459,7 @@
       "url": "https://api.openalex.org/works"
     },
     {
-      "accessed_at": "2026-08-09T15:56:09.437771+09:00",
+      "accessed_at": "2026-08-09T15:48:49.507137+09:00",
       "provider": "arxiv",
       "result_count": 26,
       "source_id": "query-055-arxiv",
@@ -27459,7 +27467,7 @@
       "url": "https://export.arxiv.org/api/query"
     },
     {
-      "accessed_at": "2026-08-09T15:56:12.520010+09:00",
+      "accessed_at": "2026-08-09T15:48:52.602449+09:00",
       "provider": "openreview",
       "result_count": 0,
       "source_id": "query-056-openreview",
@@ -27467,7 +27475,7 @@
       "url": "https://api2.openreview.net/notes/search"
     },
     {
-      "accessed_at": "2026-08-09T15:56:15.689237+09:00",
+      "accessed_at": "2026-08-09T15:48:54.786985+09:00",
       "provider": "acl_anthology",
       "result_count": 0,
       "source_id": "query-057-acl_anthology",
@@ -27475,7 +27483,7 @@
       "url": "https://aclanthology.org/papers/index.xml"
     },
     {
-      "accessed_at": "2026-08-09T15:56:15.689922+09:00",
+      "accessed_at": "2026-08-09T15:48:54.787695+09:00",
       "provider": "pmlr",
       "result_count": 0,
       "source_id": "query-058-pmlr",
@@ -27483,7 +27491,7 @@
       "url": "https://proceedings.mlr.press/"
     },
     {
-      "accessed_at": "2026-08-09T15:56:15.689977+09:00",
+      "accessed_at": "2026-08-09T15:48:54.787751+09:00",
       "error": "Provider circuit open after an earlier check failed: OPENALEX_API_KEY is required for the OpenAlex discovery adapter",
       "provider": "openalex",
       "result_count": 0,
@@ -27492,7 +27500,7 @@
       "url": "https://api.openalex.org/works"
     },
     {
-      "accessed_at": "2026-08-09T15:56:15.689981+09:00",
+      "accessed_at": "2026-08-09T15:48:54.787756+09:00",
       "provider": "arxiv",
       "result_count": 40,
       "source_id": "query-060-arxiv",
@@ -27500,7 +27508,7 @@
       "url": "https://export.arxiv.org/api/query"
     },
     {
-      "accessed_at": "2026-08-09T15:56:18.804275+09:00",
+      "accessed_at": "2026-08-09T15:48:57.894180+09:00",
       "provider": "openreview",
       "result_count": 0,
       "source_id": "query-061-openreview",
@@ -27508,7 +27516,7 @@
       "url": "https://api2.openreview.net/notes/search"
     },
     {
-      "accessed_at": "2026-08-09T15:56:21.252015+09:00",
+      "accessed_at": "2026-08-09T15:49:01.311802+09:00",
       "provider": "acl_anthology",
       "result_count": 0,
       "source_id": "query-062-acl_anthology",
@@ -27516,7 +27524,7 @@
       "url": "https://aclanthology.org/papers/index.xml"
     },
     {
-      "accessed_at": "2026-08-09T15:56:21.252974+09:00",
+      "accessed_at": "2026-08-09T15:49:01.312517+09:00",
       "provider": "pmlr",
       "result_count": 0,
       "source_id": "query-063-pmlr",
@@ -27524,7 +27532,7 @@
       "url": "https://proceedings.mlr.press/"
     },
     {
-      "accessed_at": "2026-08-09T15:56:21.253024+09:00",
+      "accessed_at": "2026-08-09T15:49:01.312567+09:00",
       "error": "Provider circuit open after an earlier check failed: OPENALEX_API_KEY is required for the OpenAlex discovery adapter",
       "provider": "openalex",
       "result_count": 0,
@@ -27533,7 +27541,7 @@
       "url": "https://api.openalex.org/works"
     },
     {
-      "accessed_at": "2026-08-09T15:56:21.253028+09:00",
+      "accessed_at": "2026-08-09T15:49:01.312572+09:00",
       "provider": "arxiv",
       "result_count": 40,
       "source_id": "query-065-arxiv",
@@ -27541,7 +27549,7 @@
       "url": "https://export.arxiv.org/api/query"
     },
     {
-      "accessed_at": "2026-08-09T15:56:24.352272+09:00",
+      "accessed_at": "2026-08-09T15:49:04.423610+09:00",
       "provider": "openreview",
       "result_count": 0,
       "source_id": "query-066-openreview",
@@ -27549,7 +27557,7 @@
       "url": "https://api2.openreview.net/notes/search"
     },
     {
-      "accessed_at": "2026-08-09T15:56:27.600510+09:00",
+      "accessed_at": "2026-08-09T15:49:06.051567+09:00",
       "provider": "acl_anthology",
       "result_count": 0,
       "source_id": "query-067-acl_anthology",
@@ -27557,7 +27565,7 @@
       "url": "https://aclanthology.org/papers/index.xml"
     },
     {
-      "accessed_at": "2026-08-09T15:56:27.601167+09:00",
+      "accessed_at": "2026-08-09T15:49:06.052410+09:00",
       "provider": "pmlr",
       "result_count": 0,
       "source_id": "query-068-pmlr",
@@ -27565,7 +27573,7 @@
       "url": "https://proceedings.mlr.press/"
     },
     {
-      "accessed_at": "2026-08-09T15:56:27.601218+09:00",
+      "accessed_at": "2026-08-09T15:49:06.052512+09:00",
       "error": "Provider circuit open after an earlier check failed: OPENALEX_API_KEY is required for the OpenAlex discovery adapter",
       "provider": "openalex",
       "result_count": 0,
@@ -27574,7 +27582,7 @@
       "url": "https://api.openalex.org/works"
     },
     {
-      "accessed_at": "2026-08-09T15:56:27.601222+09:00",
+      "accessed_at": "2026-08-09T15:49:06.052522+09:00",
       "provider": "arxiv",
       "result_count": 18,
       "source_id": "query-070-arxiv",
@@ -27582,7 +27590,7 @@
       "url": "https://export.arxiv.org/api/query"
     },
     {
-      "accessed_at": "2026-08-09T15:56:30.688742+09:00",
+      "accessed_at": "2026-08-09T15:49:09.143161+09:00",
       "provider": "openreview",
       "result_count": 0,
       "source_id": "query-071-openreview",
@@ -27590,7 +27598,7 @@
       "url": "https://api2.openreview.net/notes/search"
     },
     {
-      "accessed_at": "2026-08-09T15:56:32.458240+09:00",
+      "accessed_at": "2026-08-09T15:49:11.421352+09:00",
       "provider": "acl_anthology",
       "result_count": 0,
       "source_id": "query-072-acl_anthology",
@@ -27598,7 +27606,7 @@
       "url": "https://aclanthology.org/papers/index.xml"
     },
     {
-      "accessed_at": "2026-08-09T15:56:32.458900+09:00",
+      "accessed_at": "2026-08-09T15:49:11.422048+09:00",
       "provider": "pmlr",
       "result_count": 0,
       "source_id": "query-073-pmlr",
@@ -27606,7 +27614,7 @@
       "url": "https://proceedings.mlr.press/"
     },
     {
-      "accessed_at": "2026-08-09T15:56:32.458950+09:00",
+      "accessed_at": "2026-08-09T15:49:11.422099+09:00",
       "error": "Provider circuit open after an earlier check failed: OPENALEX_API_KEY is required for the OpenAlex discovery adapter",
       "provider": "openalex",
       "result_count": 0,
@@ -27615,7 +27623,7 @@
       "url": "https://api.openalex.org/works"
     },
     {
-      "accessed_at": "2026-08-09T15:56:32.458954+09:00",
+      "accessed_at": "2026-08-09T15:49:11.422103+09:00",
       "provider": "arxiv",
       "result_count": 40,
       "source_id": "query-075-arxiv",
@@ -27623,7 +27631,7 @@
       "url": "https://export.arxiv.org/api/query"
     },
     {
-      "accessed_at": "2026-08-09T15:56:35.570235+09:00",
+      "accessed_at": "2026-08-09T15:49:14.525650+09:00",
       "provider": "openreview",
       "result_count": 0,
       "source_id": "query-076-openreview",
@@ -27631,7 +27639,7 @@
       "url": "https://api2.openreview.net/notes/search"
     },
     {
-      "accessed_at": "2026-08-09T15:56:36.826221+09:00",
+      "accessed_at": "2026-08-09T15:49:15.907473+09:00",
       "provider": "acl_anthology",
       "result_count": 0,
       "source_id": "query-077-acl_anthology",
@@ -27639,7 +27647,7 @@
       "url": "https://aclanthology.org/papers/index.xml"
     },
     {
-      "accessed_at": "2026-08-09T15:56:36.826881+09:00",
+      "accessed_at": "2026-08-09T15:49:15.908255+09:00",
       "provider": "pmlr",
       "result_count": 0,
       "source_id": "query-078-pmlr",
@@ -27647,7 +27655,7 @@
       "url": "https://proceedings.mlr.press/"
     },
     {
-      "accessed_at": "2026-08-09T15:56:36.826929+09:00",
+      "accessed_at": "2026-08-09T15:49:15.908311+09:00",
       "error": "Provider circuit open after an earlier check failed: OPENALEX_API_KEY is required for the OpenAlex discovery adapter",
       "provider": "openalex",
       "result_count": 0,
@@ -27656,7 +27664,7 @@
       "url": "https://api.openalex.org/works"
     },
     {
-      "accessed_at": "2026-08-09T15:56:36.826933+09:00",
+      "accessed_at": "2026-08-09T15:49:15.908316+09:00",
       "provider": "arxiv",
       "result_count": 40,
       "source_id": "query-080-arxiv",
@@ -27664,7 +27672,7 @@
       "url": "https://export.arxiv.org/api/query"
     },
     {
-      "accessed_at": "2026-08-09T15:56:39.935484+09:00",
+      "accessed_at": "2026-08-09T15:49:19.022646+09:00",
       "provider": "openreview",
       "result_count": 0,
       "source_id": "query-081-openreview",
@@ -27672,7 +27680,7 @@
       "url": "https://api2.openreview.net/notes/search"
     },
     {
-      "accessed_at": "2026-08-09T15:56:41.773726+09:00",
+      "accessed_at": "2026-08-09T15:49:20.653228+09:00",
       "provider": "acl_anthology",
       "result_count": 0,
       "source_id": "query-082-acl_anthology",
@@ -27680,7 +27688,7 @@
       "url": "https://aclanthology.org/papers/index.xml"
     },
     {
-      "accessed_at": "2026-08-09T15:56:41.774360+09:00",
+      "accessed_at": "2026-08-09T15:49:20.653888+09:00",
       "provider": "pmlr",
       "result_count": 0,
       "source_id": "query-083-pmlr",
@@ -27688,7 +27696,7 @@
       "url": "https://proceedings.mlr.press/"
     },
     {
-      "accessed_at": "2026-08-09T15:56:41.774405+09:00",
+      "accessed_at": "2026-08-09T15:49:20.653983+09:00",
       "error": "Provider circuit open after an earlier check failed: OPENALEX_API_KEY is required for the OpenAlex discovery adapter",
       "provider": "openalex",
       "result_count": 0,
@@ -27697,7 +27705,7 @@
       "url": "https://api.openalex.org/works"
     },
     {
-      "accessed_at": "2026-08-09T15:56:41.774409+09:00",
+      "accessed_at": "2026-08-09T15:49:20.653992+09:00",
       "provider": "arxiv",
       "result_count": 28,
       "source_id": "query-085-arxiv",
@@ -27705,7 +27713,7 @@
       "url": "https://export.arxiv.org/api/query"
     },
     {
-      "accessed_at": "2026-08-09T15:56:44.873048+09:00",
+      "accessed_at": "2026-08-09T15:49:23.756833+09:00",
       "provider": "openreview",
       "result_count": 0,
       "source_id": "query-086-openreview",
@@ -27713,7 +27721,7 @@
       "url": "https://api2.openreview.net/notes/search"
     },
     {
-      "accessed_at": "2026-08-09T15:56:46.275442+09:00",
+      "accessed_at": "2026-08-09T15:49:25.539523+09:00",
       "provider": "acl_anthology",
       "result_count": 0,
       "source_id": "query-087-acl_anthology",
@@ -27721,7 +27729,7 @@
       "url": "https://aclanthology.org/papers/index.xml"
     },
     {
-      "accessed_at": "2026-08-09T15:56:46.276095+09:00",
+      "accessed_at": "2026-08-09T15:49:25.540317+09:00",
       "provider": "pmlr",
       "result_count": 0,
       "source_id": "query-088-pmlr",
@@ -27729,7 +27737,7 @@
       "url": "https://proceedings.mlr.press/"
     },
     {
-      "accessed_at": "2026-08-09T15:56:46.276144+09:00",
+      "accessed_at": "2026-08-09T15:49:25.540371+09:00",
       "error": "Provider circuit open after an earlier check failed: OPENALEX_API_KEY is required for the OpenAlex discovery adapter",
       "provider": "openalex",
       "result_count": 0,
@@ -27738,7 +27746,7 @@
       "url": "https://api.openalex.org/works"
     },
     {
-      "accessed_at": "2026-08-09T15:56:46.276148+09:00",
+      "accessed_at": "2026-08-09T15:49:25.540376+09:00",
       "provider": "arxiv",
       "result_count": 38,
       "source_id": "query-090-arxiv",
@@ -27746,7 +27754,7 @@
       "url": "https://export.arxiv.org/api/query"
     },
     {
-      "accessed_at": "2026-08-09T15:56:49.383943+09:00",
+      "accessed_at": "2026-08-09T15:49:28.649139+09:00",
       "provider": "openreview",
       "result_count": 0,
       "source_id": "query-091-openreview",
@@ -27754,7 +27762,7 @@
       "url": "https://api2.openreview.net/notes/search"
     },
     {
-      "accessed_at": "2026-08-09T15:56:51.761846+09:00",
+      "accessed_at": "2026-08-09T15:49:32.126454+09:00",
       "provider": "acl_anthology",
       "result_count": 0,
       "source_id": "query-092-acl_anthology",
@@ -27762,7 +27770,7 @@
       "url": "https://aclanthology.org/papers/index.xml"
     },
     {
-      "accessed_at": "2026-08-09T15:56:51.762747+09:00",
+      "accessed_at": "2026-08-09T15:49:32.127322+09:00",
       "provider": "pmlr",
       "result_count": 0,
       "source_id": "query-093-pmlr",
@@ -27770,7 +27778,7 @@
       "url": "https://proceedings.mlr.press/"
     },
     {
-      "accessed_at": "2026-08-09T15:56:51.762842+09:00",
+      "accessed_at": "2026-08-09T15:49:32.127426+09:00",
       "error": "Provider circuit open after an earlier check failed: OPENALEX_API_KEY is required for the OpenAlex discovery adapter",
       "provider": "openalex",
       "result_count": 0,
@@ -27779,7 +27787,7 @@
       "url": "https://api.openalex.org/works"
     },
     {
-      "accessed_at": "2026-08-09T15:56:51.762850+09:00",
+      "accessed_at": "2026-08-09T15:49:32.127436+09:00",
       "provider": "arxiv",
       "result_count": 29,
       "source_id": "query-095-arxiv",
@@ -27787,7 +27795,7 @@
       "url": "https://export.arxiv.org/api/query"
     },
     {
-      "accessed_at": "2026-08-09T15:56:54.859349+09:00",
+      "accessed_at": "2026-08-09T15:49:35.225867+09:00",
       "provider": "openreview",
       "result_count": 0,
       "source_id": "query-096-openreview",
@@ -27795,7 +27803,7 @@
       "url": "https://api2.openreview.net/notes/search"
     },
     {
-      "accessed_at": "2026-08-09T15:56:58.411751+09:00",
+      "accessed_at": "2026-08-09T15:49:37.712706+09:00",
       "provider": "acl_anthology",
       "result_count": 0,
       "source_id": "query-097-acl_anthology",
@@ -27803,7 +27811,7 @@
       "url": "https://aclanthology.org/papers/index.xml"
     },
     {
-      "accessed_at": "2026-08-09T15:56:58.412457+09:00",
+      "accessed_at": "2026-08-09T15:49:37.713592+09:00",
       "provider": "pmlr",
       "result_count": 0,
       "source_id": "query-098-pmlr",
@@ -27811,7 +27819,7 @@
       "url": "https://proceedings.mlr.press/"
     },
     {
-      "accessed_at": "2026-08-09T15:56:58.412515+09:00",
+      "accessed_at": "2026-08-09T15:49:37.713677+09:00",
       "error": "Provider circuit open after an earlier check failed: OPENALEX_API_KEY is required for the OpenAlex discovery adapter",
       "provider": "openalex",
       "result_count": 0,
@@ -27820,7 +27828,7 @@
       "url": "https://api.openalex.org/works"
     },
     {
-      "accessed_at": "2026-08-09T15:56:58.412519+09:00",
+      "accessed_at": "2026-08-09T15:49:37.713682+09:00",
       "provider": "arxiv",
       "result_count": 40,
       "source_id": "query-100-arxiv",
@@ -27828,7 +27836,7 @@
       "url": "https://export.arxiv.org/api/query"
     },
     {
-      "accessed_at": "2026-08-09T15:57:01.524585+09:00",
+      "accessed_at": "2026-08-09T15:49:40.829438+09:00",
       "provider": "openreview",
       "result_count": 0,
       "source_id": "query-101-openreview",
@@ -27836,7 +27844,7 @@
       "url": "https://api2.openreview.net/notes/search"
     },
     {
-      "accessed_at": "2026-08-09T15:57:03.590088+09:00",
+      "accessed_at": "2026-08-09T15:49:42.890869+09:00",
       "provider": "acl_anthology",
       "result_count": 0,
       "source_id": "query-102-acl_anthology",
@@ -27844,7 +27852,7 @@
       "url": "https://aclanthology.org/papers/index.xml"
     },
     {
-      "accessed_at": "2026-08-09T15:57:03.590766+09:00",
+      "accessed_at": "2026-08-09T15:49:42.892408+09:00",
       "provider": "pmlr",
       "result_count": 0,
       "source_id": "query-103-pmlr",
@@ -27852,7 +27860,7 @@
       "url": "https://proceedings.mlr.press/"
     },
     {
-      "accessed_at": "2026-08-09T15:57:03.590813+09:00",
+      "accessed_at": "2026-08-09T15:49:42.892466+09:00",
       "error": "Provider circuit open after an earlier check failed: OPENALEX_API_KEY is required for the OpenAlex discovery adapter",
       "provider": "openalex",
       "result_count": 0,
@@ -27861,7 +27869,7 @@
       "url": "https://api.openalex.org/works"
     },
     {
-      "accessed_at": "2026-08-09T15:57:03.590817+09:00",
+      "accessed_at": "2026-08-09T15:49:42.892471+09:00",
       "provider": "arxiv",
       "result_count": 40,
       "source_id": "query-105-arxiv",
@@ -27869,7 +27877,7 @@
       "url": "https://export.arxiv.org/api/query"
     },
     {
-      "accessed_at": "2026-08-09T15:57:06.694398+09:00",
+      "accessed_at": "2026-08-09T15:49:46.002361+09:00",
       "provider": "openreview",
       "result_count": 0,
       "source_id": "query-106-openreview",
@@ -27877,7 +27885,7 @@
       "url": "https://api2.openreview.net/notes/search"
     },
     {
-      "accessed_at": "2026-08-09T15:57:10.436454+09:00",
+      "accessed_at": "2026-08-09T15:49:48.474891+09:00",
       "provider": "acl_anthology",
       "result_count": 0,
       "source_id": "query-107-acl_anthology",
@@ -27885,7 +27893,7 @@
       "url": "https://aclanthology.org/papers/index.xml"
     },
     {
-      "accessed_at": "2026-08-09T15:57:10.437782+09:00",
+      "accessed_at": "2026-08-09T15:49:48.475638+09:00",
       "provider": "pmlr",
       "result_count": 0,
       "source_id": "query-108-pmlr",
@@ -27893,7 +27901,7 @@
       "url": "https://proceedings.mlr.press/"
     },
     {
-      "accessed_at": "2026-08-09T15:57:10.437885+09:00",
+      "accessed_at": "2026-08-09T15:49:48.475705+09:00",
       "error": "Provider circuit open after an earlier check failed: OPENALEX_API_KEY is required for the OpenAlex discovery adapter",
       "provider": "openalex",
       "result_count": 0,
@@ -27902,7 +27910,7 @@
       "url": "https://api.openalex.org/works"
     },
     {
-      "accessed_at": "2026-08-09T15:57:10.437899+09:00",
+      "accessed_at": "2026-08-09T15:49:48.475711+09:00",
       "provider": "arxiv",
       "result_count": 7,
       "source_id": "query-110-arxiv",
@@ -27910,7 +27918,7 @@
       "url": "https://export.arxiv.org/api/query"
     },
     {
-      "accessed_at": "2026-08-09T15:57:13.518499+09:00",
+      "accessed_at": "2026-08-09T15:49:51.554438+09:00",
       "provider": "openreview",
       "result_count": 0,
       "source_id": "query-111-openreview",
@@ -27918,7 +27926,7 @@
       "url": "https://api2.openreview.net/notes/search"
     },
     {
-      "accessed_at": "2026-08-09T15:57:14.905858+09:00",
+      "accessed_at": "2026-08-09T15:49:53.218002+09:00",
       "provider": "acl_anthology",
       "result_count": 0,
       "source_id": "query-112-acl_anthology",
@@ -27926,7 +27934,7 @@
       "url": "https://aclanthology.org/papers/index.xml"
     },
     {
-      "accessed_at": "2026-08-09T15:57:14.906512+09:00",
+      "accessed_at": "2026-08-09T15:49:53.219030+09:00",
       "provider": "pmlr",
       "result_count": 0,
       "source_id": "query-113-pmlr",
@@ -27934,7 +27942,7 @@
       "url": "https://proceedings.mlr.press/"
     },
     {
-      "accessed_at": "2026-08-09T15:57:14.906559+09:00",
+      "accessed_at": "2026-08-09T15:49:53.219126+09:00",
       "error": "Provider circuit open after an earlier check failed: OPENALEX_API_KEY is required for the OpenAlex discovery adapter",
       "provider": "openalex",
       "result_count": 0,
@@ -27943,7 +27951,7 @@
       "url": "https://api.openalex.org/works"
     },
     {
-      "accessed_at": "2026-08-09T15:57:14.906563+09:00",
+      "accessed_at": "2026-08-09T15:49:53.219134+09:00",
       "provider": "arxiv",
       "result_count": 1,
       "source_id": "query-115-arxiv",
@@ -27951,7 +27959,7 @@
       "url": "https://export.arxiv.org/api/query"
     },
     {
-      "accessed_at": "2026-08-09T15:57:17.977278+09:00",
+      "accessed_at": "2026-08-09T15:49:56.285050+09:00",
       "provider": "openreview",
       "result_count": 0,
       "source_id": "query-116-openreview",
@@ -27959,7 +27967,7 @@
       "url": "https://api2.openreview.net/notes/search"
     },
     {
-      "accessed_at": "2026-08-09T15:57:18.738731+09:00",
+      "accessed_at": "2026-08-09T15:49:57.012454+09:00",
       "provider": "acl_anthology",
       "result_count": 0,
       "source_id": "query-117-acl_anthology",
@@ -27967,7 +27975,7 @@
       "url": "https://aclanthology.org/papers/index.xml"
     },
     {
-      "accessed_at": "2026-08-09T15:57:18.739422+09:00",
+      "accessed_at": "2026-08-09T15:49:57.013994+09:00",
       "provider": "pmlr",
       "result_count": 0,
       "source_id": "query-118-pmlr",
@@ -27975,7 +27983,7 @@
       "url": "https://proceedings.mlr.press/"
     },
     {
-      "accessed_at": "2026-08-09T15:57:18.739477+09:00",
+      "accessed_at": "2026-08-09T15:49:57.014115+09:00",
       "error": "Provider circuit open after an earlier check failed: OPENALEX_API_KEY is required for the OpenAlex discovery adapter",
       "provider": "openalex",
       "result_count": 0,
@@ -27984,7 +27992,7 @@
       "url": "https://api.openalex.org/works"
     },
     {
-      "accessed_at": "2026-08-09T15:57:18.739481+09:00",
+      "accessed_at": "2026-08-09T15:49:57.014125+09:00",
       "provider": "arxiv",
       "result_count": 1,
       "source_id": "query-120-arxiv",
@@ -27992,7 +28000,7 @@
       "url": "https://export.arxiv.org/api/query"
     },
     {
-      "accessed_at": "2026-08-09T15:57:21.814536+09:00",
+      "accessed_at": "2026-08-09T15:50:00.088724+09:00",
       "provider": "openreview",
       "result_count": 0,
       "source_id": "query-121-openreview",
@@ -28000,7 +28008,7 @@
       "url": "https://api2.openreview.net/notes/search"
     },
     {
-      "accessed_at": "2026-08-09T15:57:22.717564+09:00",
+      "accessed_at": "2026-08-09T15:50:01.042031+09:00",
       "provider": "acl_anthology",
       "result_count": 0,
       "source_id": "query-122-acl_anthology",
@@ -28008,7 +28016,7 @@
       "url": "https://aclanthology.org/papers/index.xml"
     },
     {
-      "accessed_at": "2026-08-09T15:57:22.718956+09:00",
+      "accessed_at": "2026-08-09T15:50:01.043021+09:00",
       "provider": "pmlr",
       "result_count": 0,
       "source_id": "query-123-pmlr",
@@ -28016,7 +28024,7 @@
       "url": "https://proceedings.mlr.press/"
     },
     {
-      "accessed_at": "2026-08-09T15:57:22.719019+09:00",
+      "accessed_at": "2026-08-09T15:50:01.043139+09:00",
       "error": "Provider circuit open after an earlier check failed: OPENALEX_API_KEY is required for the OpenAlex discovery adapter",
       "provider": "openalex",
       "result_count": 0,
@@ -28025,7 +28033,7 @@
       "url": "https://api.openalex.org/works"
     },
     {
-      "accessed_at": "2026-08-09T15:57:22.719024+09:00",
+      "accessed_at": "2026-08-09T15:50:01.043148+09:00",
       "provider": "arxiv",
       "result_count": 2,
       "source_id": "query-125-arxiv",
@@ -28033,7 +28041,7 @@
       "url": "https://export.arxiv.org/api/query"
     },
     {
-      "accessed_at": "2026-08-09T15:57:25.795017+09:00",
+      "accessed_at": "2026-08-09T15:50:04.109182+09:00",
       "provider": "openreview",
       "result_count": 0,
       "source_id": "query-126-openreview",
@@ -28041,7 +28049,7 @@
       "url": "https://api2.openreview.net/notes/search"
     },
     {
-      "accessed_at": "2026-08-09T15:57:29.036430+09:00",
+      "accessed_at": "2026-08-09T15:50:05.427905+09:00",
       "provider": "acl_anthology",
       "result_count": 0,
       "source_id": "query-127-acl_anthology",
@@ -28049,7 +28057,7 @@
       "url": "https://aclanthology.org/papers/index.xml"
     },
     {
-      "accessed_at": "2026-08-09T15:57:29.037079+09:00",
+      "accessed_at": "2026-08-09T15:50:05.428743+09:00",
       "provider": "pmlr",
       "result_count": 0,
       "source_id": "query-128-pmlr",
@@ -28057,7 +28065,7 @@
       "url": "https://proceedings.mlr.press/"
     },
     {
-      "accessed_at": "2026-08-09T15:54:56.477906+09:00",
+      "accessed_at": "2026-08-09T15:47:32.961944+09:00",
       "candidate_title": "Ultrasound-guided thermal ablation in patients affected by Graves' disease: a systematic review and meta-analysis.",
       "category": "clinical_medicine",
       "error": "publisher redirect loop detected",
@@ -28070,46 +28078,46 @@
       "work_id": "doi:10.1007/s12020-026-04740-2"
     },
     {
-      "accessed_at": "2026-08-09T15:54:56.477906+09:00",
+      "accessed_at": "2026-08-09T15:47:32.961944+09:00",
+      "candidate_title": "Risk factors associated with delirium in older emergency department patients: A systematic review and meta-analysis.",
+      "category": "clinical_medicine",
+      "http_status": 200,
+      "provider": "publisher",
+      "result_count": 1,
+      "source_id": "publisher-002",
+      "status": "SUCCESS",
+      "url": "https://www.ovid.com/jnls/md-journal/fulltext/10.1097/md.0000000000050157~risk-factors-associated-with-delirium-in-older-emergency",
+      "work_id": "doi:10.1097/md.0000000000050157"
+    },
+    {
+      "accessed_at": "2026-08-09T15:47:32.961944+09:00",
       "candidate_title": "The Effects of Oral Contraceptives on Muscle Hypertrophy.",
       "category": "sport_science",
       "error": "publisher domain budget reached before access: www.thieme-connect.de",
       "http_status": 302,
       "provider": "publisher",
       "result_count": 0,
-      "source_id": "publisher-002",
+      "source_id": "publisher-003",
       "status": "FAILED",
       "url": "https://www.thieme-connect.de/products/all/doi/10.1055/a-2933-1360",
       "work_id": "doi:10.1055/a-2933-1360"
     },
     {
-      "accessed_at": "2026-08-09T15:54:56.477906+09:00",
+      "accessed_at": "2026-08-09T15:47:32.961944+09:00",
       "candidate_title": "Childhood emotional maltreatment and trauma-related outcomes: a systematic review and multilevel meta-analysis.",
       "category": "clinical_medicine",
       "error": "publisher blocked automated access with HTTP 403",
       "http_status": 403,
       "provider": "publisher",
       "result_count": 0,
-      "source_id": "publisher-003",
+      "source_id": "publisher-004",
       "status": "FAILED",
       "url": "https://www.tandfonline.com/doi/full/10.1080/20008066.2026.2694185",
       "work_id": "doi:10.1080/20008066.2026.2694185"
     },
     {
-      "accessed_at": "2026-08-09T15:54:56.477906+09:00",
+      "accessed_at": "2026-08-09T15:47:32.961944+09:00",
       "candidate_title": "Association of oral vancomycin prophylaxis with Clostridium difficile infection in hematopoietic stem cell transplant recipients: A systematic review and meta-analysis.",
-      "category": "clinical_medicine",
-      "http_status": 200,
-      "provider": "publisher",
-      "result_count": 1,
-      "source_id": "publisher-004",
-      "status": "SUCCESS",
-      "url": "https://www.ovid.com/jnls/md-journal/fulltext/10.1097/md.0000000000050096~association-of-oral-vancomycin-prophylaxis-with-clostridium",
-      "work_id": "doi:10.1097/md.0000000000050096"
-    },
-    {
-      "accessed_at": "2026-08-09T15:54:56.477906+09:00",
-      "candidate_title": "Ropeginterferon alfa-2b in Polycythemia Vera: A systematic review and meta-analysis.",
       "category": "clinical_medicine",
       "error": "publisher domain budget reached before access: www.ovid.com",
       "http_status": 302,
@@ -28117,38 +28125,38 @@
       "result_count": 0,
       "source_id": "publisher-005",
       "status": "FAILED",
+      "url": "https://www.ovid.com/10.1097/MD.0000000000050096",
+      "work_id": "doi:10.1097/md.0000000000050096"
+    },
+    {
+      "accessed_at": "2026-08-09T15:47:32.961944+09:00",
+      "candidate_title": "Ropeginterferon alfa-2b in Polycythemia Vera: A systematic review and meta-analysis.",
+      "category": "clinical_medicine",
+      "error": "publisher domain budget reached before access: www.ovid.com",
+      "http_status": 302,
+      "provider": "publisher",
+      "result_count": 0,
+      "source_id": "publisher-006",
+      "status": "FAILED",
       "url": "https://www.ovid.com/10.1097/MD.0000000000050143",
       "work_id": "doi:10.1097/md.0000000000050143"
     },
     {
-      "accessed_at": "2026-08-09T15:54:56.477906+09:00",
+      "accessed_at": "2026-08-09T15:47:32.961944+09:00",
       "candidate_title": "Inter-hospital ICU-to-ICU transfer of critically ill COVID-19 patients is not associated with increased mortality: a systematic review with exploratory meta-analysis.",
       "category": "clinical_medicine",
       "error": "publisher redirect loop detected",
       "http_status": 302,
       "provider": "publisher",
       "result_count": 0,
-      "source_id": "publisher-006",
+      "source_id": "publisher-007",
       "status": "FAILED",
       "url": "https://www.nature.com/articles/s41598-026-62965-7",
       "work_id": "doi:10.1038/s41598-026-62965-7"
     },
     {
-      "accessed_at": "2026-08-09T15:54:56.477906+09:00",
+      "accessed_at": "2026-08-09T15:47:32.961944+09:00",
       "candidate_title": "Aerobic exercise and sleep-related outcomes in children and adolescents: A systematic review and meta-analysis of randomized controlled trials.",
-      "category": "clinical_medicine",
-      "error": "publisher domain budget reached before access: www.ovid.com",
-      "http_status": 302,
-      "provider": "publisher",
-      "result_count": 0,
-      "source_id": "publisher-007",
-      "status": "FAILED",
-      "url": "https://www.ovid.com/10.1097/MD.0000000000050049",
-      "work_id": "doi:10.1097/md.0000000000050049"
-    },
-    {
-      "accessed_at": "2026-08-09T15:54:56.477906+09:00",
-      "candidate_title": "Effectiveness of acupuncture and related therapies for post-stroke insomnia: A systematic review and Bayesian network analysis.",
       "category": "clinical_medicine",
       "error": "publisher domain budget reached before access: www.ovid.com",
       "http_status": 302,
@@ -28156,99 +28164,98 @@
       "result_count": 0,
       "source_id": "publisher-008",
       "status": "FAILED",
+      "url": "https://www.ovid.com/10.1097/MD.0000000000050049",
+      "work_id": "doi:10.1097/md.0000000000050049"
+    },
+    {
+      "accessed_at": "2026-08-09T15:47:32.961944+09:00",
+      "candidate_title": "Effectiveness of acupuncture and related therapies for post-stroke insomnia: A systematic review and Bayesian network analysis.",
+      "category": "clinical_medicine",
+      "error": "publisher domain budget reached before access: www.ovid.com",
+      "http_status": 302,
+      "provider": "publisher",
+      "result_count": 0,
+      "source_id": "publisher-009",
+      "status": "FAILED",
       "url": "https://www.ovid.com/10.1097/MD.0000000000050081",
       "work_id": "doi:10.1097/md.0000000000050081"
     },
     {
-      "accessed_at": "2026-08-09T15:54:56.477906+09:00",
+      "accessed_at": "2026-08-09T15:47:32.961944+09:00",
       "candidate_title": "Prehabilitation in adult cancer patients: an overview of systematic reviews.",
       "category": "clinical_medicine",
       "error": "publisher blocked automated access with HTTP 403",
       "http_status": 403,
       "provider": "publisher",
       "result_count": 0,
-      "source_id": "publisher-009",
+      "source_id": "publisher-010",
       "status": "FAILED",
       "url": "https://bmjopen.bmj.com/lookup/doi/10.1136/bmjopen-2025-116006",
       "work_id": "doi:10.1136/bmjopen-2025-116006"
     },
     {
-      "accessed_at": "2026-08-09T15:54:56.477906+09:00",
+      "accessed_at": "2026-08-09T15:47:32.961944+09:00",
+      "candidate_title": "The effect of daytime napping on the athletic performance of team ball sports athletes: systematic review and meta-analysis.",
+      "category": "sport_science",
+      "http_status": 200,
+      "provider": "publisher",
+      "result_count": 1,
+      "source_id": "publisher-011",
+      "status": "SUCCESS",
+      "url": "https://www.frontiersin.org/journals/physiology/articles/10.3389/fphys.2026.1878224/full",
+      "work_id": "doi:10.3389/fphys.2026.1878224"
+    },
+    {
+      "accessed_at": "2026-08-09T15:47:32.961944+09:00",
       "candidate_title": "Methodological determinants and prevalence of elevated intracranial pressure in isolated single-suture craniosynostosis: a systematic review and meta-analysis.",
       "category": "clinical_medicine",
       "error": "publisher domain budget reached before access: link.springer.com",
       "http_status": 302,
       "provider": "publisher",
       "result_count": 0,
-      "source_id": "publisher-010",
+      "source_id": "publisher-012",
       "status": "FAILED",
       "url": "https://link.springer.com/10.1007/s00381-026-07418-2",
       "work_id": "doi:10.1007/s00381-026-07418-2"
     },
     {
-      "accessed_at": "2026-08-09T15:54:56.477906+09:00",
+      "accessed_at": "2026-08-09T15:47:32.961944+09:00",
       "candidate_title": "Occupational risk factors for suicide: A systematic review and meta-analysis.",
       "category": "clinical_medicine",
       "error": "publisher domain budget reached before access: www.ovid.com",
       "http_status": 302,
       "provider": "publisher",
       "result_count": 0,
-      "source_id": "publisher-011",
+      "source_id": "publisher-013",
       "status": "FAILED",
       "url": "https://www.ovid.com/10.1097/MD.0000000000049903",
       "work_id": "doi:10.1097/md.0000000000049903"
     },
     {
-      "accessed_at": "2026-08-09T15:54:56.477906+09:00",
+      "accessed_at": "2026-08-09T15:47:32.961944+09:00",
       "candidate_title": "Association of methylenetetrahydrofolate reductase C677T polymorphism with lacunar infarction: A systematic review and meta-analysis.",
       "category": "clinical_medicine",
       "error": "publisher domain budget reached before access: www.ovid.com",
       "http_status": 302,
       "provider": "publisher",
       "result_count": 0,
-      "source_id": "publisher-012",
+      "source_id": "publisher-014",
       "status": "FAILED",
       "url": "https://www.ovid.com/10.1097/MD.0000000000050084",
       "work_id": "doi:10.1097/md.0000000000050084"
     },
     {
-      "accessed_at": "2026-08-09T15:54:56.477906+09:00",
+      "accessed_at": "2026-08-09T15:47:32.961944+09:00",
       "candidate_title": "Examining the effect of session duration on step count in the Step it UP! Game.",
       "category": "sport_nutrition_fitness",
       "error": "publisher blocked automated access with HTTP 403",
       "http_status": 403,
       "provider": "publisher",
       "result_count": 0,
-      "source_id": "publisher-013",
+      "source_id": "publisher-015",
       "status": "FAILED",
       "url": "https://onlinelibrary.wiley.com/doi/10.1002/jaba.70076",
       "work_id": "doi:10.1002/jaba.70076"
-    },
-    {
-      "accessed_at": "2026-08-09T15:54:56.477906+09:00",
-      "candidate_title": "The Vascular Genome as a Therapeutic Target: A Systematic Review of CRISPR-based Gene Editing In Vascular Disease.",
-      "category": "clinical_medicine",
-      "error": "publisher domain budget reached before access: link.springer.com",
-      "http_status": 302,
-      "provider": "publisher",
-      "result_count": 0,
-      "source_id": "publisher-014",
-      "status": "FAILED",
-      "url": "https://link.springer.com/10.1007/s12012-026-10170-3",
-      "work_id": "doi:10.1007/s12012-026-10170-3"
-    },
-    {
-      "accessed_at": "2026-08-09T15:54:56.477906+09:00",
-      "candidate_title": "Foot and Ankle Fractures in the Elderly: A Review on Osteoporosis, Biomechanics, and Rehabilitation.",
-      "category": "sport_science",
-      "error": "publisher domain budget reached before access: link.springer.com",
-      "http_status": 302,
-      "provider": "publisher",
-      "result_count": 0,
-      "source_id": "publisher-015",
-      "status": "FAILED",
-      "url": "https://link.springer.com/10.1007/s43465-026-01718-0",
-      "work_id": "doi:10.1007/s43465-026-01718-0"
     }
   ],
   "source_coverage": {
@@ -28266,7 +28273,7 @@
     ],
     "checks": [
       {
-        "checked_at": "2026-08-09T15:57:29.036430+09:00",
+        "checked_at": "2026-08-09T15:50:05.427905+09:00",
         "result_count": 0,
         "source_id": "acl_anthology",
         "stage": "discovery",
@@ -28275,7 +28282,7 @@
         "url": "https://aclanthology.org/papers/index.xml"
       },
       {
-        "checked_at": "2026-08-09T15:57:22.719024+09:00",
+        "checked_at": "2026-08-09T15:50:01.043148+09:00",
         "result_count": 589,
         "source_id": "arxiv",
         "stage": "discovery",
@@ -28284,7 +28291,7 @@
         "url": "https://export.arxiv.org/api/query"
       },
       {
-        "checked_at": "2026-08-09T15:55:29.342999+09:00",
+        "checked_at": "2026-08-09T15:48:08.077993+09:00",
         "result_count": 229,
         "source_id": "europe_pmc",
         "stage": "discovery",
@@ -28293,20 +28300,20 @@
         "url": "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
       },
       {
-        "checked_at": "2026-08-09T15:54:56.477906+09:00",
+        "checked_at": "2026-08-09T15:47:32.961944+09:00",
         "notes": [
-          "Publisher access target was 10-15; only 1 source pages were accessible.",
+          "Publisher access target was 10-15; only 2 source pages were accessible.",
           "Publisher access stopped for blocked domains: bmjopen.bmj.com, onlinelibrary.wiley.com, www.tandfonline.com"
         ],
-        "result_count": 1,
+        "result_count": 2,
         "source_id": "formal_proceedings_or_publisher",
         "stage": "bounded_verification",
         "status": "FAILED",
-        "summary": "Bounded verification attempted 15 page(s); 1 succeeded and 14 failed.",
+        "summary": "Bounded verification attempted 15 page(s); 2 succeeded and 13 failed.",
         "url": "https://doi.org/"
       },
       {
-        "checked_at": "2026-08-09T15:57:22.719019+09:00",
+        "checked_at": "2026-08-09T15:50:01.043139+09:00",
         "notes": [
           "OPENALEX_API_KEY is required for the OpenAlex discovery adapter",
           "Provider circuit open after an earlier check failed: OPENALEX_API_KEY is required for the OpenAlex discovery adapter"
@@ -28319,7 +28326,7 @@
         "url": "https://api.openalex.org/works"
       },
       {
-        "checked_at": "2026-08-09T15:57:25.795017+09:00",
+        "checked_at": "2026-08-09T15:50:04.109182+09:00",
         "result_count": 0,
         "source_id": "openreview",
         "stage": "discovery",
@@ -28328,7 +28335,7 @@
         "url": "https://api2.openreview.net/notes/search"
       },
       {
-        "checked_at": "2026-08-09T15:57:29.037079+09:00",
+        "checked_at": "2026-08-09T15:50:05.428743+09:00",
         "result_count": 0,
         "source_id": "pmlr",
         "stage": "discovery",
@@ -28337,20 +28344,20 @@
         "url": "https://proceedings.mlr.press/"
       },
       {
-        "checked_at": "2026-08-09T15:54:56.477906+09:00",
+        "checked_at": "2026-08-09T15:47:32.961944+09:00",
         "notes": [
-          "Publisher access target was 10-15; only 1 source pages were accessible.",
+          "Publisher access target was 10-15; only 2 source pages were accessible.",
           "Publisher access stopped for blocked domains: bmjopen.bmj.com, onlinelibrary.wiley.com, www.tandfonline.com"
         ],
-        "result_count": 1,
+        "result_count": 2,
         "source_id": "publisher",
         "stage": "bounded_verification",
         "status": "FAILED",
-        "summary": "Bounded verification attempted 15 page(s); 1 succeeded and 14 failed.",
+        "summary": "Bounded verification attempted 15 page(s); 2 succeeded and 13 failed.",
         "url": "https://doi.org/"
       },
       {
-        "checked_at": "2026-08-09T15:55:26.339300+09:00",
+        "checked_at": "2026-08-09T15:48:05.082636+09:00",
         "result_count": 255,
         "source_id": "pubmed",
         "stage": "discovery",
@@ -28390,7 +28397,7 @@
       "publisher"
     ]
   },
-  "started_at": "2026-08-09T15:54:56.477906+09:00",
+  "started_at": "2026-08-09T15:47:32.961944+09:00",
   "warnings": [
     {
       "code": "SUMMARY_TRANSLATION_NOT_CONFIGURED",
@@ -28404,7 +28411,7 @@
     },
     {
       "code": "PUBLISHER_ACCESS_BELOW_TARGET",
-      "message": "Publisher access target was 10-15; only 1 source pages were accessible.",
+      "message": "Publisher access target was 10-15; only 2 source pages were accessible.",
       "severity": "WARNING"
     },
     {
@@ -28424,8 +28431,8 @@
     }
   ],
   "window": {
-    "end": "2026-08-09T15:54:56.477906+09:00",
+    "end": "2026-08-09T15:47:32.961944+09:00",
     "hours": 72,
-    "start": "2026-08-06T15:54:56.477906+09:00"
+    "start": "2026-08-06T15:47:32.961944+09:00"
   }
 }

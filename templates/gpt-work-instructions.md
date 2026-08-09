@@ -34,6 +34,15 @@ Produce and validate:
 
 HTML is the primary delivery. It must agree with the JSON artifacts. Do not write to GitHub, invoke MCP/server/Codex, run the legacy Python crawler, or trigger TA/TP03/image generation unless the user separately requests that downstream work.
 
+The HTML delivery contract is machine-checkable. In `<head>`, emit exactly one
+meta value for `evidenceradar-run-id`, `evidenceradar-execution-lane`,
+`evidenceradar-protocol-commit`, and
+`evidenceradar-displayed-candidates`. Mark every displayed item with one unique
+`data-evidenceradar-work-id` whose value equals its Run candidate `work_id`.
+The displayed marker set must exactly equal candidates where
+`displayed_in_report: true`; `counts.displayed_candidates` and
+`counts.deduplicated_candidates` must agree with HTML and the complete ledger.
+
 For every new State and Run artifact, set `execution_lane` to
 `chatgpt_work`, record the exact `protocol_commit` or Work Pack source commit,
 record the SHA-256 of the canonical JSON form of the input State as
@@ -49,3 +58,20 @@ necessary; never pad candidates or treat access as claim verification.
 If the GitHub canonical State and this Work State later diverge, return this
 State as a separate artifact for deterministic merging with
 `tools/merge_radar_state.py`; do not overwrite either branch by timestamp.
+
+Before returning files, run both validators from the Work Pack:
+
+```sh
+python3 tools/validate_gpt_work_artifacts.py \
+  EvidenceRadar_State.json EvidenceRadar_Evidence.json EvidenceRadar_Run.json
+python3 tools/validate_delivery_bundle.py \
+  --root . --bundle . --expected-lane chatgpt_work --manifest manifest.json
+```
+
+Return `EvidenceRadar_Report.html` as an actual downloadable file, not only a
+filesystem path. A Work project cannot create a public URL for a local file.
+If the user separately authorizes GitHub publication, publish only the
+validated four-file bundle through review, wait for the repository Pages job,
+then return the deployed `report_url` and `links_json_url`. Never invent or
+announce the Pages URL before deployment succeeds, and never label a Work run
+as `github_actions`.
