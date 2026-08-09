@@ -11,10 +11,10 @@
     "normalized_title"
   ],
   "execution_lane": "github_actions",
-  "generated_at": "2026-08-09T10:03:09.137644+09:00",
+  "generated_at": "2026-08-09T14:35:26.251657+09:00",
   "history_note": "Canonical prior state was loaded.",
   "history_status": "STATE_HISTORY_INCOMPLETE",
-  "last_run_id": "github-actions-20260809T100233+0900",
+  "last_run_id": "github-actions-20260809T143450+0900",
   "notes": [
     "Automated GitHub lane records only event candidates whose source page was accessible."
   ],
@@ -71,7 +71,7 @@
       "confidence": "provider_metadata",
       "event_id": "event:dbe8f42489cadce21730a5f84bfe6d3aa854a88186547d8461e562194c6efbe9",
       "event_type": "first_formal_indexing",
-      "notified_at": "2026-08-09T10:03:09.137644+09:00",
+      "notified_at": "2026-08-09T14:35:26.251657+09:00",
       "occurred_at": "2026-08-07",
       "precision": "date",
       "source": "PubMed",
@@ -93,7 +93,9 @@
     }
   ],
   "parent_run_ids": [
-    "github-actions-20260809T092119+0900"
+    "github-actions-20260809T092119+0900",
+    "github-actions-20260809T100233+0900",
+    "github-actions-20260809T143450+0900"
   ],
   "protocol_commit": "e64629fea01243482af1ab89a95ffb6c1ddf3b92",
   "schema_version": "1.0",
@@ -155,7 +157,7 @@
         "pmid": "42566592"
       },
       "is_preprint": false,
-      "last_seen_at": "2026-08-09T10:03:09.137644+09:00",
+      "last_seen_at": "2026-08-09T14:35:26.251657+09:00",
       "normalized_title": "efficacy and safety of first line immune checkpoint inhibitors combinations for extensive stage small cell lung cancer a systematic review and network meta analysis",
       "notified_event_ids": [
         "event:dbe8f42489cadce21730a5f84bfe6d3aa854a88186547d8461e562194c6efbe9"
