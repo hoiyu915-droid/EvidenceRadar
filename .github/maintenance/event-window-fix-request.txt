@@ -1,1 +1,0 @@
-Apply the bounded 72-hour event-gate and report-explanation producer fix, then self-clean the bootstrap before full regression testing.

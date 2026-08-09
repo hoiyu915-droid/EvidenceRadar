@@ -2337,6 +2337,15 @@ def annotate_candidate_event_classes(
         event = qualifying_event(candidate, start, end, timezone)
         classification = event_class(candidate, event, start)
         candidate.event_class = classification
+        if event is None:
+            candidate.triage_reasons = sorted(
+                set(candidate.triage_reasons) | {"MISSING_QUALIFYING_EVENT"}
+            )
+            # Missing the event gate must never masquerade as a priority
+            # recommendation.  REVIEW_REQUIRED remains visible for safety,
+            # but is separately excluded from Featured by event_status below.
+            if candidate.triage_status == "PRIORITY":
+                candidate.triage_status = "LOWER_PRIORITY"
         if classification == "BACKFILL_INDEXING":
             candidate.triage_reasons = sorted(
                 set(candidate.triage_reasons) | {"BACKFILL_INDEXING"}
@@ -4285,7 +4294,8 @@ def select_featured_work_ids(
         eligible = [
             item
             for item in items
-            if str(item.get("event_class") or "OTHER") not in excluded_event_classes
+            if str(item.get("event_status") or "") != "NO_QUALIFYING_EVENT"
+            and str(item.get("event_class") or "OTHER") not in excluded_event_classes
         ]
         eligible.sort(
             key=lambda item: (
@@ -4329,6 +4339,7 @@ def render_report(
     featured_excluded_event_classes: set[str] | None = None,
 ) -> str:
     displayed = [item for item in candidate_records if item["displayed_in_report"]]
+    window_hours = max(1, round((end - start).total_seconds() / 3600))
     featured_work_ids = select_featured_work_ids(
         displayed,
         target_per_category=featured_target_per_category,
@@ -4386,6 +4397,16 @@ def render_report(
         "PROVIDER_ABSTRACT_EXCERPT": "舊版來源摘要節錄",
         "TITLE_ONLY": "舊版題名層級簡述",
     }
+    event_type_labels = {
+        "version_of_record_first_online": "正式版首次上線",
+        "first_formal_indexing": "首次正式索引",
+        "formal_proceedings_release": "正式 proceedings 釋出",
+        "oa_fulltext_first_available": "OA 全文首次可得",
+        "author_accepted_manuscript_first_available": "作者接受稿首次可得",
+        "embargo_lifted": "embargo 解禁",
+        "preprint_to_peer_reviewed_upgrade": "預印本升級為同儕審查版本",
+        "formal_version_verified": "正式版本事件已驗證",
+    }
     rank_by_work = {
         str(item["work_id"]): index
         for index, item in enumerate(displayed, start=1)
@@ -4397,6 +4418,7 @@ def render_report(
         priority_count = len([
             item for item in items
             if item["triage_status"] in {"PRIORITY", "REVIEW_REQUIRED"}
+            and item.get("event_status") != "NO_QUALIFYING_EVENT"
         ])
         for item in items:
             rank = rank_by_work[str(item["work_id"])]
@@ -4448,6 +4470,20 @@ def render_report(
             summary_text = str(item.get("content_summary") or "尚無內容簡述。")
             venue = str(item.get("venue") or ", ".join(item["discovery_sources"]))
             publication_date = str(item.get("publication_date") or "日期未提供")
+            if event:
+                event_type = str(event.get("event_type") or "")
+                occurred_at = str(event.get("occurred_at") or "")
+                event_source = str(event.get("source") or "")
+                event_field = str(event.get("source_field") or "")
+                window_reason = (
+                    f"納入：{event_type_labels.get(event_type, event_type)}於 {occurred_at}；"
+                    f"{event_source} / {event_field} 落在本輪 {window_hours} 小時觀測窗。"
+                )
+            else:
+                window_reason = (
+                    f"未納入：沒有合格事件落在本輪 {window_hours} 小時觀測窗；"
+                    "此項僅因完整候選池保留政策而顯示。"
+                )
             discovery_sources = [str(value) for value in item["discovery_sources"]]
             classification = str(item.get("event_class") or "OTHER")
             oa_status = str(item.get("oa_status") or "UNKNOWN")
@@ -4469,12 +4505,15 @@ def render_report(
                 "FAILED": "全文：檢查失敗",
                 "NOT_CHECKED": "全文：未檢查",
             }.get(access_status, f"全文：{access_status}")
-            event_class_label = {
-                "NEW_PUBLICATION": "新發表",
-                "BACKFILL_INDEXING": "回補索引",
-                "CORRECTION_NOTICE": "更正／撤回稽核",
-                "OTHER": "事件待分流",
-            }.get(classification, classification)
+            if str(item.get("event_status") or "") == "NO_QUALIFYING_EVENT":
+                event_class_label = f"無 {window_hours}h 新事件"
+            else:
+                event_class_label = {
+                    "NEW_PUBLICATION": "新發表",
+                    "BACKFILL_INDEXING": "回補索引",
+                    "CORRECTION_NOTICE": "更正／撤回稽核",
+                    "OTHER": "事件待分流",
+                }.get(classification, classification)
             source_badges = "".join(
                 f'<span class="source-chip">{html.escape(value)}</span>'
                 for value in discovery_sources
@@ -4541,6 +4580,7 @@ def render_report(
                 '</section>'
                 '<div class="paper-meta">'
                 f'<span><b>日期</b>{html.escape(publication_date)}</span>'
+                f'<span class="window-reason"><b>{window_hours} 小時納入理由</b>{html.escape(window_reason)}</span>'
                 f'<span><b>來源／期刊</b>{html.escape(venue)}</span>'
                 f'<span><b>事件</b>{html.escape(str(item["event_status"]))}</span>'
                 '</div>'
@@ -4595,7 +4635,7 @@ def render_report(
             '</span>'
             '</summary>'
             '<div class="featured-heading"><strong>今日精選</strong>'
-            f'<span>{featured_count} / {len(items)} 項；特殊索引與更正項目保留在完整池</span></div>'
+            f'<span>{featured_count} / {len(items)} 項；無合格 {window_hours} 小時事件、特殊索引與更正項目保留在完整池</span></div>'
             f'<div class="paper-grid featured-grid">{featured_html}</div>'
             '<details class="full-pool">'
             f'<summary><span>完整候選池</span><span>{len(full_pool_cards)} 項</span></summary>'
@@ -4688,6 +4728,7 @@ def render_report(
     priority_total = len([
         item for item in displayed
         if item["triage_status"] in {"PRIORITY", "REVIEW_REQUIRED"}
+        and item.get("event_status") != "NO_QUALIFYING_EVENT"
     ])
     abstract_summary_total = len([
         item for item in displayed
@@ -4736,11 +4777,11 @@ h1{margin:.1rem 0 .45rem;font-size:clamp(2rem,5vw,3.5rem);line-height:1.08;lette
 .paper-card h3{margin:0 0 9px;font-size:1.12rem;line-height:1.38;letter-spacing:-.012em}.paper-card h3 a{color:#0f2942}
 .source-chips{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:12px}.source-chip{padding:2px 7px;border-radius:999px;background:var(--brand-soft);color:var(--brand);font-size:.7rem;font-weight:800}.study-chip{display:inline-flex;align-items:center;width:max-content;border-radius:999px;padding:3px 8px;font-size:.72rem;font-weight:850;letter-spacing:.025em;color:var(--violet);background:var(--violet-soft)}
 .content-preview{margin:0 0 13px;padding:13px 14px;border-left:4px solid #0ea5e9;border-radius:0 10px 10px 0;background:#f0f9ff}.preview-heading{display:flex;justify-content:space-between;gap:12px;margin-bottom:5px;font-size:.77rem;font-weight:850;color:#075985}.preview-heading span{font-weight:600;color:#64748b}.content-preview p{margin:0;color:#1e3a4f;line-height:1.65}
-.paper-meta{display:grid;grid-template-columns:.75fr 1.5fr .9fr;gap:8px;margin-top:auto}.paper-meta span{min-width:0;color:#475569;font-size:.82rem}.paper-meta b{display:block;color:#64748b;font-size:.68rem;text-transform:uppercase;letter-spacing:.04em}.authors{margin:10px 0 0;color:#52606d;font-size:.82rem}
+.paper-meta{display:grid;grid-template-columns:minmax(110px,.65fr) minmax(0,2.35fr);gap:8px;margin-top:auto}.paper-meta span{min-width:0;color:#475569;font-size:.82rem}.paper-meta b{display:block;color:#64748b;font-size:.68rem;text-transform:uppercase;letter-spacing:.04em}.window-reason{padding:7px 9px;border-radius:8px;background:#f8fafc}.authors{margin:10px 0 0;color:#52606d;font-size:.82rem}
 .audit-details{margin-top:13px;padding-top:11px;border-top:1px solid #e7edf3}.audit-details>summary{cursor:pointer;color:var(--brand);font-weight:750;font-size:.84rem}.audit-grid{display:grid;grid-template-columns:130px minmax(0,1fr);gap:8px 12px;margin:13px 0 0;padding:12px;border-radius:10px;background:#f8fafc;font-size:.82rem}.audit-grid dt{color:#64748b;font-weight:750}.audit-grid dd{min-width:0;margin:0;overflow-wrap:anywhere}.source-links{display:flex;gap:6px;flex-wrap:wrap}.source-button{display:inline-flex;padding:3px 8px;border:1px solid #bfdbfe;border-radius:7px;text-decoration:none}.audit-note{margin:10px 0 0;color:#7c2d12;font-size:.76rem}.inline-alert{margin:9px 0 0;padding:8px;border-radius:8px;color:var(--bad);background:var(--bad-soft);font-size:.78rem}.muted{color:var(--muted)}
 .empty-state{margin:18px 0;padding:28px;border:1px dashed #94a3b8;border-radius:14px;text-align:center;color:var(--muted);background:#fff}.warning-list{margin:0;padding-left:1.25rem}.warning-list li+li{margin-top:8px}.footer-note{margin:30px 0;color:#64748b;font-size:.84rem}
 @media(max-width:980px){.metrics{grid-template-columns:repeat(2,1fr)}.controls{grid-template-columns:1fr 1fr}.control-actions{grid-column:1/-1}.paper-grid{grid-template-columns:1fr}}
-@media(max-width:620px){.page-shell{width:min(100% - 18px,1280px)}.hero{margin-top:9px;border-radius:16px}.metrics{grid-template-columns:1fr 1fr}.controls{position:static;grid-template-columns:1fr}.control-actions{grid-column:auto}.paper-grid{padding:0 9px 11px}.paper-card{padding:14px}.paper-meta{grid-template-columns:1fr 1fr}.audit-grid{grid-template-columns:1fr}.category-count{white-space:normal}.panel>summary,.category>summary{padding:14px}.preview-heading{display:block}.preview-heading span{display:block;margin-top:2px}.featured-heading{display:block;padding:0 9px 8px}.featured-heading span{display:block;margin-top:2px}.full-pool{margin-left:9px;margin-right:9px}.run-line{gap:6px 10px}.run-line span{width:100%}}
+@media(max-width:620px){.page-shell{width:min(100% - 18px,1280px)}.hero{margin-top:9px;border-radius:16px}.metrics{grid-template-columns:1fr 1fr}.controls{position:static;grid-template-columns:1fr}.control-actions{grid-column:auto}.paper-grid{padding:0 9px 11px}.paper-card{padding:14px}.paper-meta{grid-template-columns:1fr}.audit-grid{grid-template-columns:1fr}.category-count{white-space:normal}.panel>summary,.category>summary{padding:14px}.preview-heading{display:block}.preview-heading span{display:block;margin-top:2px}.featured-heading{display:block;padding:0 9px 8px}.featured-heading span{display:block;margin-top:2px}.full-pool{margin-left:9px;margin-right:9px}.run-line{gap:6px 10px}.run-line span{width:100%}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
 @media print{body{background:#fff}.page-shell{width:100%}.controls,.jump-links{display:none}.hero{color:#111;background:#fff;border:1px solid #bbb;box-shadow:none}.lede,.run-line,.metric span{color:#333}.metrics{grid-template-columns:repeat(4,1fr)}.metric{border-color:#bbb}.paper-grid{grid-template-columns:1fr}.paper-card{break-inside:avoid;box-shadow:none}}
 """
@@ -4882,7 +4923,7 @@ h1{margin:.1rem 0 .45rem;font-size:clamp(2rem,5vw,3.5rem);line-height:1.08;lette
 <main>
 <section id="candidate-pool" aria-labelledby="candidate-heading">
 <h2 id="candidate-heading">本輪候選池</h2>
-<p class="panel-intro">每類先顯示約 {featured_target_per_category}–{featured_hard_max_per_category} 項精選；完整去重候選仍保留在收合的完整池，可搜尋、展開與依事件分流。分數只協助閱讀順序，不代表研究價值。</p>
+<p class="panel-intro">今日精選只接受本輪 {window_hours} 小時內有合格事件的候選；每類再依閱讀層級與分數顯示約 {featured_target_per_category}–{featured_hard_max_per_category} 項。完整去重候選仍保留在收合的完整池，可搜尋、展開與依事件分流；無合格事件者不會被標成今日優先。分數只協助閱讀順序，不代表研究價值。</p>
 <div id="empty-state" class="empty-state" hidden>沒有符合目前篩選條件的候選。</div>
 {candidate_html}
 </section>
