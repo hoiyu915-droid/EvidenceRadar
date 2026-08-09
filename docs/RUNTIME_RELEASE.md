@@ -70,12 +70,15 @@ reproducible.
 
 ## GitHub Release publication
 
-The `Runtime release` workflow is the authoritative publication path. It is
-manual by design because a Runtime version is immutable.
+The `Runtime release` workflow is the authoritative publication path. It runs
+automatically when files that can change the Runtime package are merged to
+`main`, and it also supports manual dispatch for an explicit publication/retry.
+Ordinary State/artifact writeback commits do not match the Runtime paths and do
+not create a new Runtime release.
 
 Before publishing, the workflow:
 
-1. requires the workflow to run from `main`;
+1. requires the workflow to run from the exact current `main` commit;
 2. checks out full Git history and tags;
 3. installs active runtime requirements;
 4. runs public-release validation and the full unittest suite;
@@ -85,8 +88,9 @@ Before publishing, the workflow:
 8. refuses to reuse an existing `runtime-v<VERSION>` tag or GitHub Release;
 9. creates the GitHub Release and uploads the ZIP plus checksum.
 
-To change Runtime code after publication, bump `runtime/VERSION` and publish a
-new version. Do not replace or mutate an existing release asset.
+A package-surface change after publication therefore requires a
+`runtime/VERSION` bump. Reusing a published version fails closed instead of
+replacing its assets. Do not mutate or replace an existing release asset.
 
 ## Local user workflow
 
