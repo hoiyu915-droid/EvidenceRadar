@@ -30,6 +30,15 @@ github_actions:
   canonical_state: state/current/EvidenceRadar_State.json
   immutable_runs_directory: runs
   writeback: repository
+  stale_writeback_behavior: fail_without_rebase
+
+public_delivery:
+  provider: github_pages
+  publish_only_validated_current_bundle: true
+  stable_report_url_pattern: https://OWNER.github.io/REPOSITORY/
+  links_json_path: links.json
+  immutable_report_path_pattern: runs/RUN_ID/
+  github_blob_is_not_html_preview: true
 
 provider_credentials:
   OPENALEX_API_KEY:

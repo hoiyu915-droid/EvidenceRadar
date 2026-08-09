@@ -22,7 +22,10 @@ class ProtocolSurfaceTests(unittest.TestCase):
         self.assertFalse((ROOT / ".manual-run").exists())
         workflow_dir = ROOT / ".github" / "workflows"
         workflows = list(workflow_dir.glob("*.yml")) + list(workflow_dir.glob("*.yaml"))
-        self.assertEqual(["daily-radar.yml", "public-release.yml"], sorted(path.name for path in workflows))
+        self.assertEqual(
+            ["daily-radar.yml", "pages.yml", "public-release.yml"],
+            sorted(path.name for path in workflows),
+        )
 
         maintenance = (workflow_dir / "public-release.yml").read_text(encoding="utf-8")
         self.assertIn("python tools/validate_public_release.py", maintenance)
@@ -37,6 +40,10 @@ class ProtocolSurfaceTests(unittest.TestCase):
         self.assertIn("workflow_dispatch:", daily)
         self.assertIn("contents: write", daily)
         self.assertIn("python tools/run_github_radar.py", daily)
+
+        pages = (workflow_dir / "pages.yml").read_text(encoding="utf-8")
+        self.assertIn("actions/deploy-pages@v5.0.0", pages)
+        self.assertIn("python tools/build_pages_site.py", pages)
 
     def test_new_runner_is_separate_from_archived_runtime(self) -> None:
         self.assertFalse((ROOT / "src").exists())
@@ -93,6 +100,8 @@ class ProtocolSurfaceTests(unittest.TestCase):
     def test_state_merge_and_work_pack_are_public_surfaces(self) -> None:
         self.assertTrue((ROOT / "tools" / "merge_radar_state.py").exists())
         self.assertTrue((ROOT / "tools" / "build_work_pack.py").exists())
+        self.assertTrue((ROOT / "tools" / "validate_delivery_bundle.py").exists())
+        self.assertTrue((ROOT / "tools" / "build_pages_site.py").exists())
         self.assertTrue((ROOT / "release" / "work-pack-manifest.json").exists())
         self.assertTrue((ROOT / "docs" / "GITHUB_DEPLOYMENT.md").exists())
         self.assertTrue((ROOT / "docs" / "WORK_SETUP.md").exists())
@@ -122,6 +131,8 @@ class ProtocolSurfaceTests(unittest.TestCase):
             "parent_run_ids",
         ):
             self.assertIn(provenance, protocol)
+        self.assertIn("data-evidenceradar-work-id", protocol)
+        self.assertIn("links.json", protocol)
 
     def test_historical_outputs_remain_present(self) -> None:
         self.assertTrue((ROOT / "daily" / "20260808 1013.Rader.md").exists())

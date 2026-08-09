@@ -17,6 +17,9 @@ credentials，也不把其中一條的執行誤當成另一條的 source verific
 3. 確認 default branch 已包含 `requirements.txt`、`tools/run_github_radar.py`
    與目前的 schema/config。先用 **Run workflow** 做一次手動 smoke run，再
    讓每日排程接手。
+4. 在 **Settings → Pages → Build and deployment** 把 Source 設成
+   **GitHub Actions**。`pages.yml` 只會發布通過四件套、provenance、候選
+   ledger/HTML 數量與 producer-version 檢查的 current bundle。
 
 每個 template/fork 都是自己的狀態邊界。在 **Settings → Secrets and variables
 → Actions** 建立：
@@ -84,6 +87,30 @@ state/current/EvidenceRadar_State.json
 也會把四檔保存到 `runs/<run_id>/` 作 immutable run record，並在提交前確認
 current State 與 canonical State byte-identical。不要手動刪除 state 來繞過
 dedupe 或 publisher hard max；先檢查 run log、source access 與 schema validation。
+
+## 可直接點閱的 HTML 與 links.json
+
+GitHub 的 blob/raw 頁面不是 HTML 預覽；ChatGPT Work 的本機路徑也不是公開網址。
+`.github/workflows/pages.yml` 會在 current bundle 通過 delivery validator 後，把
+報告部署為 GitHub Pages。一般 template/fork 的固定網址為：
+
+```text
+https://OWNER.github.io/REPOSITORY/
+```
+
+同一網站的 `links.json` 提供可機器讀取的連結：
+
+- `report_url`：最新可直接閱讀的 HTML；
+- `latest.run_json`／`latest.evidence_json`／`latest.state_json`：最新 JSON；
+- `immutable_run.report_html`：該 run 不變的 HTML 路徑。
+
+Pages workflow 的 deployment 成功前，不應把推算網址宣稱為已可用。Work 若需要
+公開連結，先交付實際 HTML 檔，再經審閱的 GitHub publication 更新 bundle；部署
+完成後讀取 `links.json` 回傳網址。
+
+每日 workflow 不再對更新過的 default branch 執行 `pull --rebase`。它在 push 前
+比較 remote SHA 與啟動時 `GITHUB_SHA`；任何 Work／maintainer／另一 lane 的新
+commit 都會讓 stale bundle 停止發布，留待下一輪以最新 canonical State 重跑。
 
 每輪 Run 的 `source_coverage` 與 Evidence 的 `coverage` 都會逐一列出每個
 configured source 的 CHECK summary。欄位 `requested`、`checked`、`searched`、

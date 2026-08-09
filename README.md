@@ -126,6 +126,15 @@ true。`publisher` 與 `formal_proceedings_or_publisher` 都是
 `state/current/EvidenceRadar_State.json`；目前產出位於 `artifacts/current/`；
 每次完整快照位於 `runs/<run_id>/`。
 
+公開 repository 可用 GitHub Pages 把驗證後的 current HTML 變成真正可直接點閱
+的網址：`https://OWNER.github.io/REPOSITORY/`。部署同時產生 `links.json`，列出
+最新報告、三份 JSON 與 immutable run 的固定連結。GitHub blob/raw 網址與
+ChatGPT Work 的本機路徑不算 HTML 交付；Pages deployment 成功後才回報公開連結。
+
+`tools/validate_delivery_bundle.py` 會把四件套視為一個整體，檢查 producer/lane
+provenance、canonical State、source coverage、完整候選 ledger，以及 HTML 實際
+顯示的 work IDs。這道閘門防止舊 runner 或舊 Work Pack 在新版合併後覆寫 current。
+
 Work 與 GitHub 從不同 State 分支執行時，使用 deterministic union，不能用較新的
 檔案直接覆蓋另一條 lane：
 
@@ -168,6 +177,8 @@ Run status 只可使用 `COMPLETE`、`PARTIAL_SOURCE_COVERAGE`、
 - [`tools/run_github_radar.py`](tools/run_github_radar.py)：新的 GitHub lane runner
 - [`tools/merge_radar_state.py`](tools/merge_radar_state.py)：雙 lane State union
 - [`tools/build_work_pack.py`](tools/build_work_pack.py)：可重現 Work Pack builder
+- [`tools/validate_delivery_bundle.py`](tools/validate_delivery_bundle.py)：四件套與 HTML 一致性／producer 閘門
+- [`tools/build_pages_site.py`](tools/build_pages_site.py)：產生 Pages 站點與 `links.json`
 - [`templates/gpt-work-instructions.md`](templates/gpt-work-instructions.md)：Work 指令
 - [`docs/MIGRATION_DUAL_LANE_1.0.md`](docs/MIGRATION_DUAL_LANE_1.0.md)：相容性與 rollback
 - [`LEGACY_RUNTIME.md`](LEGACY_RUNTIME.md)：2026-08-08 前 runtime provenance

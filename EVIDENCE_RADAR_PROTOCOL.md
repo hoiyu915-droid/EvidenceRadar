@@ -240,6 +240,14 @@ The self-contained HTML provides text search, category/triage/source filters,
 collapsible category sections and expandable audit details without removing
 any candidate from the report.
 
+HTML delivery is part of the artifact contract, not a best-effort preview.
+Every report carries `evidenceradar-run-id`, `evidenceradar-execution-lane`,
+`evidenceradar-protocol-commit` and `evidenceradar-displayed-candidates` meta
+values. Every rendered candidate carries exactly one
+`data-evidenceradar-work-id`. The complete Run ledger, its displayed subset and
+the HTML marker set must agree before State can advance or a public link can be
+published.
+
 ## 11. State synchronization and concurrency
 
 GitHub Actions serializes its writeback lane with a repository-scoped
@@ -274,6 +282,15 @@ the merged artifact before replacing canonical State.
   never enter config, artifacts, logs or the Work Pack.
 - Each deployment owns its State. Upstream historical data is not silently
   shared with downstream deployments.
+- A GitHub blob/raw URL and a ChatGPT Work local path are not direct HTML
+  delivery. A reviewed current bundle may be published through GitHub Pages;
+  the deployment emits `links.json` with stable latest and immutable-run URLs.
+- Public deployment runs `tools/validate_delivery_bundle.py` in addition to
+  per-file schema validation. It rejects stale producer files, lane/protocol
+  mismatches, divergent canonical State and JSON/HTML candidate-count drift.
+- Repository writeback is compare-and-swap. If the default branch advances
+  after a run starts, that run stops instead of rebasing stale artifacts over
+  the newer canonical bundle.
 
 See `docs/GITHUB_DEPLOYMENT.md` and `docs/WORK_SETUP.md`.
 

@@ -27,7 +27,9 @@ class WorkPackTests(unittest.TestCase):
             "docs/WORK_SETUP.md",
             "docs/MIGRATION_DUAL_LANE_1.0.md",
             "schemas/evidence-radar-state.schema.json",
+            "tools/delivery_contract.py",
             "tools/merge_radar_state.py",
+            "tools/validate_delivery_bundle.py",
             "tools/validate_gpt_work_artifacts.py",
         ):
             self.assertIn(required, paths)
@@ -61,6 +63,7 @@ class WorkPackTests(unittest.TestCase):
                 self.assertEqual("manifest.json", names[-1])
                 manifest = json.loads(archive.read("manifest.json"))
                 self.assertEqual("evidenceradar-work-pack", manifest["format"])
+                self.assertEqual("1.1.0", manifest["pack_version"])
                 self.assertEqual(len(manifest["files"]), manifest["file_count"])
                 self.assertTrue(manifest["reproducible"])
                 for item in manifest["files"]:
@@ -101,6 +104,15 @@ class WorkPackTests(unittest.TestCase):
                 check=False,
             )
             self.assertEqual(0, validation.returncode, validation.stdout)
+            delivery_help = subprocess.run(
+                [sys.executable, "tools/validate_delivery_bundle.py", "--help"],
+                cwd=extracted,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                check=False,
+            )
+            self.assertEqual(0, delivery_help.returncode, delivery_help.stdout)
             merged_dir = temporary / "merged"
             merged_dir.mkdir()
             merged_state = merged_dir / "EvidenceRadar_State.json"
