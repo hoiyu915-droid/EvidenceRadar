@@ -3444,6 +3444,15 @@ def build_retrieval_ledger(
         if not source_id or source_id in represented_sources:
             continue
         status = str(check.get("status") or "NOT_ATTEMPTED")
+        result_count = int(check.get("result_count") or 0)
+        # A source CHECK is an aggregate: it can remain FAILED when at least
+        # one constituent operation failed even though another operation
+        # retained results.  The synthetic executor receipt must preserve that
+        # distinction as PARTIAL instead of claiming a failed request returned
+        # usable results.
+        receipt_status = (
+            "PARTIAL" if status == "FAILED" and result_count > 0 else status
+        )
         attempts.append(
             {
                 "attempt_id": _v3_id("attempt", run_id, "CHECK", source_id),
@@ -3454,20 +3463,32 @@ def build_retrieval_ledger(
                 ),
                 "source_id": source_id,
                 "attempted_at": str(check.get("checked_at") or end.isoformat()),
-                "status": status,
+                "status": receipt_status,
                 "endpoint": str(check.get("url") or SOURCE_ENDPOINTS.get(source_id, "unknown")),
                 "request_fingerprint": _canonical_json_sha256(
                     {"source_id": source_id, "status": status, "stage": check.get("stage")}
                 ),
                 "receipt_origin": "EXECUTOR",
-                "result_count": int(check.get("result_count") or 0),
+                "result_count": result_count,
                 "result_ids_sha256": _canonical_json_sha256([]),
                 "pagination": {
-                    "pages_requested": 0 if status == "NOT_ATTEMPTED" else 1,
-                    "pages_received": 1 if status in {"SUCCESS", "NO_RESULTS"} else 0,
+                    "pages_requested": 0 if receipt_status == "NOT_ATTEMPTED" else 1,
+                    "pages_received": (
+                        1
+                        if receipt_status in {"SUCCESS", "NO_RESULTS", "PARTIAL"}
+                        else 0
+                    ),
                 },
                 "limit_reached": False,
-                **({"error_class": "ADAPTER_UNAVAILABLE"} if status in {"FAILED", "NOT_ATTEMPTED"} else {}),
+                **(
+                    {"error_class": "AGGREGATE_PARTIAL_FAILURE"}
+                    if receipt_status == "PARTIAL" and status == "FAILED"
+                    else (
+                        {"error_class": "ADAPTER_UNAVAILABLE"}
+                        if receipt_status in {"FAILED", "NOT_ATTEMPTED"}
+                        else {}
+                    )
+                ),
             }
         )
     return (

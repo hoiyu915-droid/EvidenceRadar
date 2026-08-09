@@ -344,6 +344,52 @@ class GithubRunnerTests(unittest.TestCase):
             ["attempt-fail", "attempt-ok"], gaps[0]["receipt_ids"]
         )
 
+    def test_failed_aggregate_check_with_results_emits_partial_receipt(self) -> None:
+        generated_at = datetime(2026, 8, 9, 12, 0, tzinfo=TZ)
+        coverage = {
+            "checks": [
+                {
+                    "source_id": "formal_proceedings_or_publisher",
+                    "stage": "bounded_verification",
+                    "status": "FAILED",
+                    "checked_at": generated_at.isoformat(),
+                    "result_count": 2,
+                    "summary": "Two accesses succeeded and thirteen failed.",
+                }
+            ]
+        }
+
+        attempts, expansions = build_retrieval_ledger(
+            run_id="run-mixed-aggregate",
+            queries=[],
+            source_access=[],
+            source_coverage=coverage,
+            candidate_records=[],
+            start=generated_at - timedelta(days=1),
+            end=generated_at,
+            per_query_limit=40,
+        )
+
+        self.assertEqual([], expansions)
+        self.assertEqual(1, len(attempts))
+        self.assertEqual("PARTIAL", attempts[0]["status"])
+        self.assertEqual(2, attempts[0]["result_count"])
+        self.assertEqual(1, attempts[0]["pagination"]["pages_received"])
+        self.assertEqual(
+            "AGGREGATE_PARTIAL_FAILURE", attempts[0]["error_class"]
+        )
+
+        gaps, _followups = build_gap_backlog(
+            prior_state=None,
+            run_id="run-mixed-aggregate",
+            generated_at=generated_at,
+            source_coverage=coverage,
+            source_access=[],
+            retrieval_attempts=attempts,
+        )
+        self.assertEqual(1, len(gaps))
+        self.assertEqual("OPEN", gaps[0]["status"])
+
     def test_pubmed_adapter_preserves_identity_and_date_precision(self) -> None:
         class ApiResponse:
             def __init__(self, *, payload: dict[str, object] | None = None, body: str = "") -> None:
