@@ -33,24 +33,35 @@ jobs:
           pip install -r requirements.txt
 
       - name: Apply bounded source patch
-        run: python .github/maintenance/apply_event_window_fix.py
-
-      - name: Verify patch and regression suite
         run: |
+          python .github/maintenance/apply_event_window_fix.py
           git diff --check
           python -m py_compile tools/run_github_radar.py
-          python -m unittest discover -s tests -v
+          python -m unittest tests.test_event_window_display_contract -v
 
-      - name: Commit producer fix to PR branch
+      - name: Commit producer fix and remove bootstrap files
         env:
           HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
         run: |
+          rm -f -- \
+            .github/workflows/apply-event-window-fix.yml \
+            .github/maintenance/apply_event_window_fix.py \
+            .github/maintenance/event-window-fix-request.txt
           git config user.name "EvidenceRadar maintenance"
           git config user.email "evidenceradar-maintenance@users.noreply.github.com"
-          git add -- tools/run_github_radar.py
+          git add -A -- \
+            tools/run_github_radar.py \
+            .github/workflows/apply-event-window-fix.yml \
+            .github/maintenance/apply_event_window_fix.py \
+            .github/maintenance/event-window-fix-request.txt
           if git diff --cached --quiet; then
             echo "::error::bounded patch produced no source change"
             exit 1
           fi
           git commit -m "fix: gate Radar priority on 72h qualifying events"
           git push origin "HEAD:${HEAD_BRANCH}"
+
+      - name: Verify clean full regression suite
+        run: |
+          test -z "$(git status --porcelain)"
+          python -m unittest discover -s tests -v
