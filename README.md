@@ -26,6 +26,9 @@ GitHub Actions and ChatGPT Work are the two supported EvidenceRadar execution la
 4. 把免費的 `OPENALEX_API_KEY` 設為 repository Secret，供 OpenAlex discovery
    使用。`NCBI_EMAIL`、`NCBI_API_KEY` 為 PubMed 建議／提額設定。缺少某來源的
    必要 key 時，runner 會 fail closed 記錄該來源 gap，而不是填入假結果。
+5. 若要將來源英文摘要翻成繁中，另設選用的
+   `EVIDENCERADAR_TRANSLATION_API_KEY` Secret；沒有設定仍會輸出繁中 metadata
+   fallback，不會在簡述欄貼回英文。
 
 使用者的設定、State 與產出只留在自己的 repository，不需要下載另一份部署
 程式，也不會把資料寫回 upstream。完整設定見
@@ -60,15 +63,48 @@ python3 tools/build_work_pack.py --output-dir dist
 方式：GitHub 使用 template/fork；ChatGPT Work 使用一個有版本與 SHA-256 的可攜
 部署包。
 
-## GitHub lane 的 10–15 出版社輸出預算
+## GitHub lane 的 10–15 出版社存取預算
 
 GitHub runner 每輪以 10 筆可存取 publisher/source-page audit records 為目標，
 出版社頁面嘗試數硬上限為 15。每個 resolved domain 最多兩次，request 之間延遲，
 遇到 HTTP `401`、`403` 或 `429` 立即停止該網域。
 
 來源不足或被擋時允許少於 10，並保留 warning/gap；禁止補位，也不會超過 15。
-這個 budget 與每個 active category 的 Featured 5–8 target 是兩件事。來源頁成功
-開啟只代表 access audit，不代表研究 claim 已被核實。
+這個 budget **只限制 publisher 網路探測，不限制候選保存或顯示**。GitHub HTML
+依類別顯示本輪所有去重候選；`EvidenceRadar_Run.json` 的 `candidates` ledger
+保存相同的完整候選集，包括低優先、來源受阻與尚未探測者。
+來源頁成功開啟只代表 access audit，不代表研究 claim 已被核實。
+
+HTML 提供題名／作者／期刊／簡述搜尋，以及類別、閱讀層級、來源篩選與分類收合。
+每個 item 都有繁體中文內容簡述。設定 `EVIDENCERADAR_TRANSLATION_API_KEY` 時，
+GitHub lane 會批次翻譯有限長度的 provider abstract 節錄；沒有憑證、翻譯失敗或沒有
+abstract 時，改用繁中 metadata／題名層級 fallback，不在簡述區顯示英文摘要。
+這些文字只協助瀏覽，不會被當成全文 claim 驗證。
+
+### 每輪 source coverage CHECK
+
+每個 enabled stream 所列的 distinct source，每輪都要在 Run 的
+`source_coverage.checks` 與 Evidence 的 `coverage.checks` 出現一筆 CHECK
+摘要，即使沒有結果、沒有該 lane 的 adapter、請求被擋，或 bounded
+verification 沒有合資格候選。CHECK 狀態固定為：
+
+目前 discovery adapters 覆蓋 PubMed、Europe PMC、OpenAlex、arXiv、OpenReview、
+ACL Anthology 與 PMLR；publisher 與 formal proceedings 走後段 bounded
+verification check。
+
+| 狀態 | 意義 |
+|---|---|
+| `SUCCESS` | 已完成來源操作且取得一筆以上結果 |
+| `NO_RESULTS` | 已查詢來源，但結果為零 |
+| `FAILED` | 已嘗試但 provider/access 操作失敗 |
+| `NOT_ATTEMPTED` | 已設定但本輪沒有發出請求 |
+
+`source_coverage.checked` 是「有 CHECK 記錄」的 source ID 集合，**不等於
+成功**；`searched` 表示實際發出請求的來源，`unavailable` 表示失敗或未嘗試，
+`all_configured_sources_checked` 只有在每個 requested source 都有 CHECK 時才為
+true。`publisher` 與 `formal_proceedings_or_publisher` 都是
+`bounded_verification` stage，即使 publisher 10–15 探測預算沒有 eligible item，
+也必須寫出 `NO_RESULTS`、`FAILED` 或 `NOT_ATTEMPTED` 的 check summary。
 
 設定位於 [`config/deployment.yml`](config/deployment.yml)，手動 workflow 可在
 本輪覆寫 `publisher_target_min` 和 `publisher_hard_max`，但 runner 仍強制
@@ -81,9 +117,9 @@ GitHub runner 每輪以 10 筆可存取 publisher/source-page audit records 為�
 | Artifact | 用途 |
 |---|---|
 | `EvidenceRadar_Report.html` | 主要可閱讀報告 |
-| `EvidenceRadar_State.json` | 跨輪 identity、已通知事件與 aliases |
+| `EvidenceRadar_State.json` | 所有已發現候選的跨輪 identity、seen history、已通知事件與 aliases |
 | `EvidenceRadar_Evidence.json` | claim、數字、locator 與來源 |
-| `EvidenceRadar_Run.json` | 時窗、查詢、來源覆蓋、provenance、警告與統計 |
+| `EvidenceRadar_Run.json` | 完整候選 ledger、時窗、查詢、source CHECK 覆蓋、provenance、警告與統計 |
 
 新 State／Run 顯式記錄 `execution_lane`、`protocol_commit`、
 `base_state_sha256`、`parent_run_ids`。GitHub canonical State 位於

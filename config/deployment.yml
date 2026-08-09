@@ -11,6 +11,8 @@ execution_lanes:
     state_handoff: repository_canonical_state
 
 publisher_output:
+  budget_scope: publisher_network_access_only
+  candidate_display_capped_by_this_budget: false
   target_min_per_run: 10
   hard_max_per_run: 15
   per_domain_hard_max: 2
@@ -34,6 +36,10 @@ provider_credentials:
     storage: github_actions_secret_or_work_environment
     required_for: openalex_discovery
     missing_behavior: record_source_gap
+  OPENREVIEW_TOKEN:
+    storage: optional_github_actions_secret_or_work_environment
+    required_for: authenticated_openreview_access_when_public_search_is_blocked
+    missing_behavior: try_public_search_then_record_source_gap_on_failure
   NCBI_EMAIL:
     storage: github_actions_variable_or_work_environment
     required_for: recommended_eutilities_identification
@@ -42,6 +48,14 @@ provider_credentials:
     storage: github_actions_secret_or_work_environment
     required_for: elevated_eutilities_rate
     missing_behavior: enforce_three_requests_per_second
+  EVIDENCERADAR_TRANSLATION_API_KEY:
+    storage: optional_github_actions_secret
+    required_for: provider_abstract_translation_to_zh_tw
+    missing_behavior: emit_zh_tw_metadata_template_without_english_excerpt
+  EVIDENCERADAR_TRANSLATION_MODEL:
+    storage: optional_github_actions_variable
+    required_for: translation_model_override
+    missing_behavior: use_gpt_5_mini
 
 work_pack:
   enabled: true

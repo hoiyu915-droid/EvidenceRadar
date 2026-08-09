@@ -7,7 +7,7 @@ execution:
       claim_verification: full_source_and_claim_review
     github_actions:
       trigger: scheduled_or_workflow_dispatch
-      retrieval: pubmed_openalex_and_bounded_publisher_access
+      retrieval: every_configured_discovery_adapter_and_bounded_verification_access
       claim_verification: metadata_and_source_access_only
   query_strings_are_navigation_guidance: true
   search_snippets_are_not_evidence: true
@@ -17,32 +17,73 @@ window:
   lookback_days: 3
   rolling_hours: 72
 
+# Coverage is a per-run audit contract, not a count of successful results.
+# The runner emits one CHECK summary for every source requested by any enabled
+# stream, including sources with no results, no adapter, or a blocked request.
+source_check_contract:
+  statuses: [SUCCESS, NO_RESULTS, FAILED, NOT_ATTEMPTED]
+  one_check_per_configured_source: true
+  checked_means_check_record_emitted: true
+  checked_does_not_imply_success: true
+  check_summary_required: true
+  stage_by_source:
+    pubmed: discovery
+    europe_pmc: discovery
+    openalex: discovery
+    arxiv: discovery
+    openreview: discovery
+    acl_anthology: discovery
+    pmlr: discovery
+    publisher: bounded_verification
+    formal_proceedings_or_publisher: bounded_verification
+  bounded_verification_sources:
+    - publisher
+    - formal_proceedings_or_publisher
+
 source_catalog:
   pubmed:
     role: biomedical_discovery_and_index_event
     preferred_domain: pubmed.ncbi.nlm.nih.gov
+    stage: discovery
+    check_summary_required: true
   europe_pmc:
     role: biomedical_fulltext_and_repository_event
     preferred_domain: europepmc.org
+    stage: discovery
+    check_summary_required: true
   publisher:
     role: version_event_and_final_claim_verification
+    stage: bounded_verification
+    check_summary_required: true
   openalex:
     role: broad_discovery_only
     preferred_domain: openalex.org
+    stage: discovery
+    check_summary_required: true
   arxiv:
     role: preprint_discovery_and_version_identity
     preferred_domain: arxiv.org
+    stage: discovery
+    check_summary_required: true
   openreview:
     role: formal_review_and_venue_identity
     preferred_domain: openreview.net
+    stage: discovery
+    check_summary_required: true
   acl_anthology:
     role: formal_acl_publication_identity
     preferred_domain: aclanthology.org
+    stage: discovery
+    check_summary_required: true
   pmlr:
     role: formal_proceedings_identity
     preferred_domain: proceedings.mlr.press
+    stage: discovery
+    check_summary_required: true
   formal_proceedings_or_publisher:
     role: final_event_and_claim_verification
+    stage: bounded_verification
+    check_summary_required: true
 
 candidate_guidance:
   suggested_max_per_query: 40

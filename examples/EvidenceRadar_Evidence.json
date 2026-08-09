@@ -5,6 +5,28 @@
   "run_id": "run-20260808-1013",
   "coverage_status": "COMPLETE",
   "coverage": {
+    "requested": [
+      "publisher"
+    ],
+    "checked": [
+      "publisher"
+    ],
+    "searched": [
+      "publisher"
+    ],
+    "unavailable": [],
+    "all_configured_sources_checked": true,
+    "checks": [
+      {
+        "source_id": "publisher",
+        "stage": "bounded_verification",
+        "status": "SUCCESS",
+        "checked_at": "2026-08-08T10:08:00+08:00",
+        "result_count": 1,
+        "summary": "Example publisher source check completed.",
+        "url": "https://example.org/article/2026.001"
+      }
+    ],
     "requested_sources": [
       "publisher"
     ],

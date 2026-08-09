@@ -75,12 +75,57 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "requested_sources",
-        "searched_sources",
-        "unavailable_sources",
+        "requested",
+        "checked",
+        "searched",
+        "unavailable",
+        "all_configured_sources_checked",
+        "checks",
         "notes"
       ],
       "properties": {
+        "requested": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "checked": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "searched": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "unavailable": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "all_configured_sources_checked": {
+          "type": "boolean"
+        },
+        "checks": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/source_check"
+          }
+        },
         "requested_sources": {
           "type": "array",
           "uniqueItems": true,
@@ -104,6 +149,63 @@
             "type": "string",
             "minLength": 1
           }
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "source_check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_id",
+        "stage",
+        "status",
+        "checked_at",
+        "result_count",
+        "summary"
+      ],
+      "properties": {
+        "source_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "stage": {
+          "type": "string",
+          "enum": [
+            "discovery",
+            "bounded_verification"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "SUCCESS",
+            "NO_RESULTS",
+            "FAILED",
+            "NOT_ATTEMPTED"
+          ]
+        },
+        "checked_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "result_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1
+        },
+        "url": {
+          "type": "string",
+          "pattern": "^https?://\\S+$"
         },
         "notes": {
           "type": "array",
@@ -144,6 +246,7 @@
             "arxiv",
             "openreview",
             "conference_proceedings",
+            "formal_proceedings_or_publisher",
             "other"
           ]
         },

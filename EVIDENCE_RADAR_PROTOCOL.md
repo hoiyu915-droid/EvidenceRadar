@@ -70,10 +70,37 @@ For every enabled stream:
    URLs.
 5. Do not infer that a source was searched because another result cites it.
 
-Minimum source targets are defined in `config/streams.yml`. PubMed and OpenAlex
-may support automated discovery. A primary registry, repository, proceedings
-page or publisher page is still required at the verification level claimed by
-the report.
+Minimum source targets are defined in `config/streams.yml`. The GitHub lane
+implements discovery checks for PubMed, Europe PMC, OpenAlex, arXiv,
+OpenReview, ACL Anthology and PMLR. Publisher and formal-proceedings targets
+remain bounded verification-stage checks. A primary registry, repository,
+proceedings page or publisher page is still required at the verification level
+claimed by the report.
+
+### Per-run source CHECK contract
+
+For every distinct source named by an enabled stream, emit exactly one
+`source_coverage.checks` summary in Run and the corresponding `coverage.checks`
+summary in Evidence. A source receives a CHECK even when no candidate is found,
+the lane has no adapter, the request is blocked, or a bounded verification
+budget skips it. Each summary records the configured `source_id`, `stage`,
+timestamp, result count and a human-readable summary.
+
+The allowed CHECK statuses are:
+
+- `SUCCESS`: the source operation completed and returned one or more results;
+- `NO_RESULTS`: the source was queried successfully but returned zero results;
+- `FAILED`: the source operation was attempted and failed, including an access
+  block or provider error;
+- `NOT_ATTEMPTED`: the source was configured but this lane did not make a
+  request (for example, no adapter or no eligible bounded-verification item).
+
+`source_coverage.checked` is the set of source IDs with a CHECK record. It is
+deliberately not a synonym for success and may include all four statuses.
+`searched` records sources for which a request was made; `unavailable` records
+sources with a failed or not-attempted operation. `all_configured_sources_checked`
+is true only when every requested source has its own CHECK summary. These
+coverage fields are audit facts and do not turn metadata into claim evidence.
 
 ## 5. Identity and event gate
 
@@ -128,8 +155,10 @@ settings in `config/deployment.yml`:
 - finish below 10 when eligible sources are insufficient or blocked;
 - never pad the output and never exceed the hard maximum of 15.
 
-This 10–15 budget is separate from the 5–8 Featured target. An accessible page
-is an audit record, not proof of a paper's substantive claims.
+This 10–15 budget limits publisher network probes only. It never limits the
+candidate ledger or readable candidate display and remains separate from the
+5–8 Featured target. An accessible page is an audit record, not proof of a
+paper's substantive claims.
 
 ## 8. Evidence governance
 
@@ -143,11 +172,26 @@ Allowed support states are `SUPPORTED`, `PARTIAL`, `CONFLICT` and `UNVERIFIED`.
 appear as conclusions.
 
 The GitHub lane must leave the claims ledger empty unless an independently
-defined full-verification implementation is added later. It reports automated
-event/source-access candidates and explicitly says that claim review remains
-required.
+defined full-verification implementation is added later. It retains every
+deduplicated discovery candidate in Run and State, including lower-priority,
+blocked and unprobed candidates. Routing score changes order, not epistemic
+value. The readable report displays every deduplicated candidate grouped by
+category; publisher access success is never a display gate.
 
 ## 9. Source coverage and run status
+
+Run carries a top-level `source_coverage` object with
+`requested`, `checked`, `searched`, `unavailable`,
+`all_configured_sources_checked` and `checks`. Evidence mirrors the same fields
+inside its `coverage` object (and retains the older `*_sources` names as
+compatibility aliases). A checked source is not necessarily a successful source;
+inspect each CHECK status and summary.
+
+`publisher` and `formal_proceedings_or_publisher` are
+`bounded_verification` sources. They still receive a CHECK summary for every
+run. A run with no eligible item is `NOT_ATTEMPTED`; `NO_RESULTS` is reserved
+for a source that was actually queried and returned zero results. The budget
+limits requests, not whether the source's check is represented.
 
 - `COMPLETE`: all required sources and every reported claim were directly
   verified.
@@ -177,9 +221,24 @@ artifacts validate. Partial runs preserve their limitations and do not promote
 unverified scientific claims.
 
 The report includes generated time and exact window, lane and status, source
-coverage, category sections, event evidence, claim support where available,
-caveats, identifiers, direct links, conflicts/gaps and the statement that the
-report is research triage rather than individual medical advice.
+coverage, category candidate sections, triage/event/access/review status,
+claim support where available, caveats, identifiers, direct links,
+conflicts/gaps and the statement that the report is research triage rather
+than individual medical advice. Run and the readable report both contain the
+complete deduplicated candidate set; the report groups it by category.
+
+Every displayed candidate includes `content_summary` and `summary_basis` in
+Run, `summary_language: zh-TW`, and a visible Traditional Chinese preview in
+HTML. The GitHub lane uses `TRANSLATED_ABSTRACT_EXCERPT_ZH_TW` only after a
+bounded translation response passes ID, language, length and numeric-token
+checks. Without a configured credential, on provider failure, or when no
+abstract exists, it emits `ZH_TW_METADATA_TEMPLATE` or `TITLE_ONLY_ZH_TW` and
+does not expose the English abstract in the preview. ChatGPT Work writes the
+preview directly in Traditional Chinese after reading the source. Every basis
+is navigation metadata, not claim verification.
+The self-contained HTML provides text search, category/triage/source filters,
+collapsible category sections and expandable audit details without removing
+any candidate from the report.
 
 ## 11. State synchronization and concurrency
 

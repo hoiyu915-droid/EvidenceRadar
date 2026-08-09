@@ -69,7 +69,8 @@ provenance:
 
 publisher_output:
   settings_file: config/deployment.yml
-  output_unit: accessible_publisher_or_source_page_audit_record
+  output_unit: publisher_network_access_attempt
+  candidate_display_capped_by_publisher_budget: false
 
 selection:
   scope: per_category
@@ -83,15 +84,30 @@ selection:
     target_min: 5
     hard_max: 8
   candidate_pool:
-    hard_max_per_category: 30
-    total_hard_max: 150
+    display_all_deduplicated: true
+    group_by_category: true
     includes_featured: true
+    complete_deduplicated_ledger_in_run_json: true
   allow_below_minimum_when_insufficient: true
   padding_forbidden: true
 
 rendering:
   language: zh-TW
   preserve_original_title: true
+  include_candidate_content_summary: true
+  candidate_summary_language: zh-TW
+  candidate_summary_max_chars: 320
+  summary_translation:
+    enabled: true
+    provider: openai_responses
+    api_key_env: EVIDENCERADAR_TRANSLATION_API_KEY
+    model_env: EVIDENCERADAR_TRANSLATION_MODEL
+    default_model: gpt-5-mini
+    batch_size: 20
+    timeout_seconds: 60
+    fail_closed_to_zh_tw_metadata_template: true
+  interactive_candidate_filters: true
+  category_sections_collapsible: true
   include_main_caveat: true
   include_identifiers: true
   include_source_locators: true
