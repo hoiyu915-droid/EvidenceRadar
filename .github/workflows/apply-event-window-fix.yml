@@ -1,6 +1,6 @@
 name: One-time EvidenceRadar event-window fix
 
-# Trigger commit after workflow registration.
+# Registered on main; this PR merge supplies the push trigger.
 on:
   push:
     branches: [main]
