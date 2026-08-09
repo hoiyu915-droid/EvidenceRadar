@@ -144,6 +144,15 @@ class GithubDeploymentSurfaceTests(unittest.TestCase):
         self.assertIn("No stale State was rebased or pushed", self.workflow)
         self.assertIn("git push origin", self.workflow)
 
+    def test_successful_token_writeback_explicitly_dispatches_validation_and_pages(self) -> None:
+        push_index = self.workflow.index('git push origin "HEAD:$GITHUB_REF_NAME"')
+        release_index = self.workflow.index("gh workflow run public-release.yml", push_index)
+        pages_index = self.workflow.index("gh workflow run pages.yml", release_index)
+        self.assertLess(push_index, release_index)
+        self.assertLess(release_index, pages_index)
+        self.assertIn('--ref "$GITHUB_REF_NAME"', self.workflow[release_index:])
+        self.assertIn("workflow_dispatch:", self.public_release_workflow)
+
     def test_public_release_validates_the_canonical_current_bundle(self) -> None:
         self.assertIn("fetch-depth: 0", self.public_release_workflow)
         self.assertIn("Validate canonical delivery bundle", self.public_release_workflow)
@@ -193,6 +202,8 @@ class GithubDeploymentSurfaceTests(unittest.TestCase):
             "repository-first mode",
             "run-id",
             "links.json",
+            "GITHUB_TOKEN",
+            "explicit workflow_dispatch",
         ):
             self.assertIn(marker, self.documentation)
 

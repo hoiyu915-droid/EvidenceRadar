@@ -223,3 +223,13 @@ jobs:
             exit 1
           fi
           git push origin "HEAD:$GITHUB_REF_NAME"
+
+          # A push made with this workflow's GITHUB_TOKEN does not recursively
+          # trigger push workflows. Explicit dispatch keeps the canonical
+          # validation and public Pages report aligned with the new State.
+          gh workflow run public-release.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref "$GITHUB_REF_NAME"
+          gh workflow run pages.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref "$GITHUB_REF_NAME"
