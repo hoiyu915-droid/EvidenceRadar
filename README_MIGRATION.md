@@ -43,7 +43,7 @@ Canonical validator inputs remain:
 - `EvidenceRadar_Evidence.json`
 - `EvidenceRadar_Run.json`
 
-`tools/package_work_delivery.py` additionally creates byte-identical direct-delivery siblings using the run timestamp in Asia/Tokyo:
+`tools/materialize_delivery_aliases.py` creates byte-identical direct-delivery siblings after the canonical bundle has validated and packaged, using the run timestamp in Asia/Tokyo:
 
 `YYYYMMDD_HHMMSS__<canonical filename>`
 
