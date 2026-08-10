@@ -95,10 +95,12 @@ DOI、PubMed、OpenAlex 或 abstract landing page 的 HTTP 200 不會被誤報�
 
 HTML 提供題名／作者／期刊／簡述搜尋，以及類別、閱讀層級、來源、OA、全文存取
 篩選與分類收合。套用篩選時會展開完整池，不會只搜尋 Featured。
-每個 item 都有繁體中文內容簡述。設定 `EVIDENCERADAR_TRANSLATION_API_KEY` 時，
-GitHub lane 會批次翻譯有限長度的 provider abstract 節錄；沒有憑證、翻譯失敗或沒有
-abstract 時，改用繁中 metadata／題名層級 fallback，不在簡述區顯示英文摘要。
-這些文字只協助瀏覽，不會被當成全文 claim 驗證。
+每個 item 都必須有可讀的繁體中文題名。設定 `EVIDENCERADAR_TRANSLATION_API_KEY` 時，
+GitHub lane 會使用既有 OpenAI translation provider；未設定時，GitHub Actions 以 scoped
+`GITHUB_TOKEN` 呼叫 Copilot CLI 作翻譯後備。兩者都不可用、任何英文題名未成功翻譯、
+或回傳「題名所示／相關議題」等模板 filler 時，本輪 fail closed，不發佈 HTML。來源有
+摘要時可在中文題名後追加一至兩句研究目的／對象／方法簡述；沒有摘要時就只顯示忠實
+中文題名，不用空話補字數。這些 navigation text 不會被當成全文 claim 驗證。
 
 ### 每輪 source coverage CHECK
 
