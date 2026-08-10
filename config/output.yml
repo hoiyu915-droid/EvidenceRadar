@@ -129,7 +129,11 @@ rendering:
     default_model: gpt-5-mini
     batch_size: 20
     timeout_seconds: 60
-    fail_closed_to_zh_tw_metadata_template: true
+    copilot_batch_size: 10
+    copilot_timeout_seconds: 75
+    copilot_max_workers: 2
+    publication_missing_translation_behavior: fail_closed
+    nonpublication_fixture_fallback: explicit_zh_tw_placeholder
   interactive_candidate_filters: true
   category_sections_collapsible: true
   include_main_caveat: true
