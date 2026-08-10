@@ -862,10 +862,11 @@ class GithubRunnerTests(unittest.TestCase):
         item = candidate(1)
         item.abstract = "This study evaluates a 10 mg intervention for depression."
         translated_payload = {
-            "summaries": [
+            "items": [
                 {
                     "id": item.work_id,
-                    "summary": "本研究評估 10 mg 介入措施對憂鬱症的影響。",
+                    "title_zh_tw": "可稽核證據候選 1",
+                    "summary_zh_tw": "本研究評估 10 mg 介入措施對憂鬱症的影響。",
                 }
             ]
         }
@@ -903,9 +904,10 @@ class GithubRunnerTests(unittest.TestCase):
 
         self.assertEqual([], warnings)
         self.assertEqual(
-            "TRANSLATED_ABSTRACT_EXCERPT_ZH_TW",
+            "TRANSLATED_TITLE_AND_ABSTRACT_ZH_TW_OPENAI",
             summaries[item.work_id][1],
         )
+        self.assertIn("中文題名：可稽核證據候選 1", summaries[item.work_id][0])
         self.assertIn("10 mg", summaries[item.work_id][0])
 
     def test_summary_translation_without_key_fails_closed_to_chinese(self) -> None:

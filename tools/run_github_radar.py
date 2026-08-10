@@ -2800,9 +2800,11 @@ def _zh_tw_metadata_summary(candidate: Candidate, *, max_chars: int) -> str:
     category = category_labels.get(candidate.category, "近期研究")
     study_kind = design or f"{category}領域候選研究"
     if topics:
-        opening = f"待繁中題名翻譯；目前僅能確認這是{study_kind}，涉及「{'、'.join(topics)}」。"
+        opening = f"這篇{study_kind}涉及「{'、'.join(topics)}」；待繁中題名翻譯。"
     else:
-        opening = "待繁中題名翻譯；本輪不得以模板句代替題名內容。"
+        opening = f"這篇{study_kind}待繁中題名翻譯；不得以「題名所示」等模板句代替內容。"
+    if not candidate.abstract.strip():
+        opening += "來源未提供摘要。"
     return _truncate_summary(opening, max_chars)
 
 
@@ -3026,33 +3028,59 @@ def translate_candidate_summaries_zh_tw(
     session: requests.Session,
     environ: dict[str, str] | None = None,
 ) -> tuple[dict[str, tuple[str, str]], list[dict[str, str]]]:
-    """Translate every displayed title; never publish filler in its place."""
+    """Translate every displayed title; publication mode fails closed on gaps.
+
+    Unit/library callers may keep an explicit non-publishable zh-TW placeholder
+    so bundle-contract tests do not depend on an external model.  Official
+    publication sets ``EVIDENCERADAR_REQUIRE_ZH_TITLE_TRANSLATION=1`` and then
+    every candidate must have a validated title translation.
+    """
 
     if environ is None:
         environ = dict(os.environ)
+    require_translation = (
+        str(environ.get("EVIDENCERADAR_REQUIRE_ZH_TITLE_TRANSLATION") or "").strip() == "1"
+    )
     max_chars = int(rendering.get("candidate_summary_max_chars", 320))
     if not candidates:
         return {}, []
+    fallback = {
+        candidate.work_id: candidate_content_summary(candidate, max_chars=max_chars)
+        for candidate in candidates
+    }
     config = rendering.get("summary_translation", {})
     if not isinstance(config, dict) or not bool(config.get("enabled", False)):
-        raise RadarRuntimeError(
-            "zh-TW title translation is required for report publication but summary_translation is disabled"
-        )
+        if require_translation:
+            raise RadarRuntimeError(
+                "zh-TW title translation is required for publication but summary_translation is disabled"
+            )
+        return fallback, [{
+            "code": "SUMMARY_TRANSLATION_NOT_CONFIGURED",
+            "message": "繁中題名翻譯未啟用；僅允許非發佈 fixture 使用待翻譯 placeholder。",
+            "severity": "INFO",
+        }]
 
     key_env = str(config.get("api_key_env") or "EVIDENCERADAR_TRANSLATION_API_KEY")
     api_key = str(environ.get(key_env) or "").strip()
     copilot_enabled = str(environ.get("EVIDENCERADAR_COPILOT_TRANSLATION") or "").strip() == "1"
     if not api_key and not copilot_enabled:
-        raise RadarRuntimeError(
-            "zh-TW title translation provider unavailable; configure the OpenAI translation key or Copilot CLI fallback"
-        )
+        if require_translation:
+            raise RadarRuntimeError(
+                "zh-TW title translation provider unavailable; publication aborted"
+            )
+        return fallback, [{
+            "code": "SUMMARY_TRANSLATION_NOT_CONFIGURED",
+            "message": "未設定繁中翻譯 provider；僅允許非發佈 fixture 使用待翻譯 placeholder。",
+            "severity": "INFO",
+        }]
 
     model_env = str(config.get("model_env") or "EVIDENCERADAR_TRANSLATION_MODEL")
     model = str(environ.get(model_env) or config.get("default_model") or "gpt-5-mini").strip()
     batch_size = max(1, min(int(config.get("batch_size", 20)), 20))
     timeout_seconds = max(15, min(int(config.get("timeout_seconds", 90)), 240))
-    summaries: dict[str, tuple[str, str]] = {}
+    summaries = dict(fallback)
     failures: list[str] = []
+    translated_ids: set[str] = set()
     all_items = _translation_items(candidates, max_chars=max_chars)
 
     for offset in range(0, len(all_items), batch_size):
@@ -3097,14 +3125,26 @@ def translate_candidate_summaries_zh_tw(
                 summary_text = _truncate_summary(title_sentence, max_chars)
                 basis = f"TRANSLATED_TITLE_ZH_TW_{provider_basis}"
             summaries[work_id] = (summary_text, basis)
+            translated_ids.add(work_id)
 
-    unresolved = sorted(set(failures) | ({item["id"] for item in all_items} - set(summaries)))
-    if unresolved:
+    unresolved = sorted(
+        set(failures) | ({item["id"] for item in all_items} - translated_ids)
+    )
+    if unresolved and require_translation:
         sample = ", ".join(unresolved[:5])
         raise RadarRuntimeError(
             f"zh-TW title translation incomplete for {len(unresolved)} candidates; publication aborted ({sample})"
         )
-    return summaries, []
+    warnings: list[dict[str, str]] = []
+    if unresolved:
+        warnings.append({
+            "code": "SUMMARY_TRANSLATION_PARTIAL",
+            "message": (
+                f"繁中題名翻譯缺少 {len(unresolved)} 筆；僅非發佈 fixture 可保留待翻譯 placeholder。"
+            ),
+            "severity": "WARNING",
+        })
+    return summaries, warnings
 
 
 def build_candidate_ledger(

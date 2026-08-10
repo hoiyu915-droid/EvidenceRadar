@@ -84,7 +84,11 @@ class MeaningfulSummaryContractTests(unittest.TestCase):
                 [candidate],
                 rendering=self._rendering(),
                 session=requests.Session(),
-                environ={"EVIDENCERADAR_COPILOT_TRANSLATION": "1", "GITHUB_TOKEN": "test"},
+                environ={
+                    "EVIDENCERADAR_COPILOT_TRANSLATION": "1",
+                    "EVIDENCERADAR_REQUIRE_ZH_TITLE_TRANSLATION": "1",
+                    "GITHUB_TOKEN": "test",
+                },
             )
 
     def test_no_translation_provider_fails_closed(self) -> None:
@@ -93,7 +97,7 @@ class MeaningfulSummaryContractTests(unittest.TestCase):
                 [self._candidate()],
                 rendering=self._rendering(),
                 session=requests.Session(),
-                environ={},
+                environ={"EVIDENCERADAR_REQUIRE_ZH_TITLE_TRANSLATION": "1"},
             )
 
     def test_trial_design_paper_does_not_get_results_rct_badge(self) -> None:
