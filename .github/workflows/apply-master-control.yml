@@ -1,0 +1,97 @@
+name: Apply EvidenceRadar master control migration
+
+on:
+  push:
+    branches:
+      - feat/master-control-sources-taxonomy
+    paths:
+      - ".github/evidenceradar-master-control-payload.b64"
+      - ".github/workflows/apply-master-control.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-master-control-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  apply-and-validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out exact branch
+        uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          if [ -f legacy/python-runtime/requirements.txt ]; then
+            pip install -r legacy/python-runtime/requirements.txt
+          fi
+
+      - name: Expand migration payload and patch tracked runtime
+        run: |
+          set -euo pipefail
+          base64 -d .github/evidenceradar-master-control-payload.b64 | tar -xzf -
+          python apply_migration.py
+          python -m py_compile \
+            tools/radar_control.py \
+            tools/publisher_feed.py \
+            tools/generate_legacy_config.py \
+            tools/run_github_radar.py
+
+      - name: Validate master profiles and publisher feed adapter
+        run: |
+          python -m unittest tests.test_radar_control tests.test_publisher_feed -v
+          python tools/generate_legacy_config.py \
+            --master config/radar_master.json \
+            --profile current_focus \
+            --out-dir "$RUNNER_TEMP/current-focus"
+          python tools/generate_legacy_config.py \
+            --master config/radar_master.json \
+            --profile general_research \
+            --out-dir "$RUNNER_TEMP/general-research"
+          python tools/generate_legacy_config.py \
+            --master config/radar_master.json \
+            --profile current_plus_general \
+            --out-dir "$RUNNER_TEMP/current-plus-general"
+
+      - name: Run repository validators and unit suite
+        run: |
+          python tools/validate_public_release.py
+          python tools/validate_gpt_work_artifacts.py --root .
+          python -m unittest discover -s tests -v
+
+      - name: Run archived-runtime regression tests
+        working-directory: legacy/python-runtime
+        run: python -m pytest -q tests
+
+      - name: Commit validated migration and remove bootstrap
+        run: |
+          set -euo pipefail
+          git config user.name "evidence-radar[bot]"
+          git config user.email "evidence-radar[bot]@users.noreply.github.com"
+          git rm -- .github/evidenceradar-master-control-payload.b64 .github/workflows/apply-master-control.yml apply_migration.py
+          git add -- \
+            config/radar_master.json \
+            tools/radar_control.py \
+            tools/publisher_feed.py \
+            tools/generate_legacy_config.py \
+            tools/run_github_radar.py \
+            tests/test_radar_control.py \
+            tests/test_publisher_feed.py \
+            README_MIGRATION.md \
+            .github/workflows/daily-radar.yml
+          git diff --cached --check
+          git commit -m "feat: centralize radar sources and taxonomy"
+          git push origin HEAD:${GITHUB_REF_NAME}
