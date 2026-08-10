@@ -32,10 +32,12 @@ on:
         default: 15
         type: number
 
-# Hosted Actions performs Stage A only. It reads canonical State and uploads a
-# TranslationRequest artifact; it does not publish or advance State.
+# Hosted Actions performs Stage A only. It reads canonical State, uploads a
+# TranslationRequest artifact, and creates a metadata-only Work queue issue;
+# it does not publish or advance State.
 permissions:
   contents: read
+  issues: write
 
 concurrency:
   group: evidence-radar-daily-${{ github.ref }}
@@ -54,6 +56,9 @@ env:
 
 jobs:
   daily-radar:
+    # A reviewed control-plane-only merge may carry this exact marker to avoid
+    # re-running discovery while an immutable Stage A request is still queued.
+    if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message, '[skip-evidenceradar-stage-a]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -107,7 +112,8 @@ jobs:
           test "$status" = "TRANSLATION_REQUIRED"
           test -s "$RADAR_TRANSLATION_REQUEST"
 
-      - name: Upload TranslationRequest for ordinary ChatGPT handoff
+      - name: Upload TranslationRequest for ChatGPT Work handoff
+        id: upload_request
         if: steps.radar.outputs.status == 'TRANSLATION_REQUIRED'
         uses: actions/upload-artifact@v7.0.1
         with:
@@ -115,3 +121,73 @@ jobs:
           if-no-files-found: error
           retention-days: 14
           path: ${{ runner.temp }}/EvidenceRadar_TranslationRequest.json
+
+      - name: Queue checkpointed ChatGPT Work continuation
+        if: steps.radar.outputs.status == 'TRANSLATION_REQUIRED'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUEST_PATH: ${{ runner.temp }}/EvidenceRadar_TranslationRequest.json
+          ARTIFACT_ID: ${{ steps.upload_request.outputs.artifact-id }}
+          ARTIFACT_NAME: evidenceradar-translation-request-${{ github.run_id }}-${{ github.run_attempt }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+          WORKFLOW_RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          queue_dir="$RUNNER_TEMP/evidenceradar-work-queue"
+          mkdir -p "$queue_dir"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          request = json.loads(Path(os.environ["REQUEST_PATH"]).read_text(encoding="utf-8"))
+          artifact_id = int(os.environ["ARTIFACT_ID"])
+          metadata = {
+              "schema_version": "1.0",
+              "artifact_type": "EvidenceRadar_WorkQueueEntry",
+              "status": "TRANSLATION_REQUIRED",
+              "repository": os.environ["GITHUB_REPOSITORY"],
+              "workflow_run_id": int(os.environ["WORKFLOW_RUN_ID"]),
+              "workflow_run_attempt": int(os.environ["WORKFLOW_RUN_ATTEMPT"]),
+              "artifact_id": artifact_id,
+              "artifact_name": os.environ["ARTIFACT_NAME"],
+              "request_sha256": request["request_sha256"],
+              "radar_run_id": request["run_id"],
+              "protocol_commit": request["protocol_commit"],
+              "base_state_sha256": request["base_state_sha256"],
+              "candidate_count": len(request["candidates"]),
+          }
+          title = f"EvidenceRadar handoff {request['request_sha256'][:12]}"
+          body = (
+              "<!-- evidenceradar-work-queue:v1 -->\n"
+              "This issue is a metadata-only queue entry for the checkpointed ChatGPT Work continuation.\n\n"
+              "```json\n"
+              + json.dumps(metadata, ensure_ascii=False, indent=2, sort_keys=True)
+              + "\n```\n"
+          )
+          queue_dir = Path(os.environ["RUNNER_TEMP"]) / "evidenceradar-work-queue"
+          (queue_dir / "title.txt").write_text(title + "\n", encoding="utf-8")
+          (queue_dir / "body.md").write_text(body, encoding="utf-8")
+          PY
+          if ! gh label list --limit 100 --json name --jq '.[].name' | grep -Fxq 'evidenceradar-handoff'; then
+            gh label create evidenceradar-handoff \
+              --color 6f42c1 \
+              --description 'Pending checkpointed ChatGPT Work continuation'
+          fi
+          title="$(tr -d '\n' < "$queue_dir/title.txt")"
+          existing="$(gh issue list \
+            --state all \
+            --label evidenceradar-handoff \
+            --search "${title} in:title" \
+            --json number,title \
+            --jq ".[] | select(.title == \"${title}\") | .number" \
+            | head -n 1)"
+          if [ -n "$existing" ]; then
+            gh issue edit "$existing" --body-file "$queue_dir/body.md"
+            gh issue reopen "$existing" >/dev/null 2>&1 || true
+          else
+            gh issue create \
+              --title "$title" \
+              --body-file "$queue_dir/body.md" \
+              --label evidenceradar-handoff
+          fi

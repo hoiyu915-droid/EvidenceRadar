@@ -23,7 +23,13 @@ class ProtocolSurfaceTests(unittest.TestCase):
         workflow_dir = ROOT / ".github" / "workflows"
         workflows = list(workflow_dir.glob("*.yml")) + list(workflow_dir.glob("*.yaml"))
         self.assertEqual(
-            ["daily-radar.yml", "pages.yml", "public-release.yml", "runtime-release.yml"],
+            [
+                "daily-radar.yml",
+                "pages.yml",
+                "public-release.yml",
+                "runtime-release.yml",
+                "translation-stage-b.yml",
+            ],
             sorted(path.name for path in workflows),
         )
 
@@ -42,6 +48,12 @@ class ProtocolSurfaceTests(unittest.TestCase):
         self.assertNotIn("contents: write", daily)
         self.assertIn("TRANSLATION_REQUIRED", daily)
         self.assertIn("python tools/run_github_radar.py", daily)
+
+        stage_b = (workflow_dir / "translation-stage-b.yml").read_text(encoding="utf-8")
+        self.assertIn("python tools/work_translation_queue.py validate-submission", stage_b)
+        self.assertIn("Resume Stage B without rediscovery", stage_b)
+        self.assertIn("--translation-response", stage_b)
+        self.assertIn("evidenceradar-ready-to-publish", stage_b)
 
         pages = (workflow_dir / "pages.yml").read_text(encoding="utf-8")
         self.assertIn("actions/deploy-pages@v5.0.0", pages)

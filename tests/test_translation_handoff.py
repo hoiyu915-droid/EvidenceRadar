@@ -8,7 +8,7 @@ from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from tools.run_github_radar import Candidate, event_record, execute
+from tools.run_github_radar import Candidate, RadarRuntimeError, event_record, execute
 from tools.validate_gpt_work_artifacts import validate_document
 from tools.translation_handoff import (
     TranslationHandoffError,
@@ -245,6 +245,24 @@ class TranslationHandoffE2ETests(unittest.TestCase):
 
             def no_rediscovery(*_args, **_kwargs):
                 raise AssertionError("Stage B must not repeat discovery")
+
+            state.parent.mkdir(parents=True)
+            state.write_bytes((ROOT / "examples" / "EvidenceRadar_State.json").read_bytes())
+            with self.assertRaisesRegex(RadarRuntimeError, "canonical State changed"):
+                execute(
+                    root=ROOT,
+                    output_dir=output,
+                    state_path=state,
+                    end_at=None,
+                    run_id=None,
+                    execution_lane="github_actions",
+                    protocol_commit="d" * 40,
+                    discoverer=no_rediscovery,
+                    publisher_probe=no_rediscovery,
+                    translation_request_path=request_path,
+                    translation_response_path=response_path,
+                )
+            state.unlink()
 
             stage_b = execute(
                 root=ROOT,

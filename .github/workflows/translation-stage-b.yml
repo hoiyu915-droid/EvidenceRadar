@@ -1,0 +1,284 @@
+name: EvidenceRadar translation Stage B
+
+on:
+  pull_request:
+    paths:
+      - ".github/evidenceradar-translation-submission.json"
+  push:
+    branches: [main]
+    paths:
+      - ".github/evidenceradar-translation-submission.json"
+
+permissions:
+  contents: read
+  actions: read
+  issues: write
+
+concurrency:
+  group: evidenceradar-stage-b-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate-and-resume:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out complete repository history
+        uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install current control-plane dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Read bounded submission references
+        id: control
+        env:
+          SUBMISSION_PATH: .github/evidenceradar-translation-submission.json
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          submission = json.loads(Path(os.environ["SUBMISSION_PATH"]).read_text(encoding="utf-8"))
+          request_artifact = submission.get("request_artifact")
+          if not isinstance(request_artifact, dict):
+              raise SystemExit("submission request_artifact must be an object")
+          values = {
+              "artifact_id": request_artifact.get("artifact_id"),
+              "artifact_name": request_artifact.get("artifact_name"),
+              "handoff_issue_number": submission.get("handoff_issue_number"),
+          }
+          if not isinstance(values["artifact_id"], int) or values["artifact_id"] < 1:
+              raise SystemExit("submission artifact_id is invalid")
+          if not isinstance(values["handoff_issue_number"], int) or values["handoff_issue_number"] < 1:
+              raise SystemExit("submission handoff_issue_number is invalid")
+          if not isinstance(values["artifact_name"], str) or not values["artifact_name"]:
+              raise SystemExit("submission artifact_name is invalid")
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
+              for key, value in values.items():
+                  output.write(f"{key}={value}\n")
+          PY
+
+      - name: Download immutable Stage A request artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_ID: ${{ steps.control.outputs.artifact_id }}
+        run: |
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            "repos/${GITHUB_REPOSITORY}/actions/artifacts/${ARTIFACT_ID}/zip" \
+            > "$RUNNER_TEMP/evidenceradar-request.zip"
+          python tools/work_translation_queue.py extract-request \
+            --archive "$RUNNER_TEMP/evidenceradar-request.zip" \
+            --output "$RUNNER_TEMP/EvidenceRadar_TranslationRequest.json"
+
+      - name: Validate queue issue and complete translation submission
+        id: validate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HANDOFF_ISSUE: ${{ steps.control.outputs.handoff_issue_number }}
+          ARTIFACT_ID: ${{ steps.control.outputs.artifact_id }}
+          ARTIFACT_NAME: ${{ steps.control.outputs.artifact_name }}
+        run: |
+          gh issue view "$HANDOFF_ISSUE" --json number,state,labels,body \
+            > "$RUNNER_TEMP/evidenceradar-queue-issue.json"
+          summary="$(python tools/work_translation_queue.py validate-submission \
+            --request "$RUNNER_TEMP/EvidenceRadar_TranslationRequest.json" \
+            --submission .github/evidenceradar-translation-submission.json \
+            --response-output "$RUNNER_TEMP/EvidenceRadar_TranslationResponse.json")"
+          python - "$summary" <<'PY'
+          import json
+          import os
+          import re
+          import sys
+          from pathlib import Path
+
+          summary = json.loads(sys.argv[1])
+          issue = json.loads(Path(os.environ["RUNNER_TEMP"] + "/evidenceradar-queue-issue.json").read_text())
+          labels = {item.get("name") for item in issue.get("labels", []) if isinstance(item, dict)}
+          if issue.get("state") != "OPEN" or "evidenceradar-handoff" not in labels:
+              raise SystemExit("handoff issue is not an open queue entry")
+          body = str(issue.get("body") or "")
+          match = re.search(r"<!-- evidenceradar-work-queue:v1 -->.*?```json\s*(\{.*?\})\s*```", body, re.S)
+          if not match:
+              raise SystemExit("handoff issue metadata block is missing")
+          queued = json.loads(match.group(1))
+          expected = {
+              "repository": summary["repository"],
+              "artifact_id": int(os.environ["ARTIFACT_ID"]),
+              "artifact_name": os.environ["ARTIFACT_NAME"],
+              "workflow_run_id": summary["workflow_run_id"],
+              "request_sha256": summary["request_sha256"],
+              "radar_run_id": summary["run_id"],
+              "protocol_commit": summary["protocol_commit"],
+              "base_state_sha256": summary["base_state_sha256"],
+              "candidate_count": summary["candidate_count"],
+              "status": "TRANSLATION_REQUIRED",
+          }
+          if summary["repository"] != os.environ["GITHUB_REPOSITORY"]:
+              raise SystemExit("translation submission repository mismatch")
+          for key, value in expected.items():
+              if queued.get(key) != value:
+                  raise SystemExit(f"handoff issue metadata mismatch: {key}")
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
+              for key in (
+                  "request_sha256",
+                  "protocol_commit",
+                  "run_id",
+                  "base_state_sha256",
+                  "handoff_issue_number",
+              ):
+                  output.write(f"{key}={summary[key]}\n")
+          PY
+
+      - name: Stop after PR validation
+        if: github.event_name == 'pull_request'
+        run: echo "Translation submission is complete, SHA-bound, and queue-bound."
+
+      - name: Check out the exact Stage A producer
+        if: github.event_name == 'push'
+        env:
+          PRODUCER_COMMIT: ${{ steps.validate.outputs.protocol_commit }}
+        run: |
+          git cat-file -e "$PRODUCER_COMMIT^{commit}"
+          git merge-base --is-ancestor "$PRODUCER_COMMIT" HEAD
+          git worktree add --detach "$RUNNER_TEMP/evidenceradar-producer" "$PRODUCER_COMMIT"
+
+      - name: Install exact producer dependencies
+        if: github.event_name == 'push'
+        run: python -m pip install -r "$RUNNER_TEMP/evidenceradar-producer/requirements.txt"
+
+      - name: Resume Stage B without rediscovery
+        if: github.event_name == 'push'
+        id: stage_b
+        env:
+          PRODUCER_ROOT: ${{ runner.temp }}/evidenceradar-producer
+          PRODUCER_COMMIT: ${{ steps.validate.outputs.protocol_commit }}
+          RADAR_OUTPUT: ${{ runner.temp }}/evidenceradar-stage-b-output
+        run: |
+          set -euo pipefail
+          mkdir -p "$RADAR_OUTPUT"
+          result="$(PYTHONDONTWRITEBYTECODE=1 python "$PRODUCER_ROOT/tools/run_github_radar.py" \
+            --root "$PRODUCER_ROOT" \
+            --output-dir "$RADAR_OUTPUT" \
+            --state "$GITHUB_WORKSPACE/state/current/EvidenceRadar_State.json" \
+            --execution-lane github_actions \
+            --protocol-commit "$PRODUCER_COMMIT" \
+            --translation-request "$RUNNER_TEMP/EvidenceRadar_TranslationRequest.json" \
+            --translation-response "$RUNNER_TEMP/EvidenceRadar_TranslationResponse.json")"
+          echo "$result"
+          python - "$result" <<'PY'
+          import json
+          import os
+          import sys
+          from pathlib import Path
+
+          result = json.loads(sys.argv[1])
+          if result.get("run_status") == "TRANSLATION_REQUIRED":
+              raise SystemExit("Stage B did not advance beyond TRANSLATION_REQUIRED")
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
+              output.write(f"run_id={result['run_id']}\n")
+              output.write(f"run_status={result['run_status']}\n")
+          PY
+
+      - name: Validate and package the Stage B publication candidate
+        if: github.event_name == 'push'
+        env:
+          PRODUCER_ROOT: ${{ runner.temp }}/evidenceradar-producer
+          PRODUCER_COMMIT: ${{ steps.validate.outputs.protocol_commit }}
+          RADAR_OUTPUT: ${{ runner.temp }}/evidenceradar-stage-b-output
+          PACKAGE_OUTPUT: ${{ runner.temp }}/evidenceradar-publication-package
+          RUN_ID: ${{ steps.stage_b.outputs.run_id }}
+        run: |
+          PYTHONDONTWRITEBYTECODE=1 python "$PRODUCER_ROOT/tools/validate_gpt_work_artifacts.py" \
+            "$RADAR_OUTPUT/EvidenceRadar_State.json" \
+            "$RADAR_OUTPUT/EvidenceRadar_Evidence.json" \
+            "$RADAR_OUTPUT/EvidenceRadar_Run.json"
+          PYTHONDONTWRITEBYTECODE=1 python "$PRODUCER_ROOT/tools/validate_delivery_bundle.py" \
+            --root "$PRODUCER_ROOT" \
+            --bundle "$RADAR_OUTPUT" \
+            --canonical-state "$RADAR_OUTPUT/EvidenceRadar_State.json" \
+            --expected-lane github_actions \
+            --expected-protocol-commit "$PRODUCER_COMMIT" \
+            --require-current-producer \
+            --require-semantic-contract-v3 \
+            --reject-dirty
+          PYTHONDONTWRITEBYTECODE=1 python "$PRODUCER_ROOT/tools/package_work_delivery.py" \
+            --source-dir "$RADAR_OUTPUT" \
+            --output-dir "$PACKAGE_OUTPUT" \
+            --run-id "$RUN_ID" \
+            --validation-root "$PRODUCER_ROOT" \
+            --expected-lane github_actions \
+            --require-current-producer \
+            > "$RUNNER_TEMP/evidenceradar-package-result.json"
+
+      - name: Upload immutable Stage B publication candidate
+        if: github.event_name == 'push'
+        id: upload_publication
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: evidenceradar-publication-${{ steps.stage_b.outputs.run_id }}
+          if-no-files-found: error
+          retention-days: 14
+          path: ${{ runner.temp }}/evidenceradar-publication-package
+
+      - name: Advance queue entry to ready-to-publish
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HANDOFF_ISSUE: ${{ steps.control.outputs.handoff_issue_number }}
+          REQUEST_ARTIFACT_ID: ${{ steps.control.outputs.artifact_id }}
+          REQUEST_ARTIFACT_NAME: ${{ steps.control.outputs.artifact_name }}
+          PUBLICATION_ARTIFACT_ID: ${{ steps.upload_publication.outputs.artifact-id }}
+          PUBLICATION_ARTIFACT_NAME: evidenceradar-publication-${{ steps.stage_b.outputs.run_id }}
+          REQUEST_SHA256: ${{ steps.validate.outputs.request_sha256 }}
+          PRODUCER_COMMIT: ${{ steps.validate.outputs.protocol_commit }}
+          RUN_ID: ${{ steps.stage_b.outputs.run_id }}
+          RUN_STATUS: ${{ steps.stage_b.outputs.run_status }}
+        run: |
+          if ! gh label list --limit 100 --json name --jq '.[].name' | grep -Fxq 'evidenceradar-ready-to-publish'; then
+            gh label create evidenceradar-ready-to-publish \
+              --color 1f883d \
+              --description 'Validated Stage B bundle awaiting publication PR'
+          fi
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          metadata = {
+              "schema_version": "1.0",
+              "artifact_type": "EvidenceRadar_WorkQueueEntry",
+              "status": "READY_TO_PUBLISH",
+              "repository": os.environ["GITHUB_REPOSITORY"],
+              "request_artifact_id": int(os.environ["REQUEST_ARTIFACT_ID"]),
+              "request_artifact_name": os.environ["REQUEST_ARTIFACT_NAME"],
+              "request_sha256": os.environ["REQUEST_SHA256"],
+              "protocol_commit": os.environ["PRODUCER_COMMIT"],
+              "radar_run_id": os.environ["RUN_ID"],
+              "radar_run_status": os.environ["RUN_STATUS"],
+              "publication_artifact_id": int(os.environ["PUBLICATION_ARTIFACT_ID"]),
+              "publication_artifact_name": os.environ["PUBLICATION_ARTIFACT_NAME"],
+          }
+          body = (
+              "<!-- evidenceradar-work-queue:v1 -->\n"
+              "Stage B completed without rediscovery and produced a validated publication candidate.\n\n"
+              "```json\n"
+              + json.dumps(metadata, ensure_ascii=False, indent=2, sort_keys=True)
+              + "\n```\n"
+          )
+          path = Path(os.environ["RUNNER_TEMP"]) / "evidenceradar-ready-to-publish.md"
+          path.write_text(body, encoding="utf-8")
+          PY
+          gh issue edit "$HANDOFF_ISSUE" \
+            --body-file "$RUNNER_TEMP/evidenceradar-ready-to-publish.md" \
+            --remove-label evidenceradar-handoff \
+            --add-label evidenceradar-ready-to-publish
