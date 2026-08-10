@@ -1,7 +1,10 @@
 # EvidenceRadar
 (目前依然開發及修改中，請複製到個人GitHub ，要求gpt生成你的個人設定)
+
 (目前這repo最大的價值在某些核實方式更技巧例如fetch和search對LLM的分別是甚麼)
+
 (能用但還是需要時間改進，我要等reset⋯⋯ XD)
+
 EvidenceRadar 是一套可公開自行部署、可稽核的近期研究雷達。它把「發現新文獻」
 與「證據已核實」分開，使用事件窗、publication identity、來源覆蓋、claim ledger
 與可攜 State 防止重複通知和過度宣稱。
