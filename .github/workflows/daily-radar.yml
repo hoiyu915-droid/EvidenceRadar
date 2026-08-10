@@ -14,7 +14,7 @@ on:
       # Operational control path: changing only this request file starts a
       # formal Radar run without mutating producer/runtime source.
       - ".github/evidenceradar-run-request.json"
-  # 06:17 in Asia/Tokyo.  The non-zero minute avoids the busiest top-of-hour
+  # 06:17 in Asia/Tokyo. The non-zero minute avoids the busiest top-of-hour
   # scheduling window while retaining a stable daily handoff.
   schedule:
     - cron: "17 6 * * *"
@@ -46,6 +46,7 @@ concurrency:
 env:
   RADAR_ROOT: "."
   RADAR_STATE_PATH: "state/current/EvidenceRadar_State.json"
+  RADAR_PROFILE: "current_plus_general"
   EXECUTION_LANE: "github_actions"
   PUBLISHER_TARGET_MIN: ${{ inputs.publisher_target_min || 10 }}
   PUBLISHER_HARD_MAX: ${{ inputs.publisher_hard_max || 15 }}
@@ -91,6 +92,12 @@ jobs:
         working-directory: legacy/python-runtime
         run: python -m pytest -q tests
 
+      - name: Materialize master-controlled runner
+        run: |
+          python tools/apply_master_control_runtime.py --runner tools/run_github_radar.py --check
+          python tools/apply_master_control_runtime.py --runner tools/run_github_radar.py
+          python -m py_compile tools/run_github_radar.py tools/radar_control.py tools/publisher_feed.py
+
       - name: Run EvidenceRadar GitHub lane
         id: radar
         env:
@@ -103,6 +110,7 @@ jobs:
             --output-dir "$RADAR_OUTPUT_DIR" \
             --state "$RADAR_STATE_PATH" \
             --execution-lane "$EXECUTION_LANE" \
+            --profile "$RADAR_PROFILE" \
             --publisher-target-min "$PUBLISHER_TARGET_MIN" \
             --publisher-hard-max "$PUBLISHER_HARD_MAX" \
             --translation-request "$RADAR_TRANSLATION_REQUEST")"
