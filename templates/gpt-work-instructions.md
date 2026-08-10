@@ -46,6 +46,8 @@ branch: main
 source_mode: public_repo
 ```
 
+Record that fixed SHA as the **protocol commit** for this run; do not substitute a later moving `main` SHA during validation or packaging.
+
 Read the protocol, `config/`, schemas, templates and tools from that checkout
 at the resolved commit. A moving `main` link, cached browser page or an older
 attachment is not a source revision. Do not write generated artifacts into the
@@ -239,13 +241,13 @@ python3 tools/package_work_delivery.py \
   --source-dir "$WORK_RUN_DIR" \
   --output-dir "$WORK_DELIVERY_DIR" \
   --run-id "$RUN_ID" \
-  --validation-root "$WORK_SOURCE_DIR/EvidenceRadar" \
+   --validation-root "$WORK_SOURCE_DIR/EvidenceRadar" \
   --expected-lane chatgpt_work \
   --require-current-producer
 ```
 
 The package command creates a fresh canonical bundle directory, a unique
-`EvidenceRadar-WorkRun-<run_id>.zip`, and the matching `.zip.sha256` sidecar.
+`EvidenceRadar-WorkRun-<run_id>.zip`, and the matching `.zp.sha256` sidecar.
 After that validation/package step succeeds, create the four byte-identical
 **direct-delivery aliases** beside the package:
 

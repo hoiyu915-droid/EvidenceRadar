@@ -26,7 +26,7 @@ class GithubDeploymentSurfaceTests(unittest.TestCase):
         self.assertRegex(self.workflow, r"schedule:\s*\n\s*- cron:\s*[\"']17 6 \* \* \*[\"']")
         self.assertRegex(self.workflow, r"cron:\s*[\"']17 6 \* \* \*[\"']\s*\n\s*timezone:\s*[\"']Asia/Tokyo[\"']")
 
-    def test_manual_dispatch_exposes_ten_to_fifteen_inputs(self) -> None:
+    def test_manual_dispatch_exposes_optional_publisher_overrides(self) -> None:
         self.assertIn("workflow_dispatch:", self.workflow)
         target_start = self.workflow.index("      publisher_target_min:")
         target_end = self.workflow.index("\n      publisher_hard_max:", target_start)
@@ -34,9 +34,14 @@ class GithubDeploymentSurfaceTests(unittest.TestCase):
         hard_max_start = target_end + 1
         hard_max_end = self.workflow.index("\n\n# Hosted Actions", hard_max_start)
         hard_max_block = self.workflow[hard_max_start:hard_max_end]
-        self.assertIn("default: 10", target_block)
-        self.assertIn("default: 15", hard_max_block)
-        self.assertIn("type: number", self.workflow)
+        for block in (target_block, hard_max_block):
+            self.assertIn("required: false", block)
+            self.assertIn("type: number", block)
+            self.assertIn("profile/master limit", block)
+            self.assertNotIn("default:", block)
+        self.assertIn("publisher_args=()", self.workflow)
+        self.assertIn('if [ -n "${PUBLISHER_TARGET_MIN:-}" ]', self.workflow)
+        self.assertIn('if [ -n "${PUBLISHER_HARD_MAX:-}" ]', self.workflow)
         self.assertNotIn("cas_retry:", self.workflow)
 
     def test_read_permission_and_non_cancelling_concurrency_are_explicit(self) -> None:
