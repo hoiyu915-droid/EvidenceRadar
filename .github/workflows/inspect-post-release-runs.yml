@@ -7,13 +7,26 @@ on:
       - ".github/maintenance/inspect-post-release-runs.txt"
 
 permissions:
-  actions: read
+  actions: write
   contents: read
 
 jobs:
   inspect:
     runs-on: ubuntu-latest
     steps:
+      - name: Cancel stale post-merge Radar run if still active
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          stale_run=31347820559
+          status="$(gh run view "$stale_run" --repo "$GITHUB_REPOSITORY" --json status --jq .status || true)"
+          echo "stale run $stale_run status=$status"
+          if [ "$status" = "in_progress" ] || [ "$status" = "queued" ] || [ "$status" = "pending" ]; then
+            gh run cancel "$stale_run" --repo "$GITHUB_REPOSITORY"
+            echo "cancel requested for stale run $stale_run"
+          fi
+
       - name: Inspect main workflow runs
         env:
           GH_TOKEN: ${{ github.token }}
