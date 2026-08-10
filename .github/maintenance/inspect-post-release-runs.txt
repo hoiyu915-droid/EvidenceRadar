@@ -1,1 +1,1 @@
-Inspect latest main workflow run status after zh-TW publication-mode scoping fix and independently verify Runtime v1.0.1 release assets. Sequence: 2.
+Cancel the stale post-merge Radar run if it cannot publish, then inspect the queued current-main run and recheck Runtime v1.0.1 assets. Sequence: 3.
