@@ -1,0 +1,72 @@
+schema_version: "1.0"
+
+execution_lanes:
+  chatgpt_work:
+    enabled: true
+    verification_scope: full_source_and_claim_review
+    state_handoff: user_carried_or_imported_artifact
+  github_actions:
+    enabled: true
+    verification_scope: automated_discovery_and_source_access_audit
+    state_handoff: repository_canonical_state
+
+publisher_output:
+  budget_scope: publisher_network_access_only
+  candidate_display_capped_by_this_budget: false
+  target_min_per_run: 10
+  hard_max_per_run: 15
+  per_domain_hard_max: 2
+  timeout_seconds: 20
+  request_delay_seconds: 1.0
+  stop_domain_on_http_status: [401, 403, 429]
+  allow_below_target_when_insufficient_or_blocked: true
+  padding_forbidden: true
+
+github_actions:
+  schedule:
+    cron: "17 6 * * *"
+    timezone: Asia/Tokyo
+  concurrency_group: evidence-radar-daily
+  canonical_state: state/current/EvidenceRadar_State.json
+  immutable_runs_directory: runs
+  writeback: repository
+  stale_writeback_behavior: fail_without_rebase
+
+public_delivery:
+  provider: github_pages
+  publish_only_validated_current_bundle: true
+  stable_report_url_pattern: https://OWNER.github.io/REPOSITORY/
+  links_json_path: links.json
+  immutable_report_path_pattern: runs/RUN_ID/
+  github_blob_is_not_html_preview: true
+
+provider_credentials:
+  OPENALEX_API_KEY:
+    storage: github_actions_secret_or_work_environment
+    required_for: openalex_discovery
+    missing_behavior: record_source_gap
+  OPENREVIEW_TOKEN:
+    storage: optional_github_actions_secret_or_work_environment
+    required_for: authenticated_openreview_access_when_public_search_is_blocked
+    missing_behavior: try_public_search_then_record_source_gap_on_failure
+  NCBI_EMAIL:
+    storage: github_actions_variable_or_work_environment
+    required_for: recommended_eutilities_identification
+    missing_behavior: continue_at_anonymous_rate
+  NCBI_API_KEY:
+    storage: github_actions_secret_or_work_environment
+    required_for: elevated_eutilities_rate
+    missing_behavior: enforce_three_requests_per_second
+  EVIDENCERADAR_TRANSLATION_API_KEY:
+    storage: optional_github_actions_secret
+    required_for: provider_abstract_translation_to_zh_tw
+    missing_behavior: use_github_copilot_cli_fallback_or_fail_closed_in_publication_mode
+  EVIDENCERADAR_TRANSLATION_MODEL:
+    storage: optional_github_actions_variable
+    required_for: translation_model_override
+    missing_behavior: use_gpt_5_mini
+
+work_pack:
+  enabled: true
+  state_required_after_first_run: true
+  repository_writeback_required: false

@@ -1,0 +1,139 @@
+execution:
+  owners: [chatgpt_work, github_actions]
+  lanes:
+    chatgpt_work:
+      method: live_web_search_and_direct_source_read
+      trigger: user_launched
+      repository_writeback: false
+    github_actions:
+      method: automated_discovery_source_audit_and_translation_request
+      trigger: scheduled_or_workflow_dispatch
+      repository_writeback: false
+  mcp: false
+  external_server: false
+  codex: false
+  github_actions: true
+
+window:
+  timezone: Asia/Tokyo
+  rolling_hours: 72
+  exclude_date_only_cutoff_day: true
+
+artifacts:
+  primary_delivery:
+    filename: EvidenceRadar_Report.html
+    format: self_contained_html
+    requirements:
+      - source_coverage_matrix
+      - concise_conclusions
+      - category_sections
+      - event_evidence
+      - claim_support
+      - caveats
+      - identifiers
+      - direct_links
+      - conflicts_and_gaps
+      - delivery_provenance_meta
+      - data_evidenceradar_work_id_per_displayed_candidate
+  state:
+    filename: EvidenceRadar_State.json
+    schema: schemas/evidence-radar-state.schema.json
+  evidence:
+    filename: EvidenceRadar_Evidence.json
+    schema: schemas/evidence-radar-evidence.schema.json
+  run:
+    filename: EvidenceRadar_Run.json
+    schema: schemas/evidence-radar-run.schema.json
+
+run_statuses:
+  - COMPLETE
+  - PARTIAL_SOURCE_COVERAGE
+  - SOURCE_ACCESS_GAP
+  - STATE_HISTORY_INCOMPLETE
+  - NO_QUALIFYING_ITEMS
+
+state_rules:
+  prior_state_optional_on_first_run: true
+  missing_or_invalid_prior_state_status: STATE_HISTORY_INCOMPLETE
+  advance_only_after_artifact_validation: true
+  never_notify_unverified_events: true
+  canonical_repository_path: state/current/EvidenceRadar_State.json
+  merge_tool: tools/merge_radar_state.py
+  concurrent_runs_require_deterministic_merge: true
+
+provenance:
+  required_for_new_runs:
+    - execution_lane
+    - protocol_commit
+    - base_state_sha256
+    - parent_run_ids
+  execution_lanes: [chatgpt_work, github_actions]
+
+delivery_validation:
+  tool: tools/validate_delivery_bundle.py
+  schema_only_is_sufficient: false
+  require_candidate_ledger_html_parity: true
+  require_state_run_provenance_parity: true
+  require_current_producer_for_publication: true
+  semantic_contract: SEMANTIC_CONTRACT_V3
+  require_executor_retrieval_receipts: true
+  require_stable_source_and_claim_registries: true
+  require_gap_bound_followups: true
+  require_claim_source_locator_bindings: true
+  require_canonical_html_byte_parity: true
+
+publisher_output:
+  settings_file: config/deployment.yml
+  output_unit: publisher_network_access_attempt
+  candidate_display_capped_by_publisher_budget: false
+
+selection:
+  scope: per_category
+  categories:
+    - clinical_medicine
+    - sport_science
+    - sport_nutrition_fitness
+    - llm_research
+    - human_ai
+  featured:
+    target_min: 5
+    hard_max: 8
+  candidate_pool:
+    display_all_deduplicated: true
+    group_by_category: true
+    default_view: featured
+    full_pool_collapsed_by_default: true
+    full_pool_searchable: true
+    full_pool_expands_on_filter: true
+    excluded_from_featured_event_classes:
+      - BACKFILL_INDEXING
+      - CORRECTION_NOTICE
+    includes_featured: true
+    complete_deduplicated_ledger_in_run_json: true
+  allow_below_minimum_when_insufficient: true
+  padding_forbidden: true
+
+rendering:
+  canonical_renderer: tools/render_report_from_artifacts.py
+  manual_substantive_html_edits_forbidden: true
+  language: zh-TW
+  preserve_original_title: true
+  include_candidate_content_summary: true
+  candidate_summary_language: zh-TW
+  candidate_summary_max_chars: 320
+  summary_translation:
+    enabled: true
+    provider: ordinary_chatgpt_manual_handoff
+    request_artifact: EvidenceRadar_TranslationRequest.json
+    response_artifact: EvidenceRadar_TranslationResponse.json
+    request_sha256_binding: required
+    state_advancement_before_response: forbidden
+    publication_missing_translation_behavior: fail_closed
+    nonpublication_fixture_fallback: explicit_zh_tw_placeholder
+  interactive_candidate_filters: true
+  category_sections_collapsible: true
+  include_main_caveat: true
+  include_identifiers: true
+  include_source_locators: true
+  include_numeric_surface: true
+  github_blob_is_not_a_preview: true

@@ -1,0 +1,82 @@
+name: Publish EvidenceRadar report
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "artifacts/current/**"
+      - "state/current/EvidenceRadar_State.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: evidenceradar-pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Check out complete producer history
+        uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Install active-lane dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Fail closed if GitHub Pages is not enabled
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          build_type="$(gh api "repos/${GITHUB_REPOSITORY}/pages" --jq '.build_type // ""' 2>/dev/null || true)"
+          if [ "$build_type" != "workflow" ]; then
+            echo "::error::GitHub Pages is not enabled with Build and deployment Source=GitHub Actions for this repository"
+            echo "Enable Settings > Pages > Build and deployment > GitHub Actions, then rerun this workflow."
+            exit 1
+          fi
+          echo "GitHub Pages preflight: build_type=$build_type"
+
+      - name: Configure GitHub Pages
+        id: pages
+        uses: actions/configure-pages@v6.0.0
+
+      - name: Validate and build the public report site
+        run: |
+          python tools/build_pages_site.py \
+            --root . \
+            --bundle artifacts/current \
+            --canonical-state state/current/EvidenceRadar_State.json \
+            --repository "$GITHUB_REPOSITORY" \
+            --base-url "${{ steps.pages.outputs.base_url }}" \
+            --output-dir _site
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v5.0.0
+        with:
+          path: _site
+
+      - name: Deploy report
+        id: deployment
+        uses: actions/deploy-pages@v5.0.0
+
+      - name: Publish clickable links in the run summary
+        run: |
+          echo "## EvidenceRadar report" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- [Open the latest HTML report](${{ steps.deployment.outputs.page_url }})" >> "$GITHUB_STEP_SUMMARY"
+          echo "- [Open link metadata](${{ steps.deployment.outputs.page_url }}links.json)" >> "$GITHUB_STEP_SUMMARY"

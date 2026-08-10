@@ -1,0 +1,838 @@
+{
+  "artifact_type": "EvidenceRadar_Run",
+  "artifacts": {
+    "evidence_json": "EvidenceRadar_Evidence.json",
+    "report_html": "EvidenceRadar_Report.html",
+    "run_json": "EvidenceRadar_Run.json",
+    "state_json": "EvidenceRadar_State.json"
+  },
+  "base_state_sha256": "7cdf8c0e2e0f0d4872f3333b146d989dbe2badc610feed55cadceba652883301",
+  "counts": {
+    "claims": 0,
+    "deduplicated_candidates": 56,
+    "notified_events": 3,
+    "queries": 31,
+    "raw_candidates": 56,
+    "verified_works": 0
+  },
+  "coverage_status": "SOURCE_ACCESS_GAP",
+  "execution_lane": "github_actions",
+  "finished_at": "2026-08-09T10:03:09.137644+09:00",
+  "history_status": "STATE_HISTORY_INCOMPLETE",
+  "mode": "daily",
+  "notes": [
+    "GitHub Actions performs automated discovery and source-access auditing; it does not promote unreviewed scientific claims."
+  ],
+  "parent_run_ids": [
+    "github-actions-20260809T092119+0900"
+  ],
+  "protocol_commit": "e64629fea01243482af1ab89a95ffb6c1ddf3b92",
+  "queries": [
+    {
+      "category": "clinical_medicine",
+      "query": "((\"JAMA Netw Open\"[Journal] OR \"EClinicalMedicine\"[Journal] OR \"BMC Med\"[Journal] OR \"BMJ Open\"[Journal] OR \"Commun Med (Lond)\"[Journal] OR \"PLoS Med\"[Journal] OR \"BMJ Med\"[Journal] OR \"Lancet Reg Health West Pac\"[Journal] OR \"Lancet Reg Health Eur\"[Journal] OR \"Lancet Reg Health Am\"[Journal]) NOT (protocol[Title] OR letter[Publication Type] OR editorial[Publication Type] OR comment[Publication Type]))",
+      "query_id": "query-001",
+      "result_count": 40,
+      "searched_at": "2026-08-09T10:02:33.540188+09:00",
+      "source_ids": [
+        "pubmed"
+      ],
+      "status": "SUCCESS"
+    },
+    {
+      "category": "clinical_medicine",
+      "query": "(((meta-analysis[Publication Type] OR systematic review[Publication Type] OR randomized controlled trial[Publication Type] OR practice guideline[Publication Type]) AND humans[MeSH Terms]) NOT (protocol[Title] OR letter[Publication Type] OR editorial[Publication Type] OR comment[Publication Type]))",
+      "query_id": "query-002",
+      "result_count": 40,
+      "searched_at": "2026-08-09T10:02:37.333782+09:00",
+      "source_ids": [
+        "pubmed"
+      ],
+      "status": "SUCCESS"
+    },
+    {
+      "category": "clinical_medicine",
+      "query": "((\"N Engl J Med\"[Journal] OR Lancet[Journal] OR JAMA[Journal] OR BMJ[Journal] OR \"Ann Intern Med\"[Journal] OR \"Nat Med\"[Journal]) AND (clinical trial[Publication Type] OR randomized controlled trial[Publication Type] OR meta-analysis[Publication Type] OR systematic review[Publication Type]) NOT (protocol[Title] OR letter[Publication Type] OR editorial[Publication Type]))",
+      "query_id": "query-003",
+      "result_count": 8,
+      "searched_at": "2026-08-09T10:02:39.683538+09:00",
+      "source_ids": [
+        "pubmed"
+      ],
+      "status": "SUCCESS"
+    },
+    {
+      "category": "sport_science",
+      "query": "((\"exercise physiology\"[Title/Abstract] OR \"resistance training\"[Title/Abstract] OR \"endurance training\"[Title/Abstract] OR \"athletic performance\"[Title/Abstract] OR \"muscle hypertrophy\"[Title/Abstract] OR biomechanics[Title/Abstract] OR \"training load\"[Title/Abstract]) NOT (protocol[Title] OR letter[Publication Type] OR editorial[Publication Type] OR comment[Publication Type]))",
+      "query_id": "query-004",
+      "result_count": 40,
+      "searched_at": "2026-08-09T10:02:41.318898+09:00",
+      "source_ids": [
+        "pubmed"
+      ],
+      "status": "SUCCESS"
+    },
+    {
+      "category": "sport_science",
+      "query": "((exercise[Title] OR athlete*[Title] OR sport*[Title] OR muscle[Title] OR training[Title]) AND (fatigue[Title/Abstract] OR recovery[Title/Abstract] OR strength[Title/Abstract] OR power[Title/Abstract] OR adaptation[Title/Abstract]) NOT (protocol[Title] OR letter[Publication Type] OR editorial[Publication Type] OR comment[Publication Type]))",
+      "query_id": "query-005",
+      "result_count": 40,
+      "searched_at": "2026-08-09T10:02:42.981772+09:00",
+      "source_ids": [
+        "pubmed"
+      ],
+      "status": "SUCCESS"
+    },
+    {
+      "category": "sport_nutrition_fitness",
+      "query": "((\"sports nutrition\"[Title/Abstract] OR \"energy availability\"[Title/Abstract] OR RED-S[Title/Abstract] OR \"relative energy deficiency\"[Title/Abstract] OR \"carbohydrate availability\"[Title/Abstract]) NOT (protocol[Title] OR letter[Publication Type] OR editorial[Publication Type]))",
+      "query_id": "query-006",
+      "result_count": 2,
+      "searched_at": "2026-08-09T10:02:44.856330+09:00",
+      "source_ids": [
+        "pubmed"
+      ],
+      "status": "SUCCESS"
+    },
+    {
+      "category": "sport_nutrition_fitness",
+      "query": "((athlete*[Title] OR sport*[Title] OR exercise[Title] OR training[Title] OR performance[Title] OR recovery[Title]) AND (protein[Title] OR carbohydrate*[Title] OR creatine[Title] OR hydration[Title] OR rehydration[Title] OR supplement*[Title] OR nutrition*[Title] OR diet*[Title]) NOT (protocol[Title] OR letter[Publication Type] OR editorial[Publication Type]))",
+      "query_id": "query-007",
+      "result_count": 16,
+      "searched_at": "2026-08-09T10:02:46.489878+09:00",
+      "source_ids": [
+        "pubmed"
+      ],
+      "status": "SUCCESS"
+    },
+    {
+      "category": "sport_nutrition_fitness",
+      "query": "((\"physical fitness\"[Title/Abstract] OR \"cardiorespiratory fitness\"[Title/Abstract] OR \"muscular strength\"[Title/Abstract] OR \"step count\"[Title/Abstract] OR \"sedentary behavior\"[Title/Abstract] OR \"sedentary behaviour\"[Title/Abstract]) NOT (protocol[Title] OR letter[Publication Type] OR editorial[Publication Type]))",
+      "query_id": "query-008",
+      "result_count": 23,
+      "searched_at": "2026-08-09T10:02:48.074669+09:00",
+      "source_ids": [
+        "pubmed"
+      ],
+      "status": "SUCCESS"
+    },
+    {
+      "category": "sport_nutrition_fitness",
+      "query": "(((\"physical activity\"[Title] OR exercise[Title] OR walking[Title] OR sarcopenia[Title]) AND (mortality[Title/Abstract] OR aging[Title/Abstract] OR \"dose-response\"[Title/Abstract] OR health[Title/Abstract])) NOT (protocol[Title] OR letter[Publication Type] OR editorial[Publication Type]))",
+      "query_id": "query-009",
+      "result_count": 40,
+      "searched_at": "2026-08-09T10:02:49.652684+09:00",
+      "source_ids": [
+        "pubmed"
+      ],
+      "status": "SUCCESS"
+    },
+    {
+      "category": "llm_research",
+      "notes": [
+        "OPENALEX_API_KEY is required for the OpenAlex discovery adapter"
+      ],
+      "query": "large language model instruction following sycophancy calibration",
+      "query_id": "query-010",
+      "result_count": 0,
+      "searched_at": "2026-08-09T10:02:51.421501+09:00",
+      "source_ids": [
+        "openalex"
+      ],
+      "status": "FAILED"
+    },
+    {
+      "category": "llm_research",
+      "notes": [
+        "OPENALEX_API_KEY is required for the OpenAlex discovery adapter"
+      ],
+      "query": "large language model hallucination robustness jailbreak alignment evaluation",
+      "query_id": "query-011",
+      "result_count": 0,
+      "searched_at": "2026-08-09T10:02:51.421714+09:00",
+      "source_ids": [
+        "openalex"
+      ],
+      "status": "FAILED"
+    },
+    {
+      "category": "llm_research",
+      "notes": [
+        "OPENALEX_API_KEY is required for the OpenAlex discovery adapter"
+      ],
+      "query": "large language model long context context compression in-context learning",
+      "query_id": "query-012",
+      "result_count": 0,
+      "searched_at": "2026-08-09T10:02:51.421738+09:00",
+      "source_ids": [
+        "openalex"
+      ],
+      "status": "FAILED"
+    },
+    {
+      "category": "llm_research",
+      "notes": [
+        "OPENALEX_API_KEY is required for the OpenAlex discovery adapter"
+      ],
+      "query": "large language model test-time compute reasoning verification self-reflection",
+      "query_id": "query-013",
+      "result_count": 0,
+      "searched_at": "2026-08-09T10:02:51.421750+09:00",
+      "source_ids": [
+        "openalex"
+      ],
+      "status": "FAILED"
+    },
+    {
+      "category": "llm_research",
+      "notes": [
+        "OPENALEX_API_KEY is required for the OpenAlex discovery adapter"
+      ],
+      "query": "large language model retrieval reranking grounding evidence selection",
+      "query_id": "query-014",
+      "result_count": 0,
+      "searched_at": "2026-08-09T10:02:51.421763+09:00",
+      "source_ids": [
+        "openalex"
+      ],
+      "status": "FAILED"
+    },
+    {
+      "category": "llm_research",
+      "notes": [
+        "OPENALEX_API_KEY is required for the OpenAlex discovery adapter"
+      ],
+      "query": "retrieval augmented generation citation verification source authority safety",
+      "query_id": "query-015",
+      "result_count": 0,
+      "searched_at": "2026-08-09T10:02:51.421772+09:00",
+      "source_ids": [
+        "openalex"
+      ],
+      "status": "FAILED"
+    },
+    {
+      "category": "llm_research",
+      "notes": [
+        "OPENALEX_API_KEY is required for the OpenAlex discovery adapter"
+      ],
+      "query": "large language model episodic semantic working memory consolidation forgetting",
+      "query_id": "query-016",
+      "result_count": 0,
+      "searched_at": "2026-08-09T10:02:51.421783+09:00",
+      "source_ids": [
+        "openalex"
+      ],
+      "status": "FAILED"
+    },
+    {
+      "category": "llm_research",
+      "notes": [
+        "OPENALEX_API_KEY is required for the OpenAlex discovery adapter"
+      ],
+      "query": "large language model personalization user model longitudinal adaptation memory",
+      "query_id": "query-017",
+      "result_count": 0,
+      "searched_at": "2026-08-09T10:02:51.421792+09:00",
+      "source_ids": [
+        "openalex"
+      ],
+      "status": "FAILED"
+    },
+    {
+      "category": "llm_research",
+      "notes": [
+        "OPENALEX_API_KEY is required for the OpenAlex discovery adapter"
+      ],
+      "query": "large language model agent planning tool use action selection long horizon",
+      "query_id": "query-018",
+      "result_count": 0,
+      "searched_at": "2026-08-09T10:02:51.421803+09:00",
+      "source_ids": [
+        "openalex"
+      ],
+      "status": "FAILED"
+    },
+    {
+      "category": "llm_research",
+      "notes": [
+        "OPENALEX_API_KEY is required for the OpenAlex discovery adapter"
+      ],
+      "query": "language model browser computer use autonomous execution agent safety",
+      "query_id": "query-019",
+      "result_count": 0,
+      "searched_at": "2026-08-09T10:02:51.421812+09:00",
+      "source_ids": [
+        "openalex"
+      ],
+      "status": "FAILED"
+    },
+    {
+      "category": "llm_research",
+      "notes": [
+        "OPENALEX_API_KEY is required for the OpenAlex discovery adapter"
+      ],
+      "query": "large language model multi-agent coordination role assignment communication",
+      "query_id": "query-020",
+      "result_count": 0,
+      "searched_at": "2026-08-09T10:02:51.421824+09:00",
+      "source_ids": [
+        "openalex"
+      ],
+      "status": "FAILED"
+    },
+    {
+      "category": "llm_research",
+      "notes": [
+        "OPENALEX_API_KEY is required for the OpenAlex discovery adapter"
+      ],
+      "query": "language model agents debate cooperation collective failure emergent behavior",
+      "query_id": "query-021",
+      "result_count": 0,
+      "searched_at": "2026-08-09T10:02:51.421832+09:00",
+      "source_ids": [
+        "openalex"
+      ],
+      "status": "FAILED"
+    },
+    {
+      "category": "llm_research",
+      "notes": [
+        "OPENALEX_API_KEY is required for the OpenAlex discovery adapter"
+      ],
+      "query": "large language model inference systems runtime orchestration latency reliability",
+      "query_id": "query-022",
+      "result_count": 0,
+      "searched_at": "2026-08-09T10:02:51.421843+09:00",
+      "source_ids": [
+        "openalex"
+      ],
+      "status": "FAILED"
+    },
+    {
+      "category": "llm_research",
+      "notes": [
+        "OPENALEX_API_KEY is required for the OpenAlex discovery adapter"
+      ],
+      "query": "large language model tool runtime protocol model context protocol sandbox observability",
+      "query_id": "query-023",
+      "result_count": 0,
+      "searched_at": "2026-08-09T10:02:51.421852+09:00",
+      "source_ids": [
+        "openalex"
+      ],
+      "status": "FAILED"
+    },
+    {
+      "category": "llm_research",
+      "notes": [
+        "OPENALEX_API_KEY is required for the OpenAlex discovery adapter"
+      ],
+      "query": "large language model post-training preference optimization distillation continual learning",
+      "query_id": "query-024",
+      "result_count": 0,
+      "searched_at": "2026-08-09T10:02:51.421863+09:00",
+      "source_ids": [
+        "openalex"
+      ],
+      "status": "FAILED"
+    },
+    {
+      "category": "llm_research",
+      "notes": [
+        "OPENALEX_API_KEY is required for the OpenAlex discovery adapter"
+      ],
+      "query": "large language model architecture mixture of experts PEFT synthetic data curriculum",
+      "query_id": "query-025",
+      "result_count": 0,
+      "searched_at": "2026-08-09T10:02:51.421871+09:00",
+      "source_ids": [
+        "openalex"
+      ],
+      "status": "FAILED"
+    },
+    {
+      "category": "llm_research",
+      "notes": [
+        "OPENALEX_API_KEY is required for the OpenAlex discovery adapter"
+      ],
+      "query": "large language model benchmark contamination evaluation validity judge reliability",
+      "query_id": "query-026",
+      "result_count": 0,
+      "searched_at": "2026-08-09T10:02:51.421882+09:00",
+      "source_ids": [
+        "openalex"
+      ],
+      "status": "FAILED"
+    },
+    {
+      "category": "llm_research",
+      "notes": [
+        "OPENALEX_API_KEY is required for the OpenAlex discovery adapter"
+      ],
+      "query": "LLM as a judge agent retrieval benchmark longitudinal ecological evaluation",
+      "query_id": "query-027",
+      "result_count": 0,
+      "searched_at": "2026-08-09T10:02:51.421891+09:00",
+      "source_ids": [
+        "openalex"
+      ],
+      "status": "FAILED"
+    },
+    {
+      "category": "human_ai",
+      "notes": [
+        "OPENALEX_API_KEY is required for the OpenAlex discovery adapter"
+      ],
+      "query": "AI companion large language model attachment companionship relationship",
+      "query_id": "query-028",
+      "result_count": 0,
+      "searched_at": "2026-08-09T10:02:51.421902+09:00",
+      "source_ids": [
+        "openalex"
+      ],
+      "status": "FAILED"
+    },
+    {
+      "category": "human_ai",
+      "notes": [
+        "OPENALEX_API_KEY is required for the OpenAlex discovery adapter"
+      ],
+      "query": "chatbot anthropomorphism emotional dependence social connection longitudinal relationship",
+      "query_id": "query-029",
+      "result_count": 0,
+      "searched_at": "2026-08-09T10:02:51.421911+09:00",
+      "source_ids": [
+        "openalex"
+      ],
+      "status": "FAILED"
+    },
+    {
+      "category": "human_ai",
+      "notes": [
+        "OPENALEX_API_KEY is required for the OpenAlex discovery adapter"
+      ],
+      "query": "human AI interaction HCI interaction design trust agency collaboration",
+      "query_id": "query-030",
+      "result_count": 0,
+      "searched_at": "2026-08-09T10:02:51.421921+09:00",
+      "source_ids": [
+        "openalex"
+      ],
+      "status": "FAILED"
+    },
+    {
+      "category": "human_ai",
+      "notes": [
+        "OPENALEX_API_KEY is required for the OpenAlex discovery adapter"
+      ],
+      "query": "human AI decision support appropriation longitudinal use CSCW",
+      "query_id": "query-031",
+      "result_count": 0,
+      "searched_at": "2026-08-09T10:02:51.421930+09:00",
+      "source_ids": [
+        "openalex"
+      ],
+      "status": "FAILED"
+    }
+  ],
+  "run_id": "github-actions-20260809T100233+0900",
+  "run_status": "STATE_HISTORY_INCOMPLETE",
+  "schema_version": "1.0",
+  "source_access": [
+    {
+      "accessed_at": "2026-08-09T10:02:33.540188+09:00",
+      "result_count": 40,
+      "source_id": "query-001-pubmed",
+      "status": "SUCCESS",
+      "url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
+    },
+    {
+      "accessed_at": "2026-08-09T10:02:37.333782+09:00",
+      "result_count": 40,
+      "source_id": "query-002-pubmed",
+      "status": "SUCCESS",
+      "url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
+    },
+    {
+      "accessed_at": "2026-08-09T10:02:39.683538+09:00",
+      "result_count": 8,
+      "source_id": "query-003-pubmed",
+      "status": "SUCCESS",
+      "url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
+    },
+    {
+      "accessed_at": "2026-08-09T10:02:41.318898+09:00",
+      "result_count": 40,
+      "source_id": "query-004-pubmed",
+      "status": "SUCCESS",
+      "url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
+    },
+    {
+      "accessed_at": "2026-08-09T10:02:42.981772+09:00",
+      "result_count": 40,
+      "source_id": "query-005-pubmed",
+      "status": "SUCCESS",
+      "url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
+    },
+    {
+      "accessed_at": "2026-08-09T10:02:44.856330+09:00",
+      "result_count": 2,
+      "source_id": "query-006-pubmed",
+      "status": "SUCCESS",
+      "url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
+    },
+    {
+      "accessed_at": "2026-08-09T10:02:46.489878+09:00",
+      "result_count": 16,
+      "source_id": "query-007-pubmed",
+      "status": "SUCCESS",
+      "url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
+    },
+    {
+      "accessed_at": "2026-08-09T10:02:48.074669+09:00",
+      "result_count": 23,
+      "source_id": "query-008-pubmed",
+      "status": "SUCCESS",
+      "url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
+    },
+    {
+      "accessed_at": "2026-08-09T10:02:49.652684+09:00",
+      "result_count": 40,
+      "source_id": "query-009-pubmed",
+      "status": "SUCCESS",
+      "url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
+    },
+    {
+      "accessed_at": "2026-08-09T10:02:51.421501+09:00",
+      "error": "OPENALEX_API_KEY is required for the OpenAlex discovery adapter",
+      "result_count": 0,
+      "source_id": "query-010-openalex",
+      "status": "FAILED",
+      "url": "https://api.openalex.org/works"
+    },
+    {
+      "accessed_at": "2026-08-09T10:02:51.421714+09:00",
+      "error": "OPENALEX_API_KEY is required for the OpenAlex discovery adapter",
+      "result_count": 0,
+      "source_id": "query-011-openalex",
+      "status": "FAILED",
+      "url": "https://api.openalex.org/works"
+    },
+    {
+      "accessed_at": "2026-08-09T10:02:51.421738+09:00",
+      "error": "OPENALEX_API_KEY is required for the OpenAlex discovery adapter",
+      "result_count": 0,
+      "source_id": "query-012-openalex",
+      "status": "FAILED",
+      "url": "https://api.openalex.org/works"
+    },
+    {
+      "accessed_at": "2026-08-09T10:02:51.421750+09:00",
+      "error": "OPENALEX_API_KEY is required for the OpenAlex discovery adapter",
+      "result_count": 0,
+      "source_id": "query-013-openalex",
+      "status": "FAILED",
+      "url": "https://api.openalex.org/works"
+    },
+    {
+      "accessed_at": "2026-08-09T10:02:51.421763+09:00",
+      "error": "OPENALEX_API_KEY is required for the OpenAlex discovery adapter",
+      "result_count": 0,
+      "source_id": "query-014-openalex",
+      "status": "FAILED",
+      "url": "https://api.openalex.org/works"
+    },
+    {
+      "accessed_at": "2026-08-09T10:02:51.421772+09:00",
+      "error": "OPENALEX_API_KEY is required for the OpenAlex discovery adapter",
+      "result_count": 0,
+      "source_id": "query-015-openalex",
+      "status": "FAILED",
+      "url": "https://api.openalex.org/works"
+    },
+    {
+      "accessed_at": "2026-08-09T10:02:51.421783+09:00",
+      "error": "OPENALEX_API_KEY is required for the OpenAlex discovery adapter",
+      "result_count": 0,
+      "source_id": "query-016-openalex",
+      "status": "FAILED",
+      "url": "https://api.openalex.org/works"
+    },
+    {
+      "accessed_at": "2026-08-09T10:02:51.421792+09:00",
+      "error": "OPENALEX_API_KEY is required for the OpenAlex discovery adapter",
+      "result_count": 0,
+      "source_id": "query-017-openalex",
+      "status": "FAILED",
+      "url": "https://api.openalex.org/works"
+    },
+    {
+      "accessed_at": "2026-08-09T10:02:51.421803+09:00",
+      "error": "OPENALEX_API_KEY is required for the OpenAlex discovery adapter",
+      "result_count": 0,
+      "source_id": "query-018-openalex",
+      "status": "FAILED",
+      "url": "https://api.openalex.org/works"
+    },
+    {
+      "accessed_at": "2026-08-09T10:02:51.421812+09:00",
+      "error": "OPENALEX_API_KEY is required for the OpenAlex discovery adapter",
+      "result_count": 0,
+      "source_id": "query-019-openalex",
+      "status": "FAILED",
+      "url": "https://api.openalex.org/works"
+    },
+    {
+      "accessed_at": "2026-08-09T10:02:51.421824+09:00",
+      "error": "OPENALEX_API_KEY is required for the OpenAlex discovery adapter",
+      "result_count": 0,
+      "source_id": "query-020-openalex",
+      "status": "FAILED",
+      "url": "https://api.openalex.org/works"
+    },
+    {
+      "accessed_at": "2026-08-09T10:02:51.421832+09:00",
+      "error": "OPENALEX_API_KEY is required for the OpenAlex discovery adapter",
+      "result_count": 0,
+      "source_id": "query-021-openalex",
+      "status": "FAILED",
+      "url": "https://api.openalex.org/works"
+    },
+    {
+      "accessed_at": "2026-08-09T10:02:51.421843+09:00",
+      "error": "OPENALEX_API_KEY is required for the OpenAlex discovery adapter",
+      "result_count": 0,
+      "source_id": "query-022-openalex",
+      "status": "FAILED",
+      "url": "https://api.openalex.org/works"
+    },
+    {
+      "accessed_at": "2026-08-09T10:02:51.421852+09:00",
+      "error": "OPENALEX_API_KEY is required for the OpenAlex discovery adapter",
+      "result_count": 0,
+      "source_id": "query-023-openalex",
+      "status": "FAILED",
+      "url": "https://api.openalex.org/works"
+    },
+    {
+      "accessed_at": "2026-08-09T10:02:51.421863+09:00",
+      "error": "OPENALEX_API_KEY is required for the OpenAlex discovery adapter",
+      "result_count": 0,
+      "source_id": "query-024-openalex",
+      "status": "FAILED",
+      "url": "https://api.openalex.org/works"
+    },
+    {
+      "accessed_at": "2026-08-09T10:02:51.421871+09:00",
+      "error": "OPENALEX_API_KEY is required for the OpenAlex discovery adapter",
+      "result_count": 0,
+      "source_id": "query-025-openalex",
+      "status": "FAILED",
+      "url": "https://api.openalex.org/works"
+    },
+    {
+      "accessed_at": "2026-08-09T10:02:51.421882+09:00",
+      "error": "OPENALEX_API_KEY is required for the OpenAlex discovery adapter",
+      "result_count": 0,
+      "source_id": "query-026-openalex",
+      "status": "FAILED",
+      "url": "https://api.openalex.org/works"
+    },
+    {
+      "accessed_at": "2026-08-09T10:02:51.421891+09:00",
+      "error": "OPENALEX_API_KEY is required for the OpenAlex discovery adapter",
+      "result_count": 0,
+      "source_id": "query-027-openalex",
+      "status": "FAILED",
+      "url": "https://api.openalex.org/works"
+    },
+    {
+      "accessed_at": "2026-08-09T10:02:51.421902+09:00",
+      "error": "OPENALEX_API_KEY is required for the OpenAlex discovery adapter",
+      "result_count": 0,
+      "source_id": "query-028-openalex",
+      "status": "FAILED",
+      "url": "https://api.openalex.org/works"
+    },
+    {
+      "accessed_at": "2026-08-09T10:02:51.421911+09:00",
+      "error": "OPENALEX_API_KEY is required for the OpenAlex discovery adapter",
+      "result_count": 0,
+      "source_id": "query-029-openalex",
+      "status": "FAILED",
+      "url": "https://api.openalex.org/works"
+    },
+    {
+      "accessed_at": "2026-08-09T10:02:51.421921+09:00",
+      "error": "OPENALEX_API_KEY is required for the OpenAlex discovery adapter",
+      "result_count": 0,
+      "source_id": "query-030-openalex",
+      "status": "FAILED",
+      "url": "https://api.openalex.org/works"
+    },
+    {
+      "accessed_at": "2026-08-09T10:02:51.421930+09:00",
+      "error": "OPENALEX_API_KEY is required for the OpenAlex discovery adapter",
+      "result_count": 0,
+      "source_id": "query-031-openalex",
+      "status": "FAILED",
+      "url": "https://api.openalex.org/works"
+    },
+    {
+      "accessed_at": "2026-08-09T10:02:33.510443+09:00",
+      "result_count": 1,
+      "source_id": "publisher-001",
+      "status": "SUCCESS",
+      "url": "https://www.ovid.com/jnls/md-journal/fulltext/10.1097/md.0000000000050023~efficacy-and-safety-of-first-line-immune-checkpoint"
+    },
+    {
+      "accessed_at": "2026-08-09T10:02:33.510443+09:00",
+      "error": "publisher domain budget reached before access: www.ovid.com",
+      "result_count": 0,
+      "source_id": "publisher-002",
+      "status": "FAILED",
+      "url": "https://www.ovid.com/10.1097/MD.0000000000050157"
+    },
+    {
+      "accessed_at": "2026-08-09T10:02:33.510443+09:00",
+      "error": "publisher domain budget reached before access: www.thieme-connect.de",
+      "result_count": 0,
+      "source_id": "publisher-003",
+      "status": "FAILED",
+      "url": "https://www.thieme-connect.de/products/all/doi/10.1055/a-2933-1360"
+    },
+    {
+      "accessed_at": "2026-08-09T10:02:33.510443+09:00",
+      "error": "publisher blocked automated access with HTTP 403",
+      "result_count": 0,
+      "source_id": "publisher-004",
+      "status": "FAILED",
+      "url": "https://www.tandfonline.com/doi/full/10.1080/20008066.2026.2694185"
+    },
+    {
+      "accessed_at": "2026-08-09T10:02:33.510443+09:00",
+      "error": "publisher domain budget reached before access: www.ovid.com",
+      "result_count": 0,
+      "source_id": "publisher-005",
+      "status": "FAILED",
+      "url": "https://www.ovid.com/10.1097/MD.0000000000050096"
+    },
+    {
+      "accessed_at": "2026-08-09T10:02:33.510443+09:00",
+      "error": "publisher domain budget reached before access: www.ovid.com",
+      "result_count": 0,
+      "source_id": "publisher-006",
+      "status": "FAILED",
+      "url": "https://www.ovid.com/10.1097/MD.0000000000050143"
+    },
+    {
+      "accessed_at": "2026-08-09T10:02:33.510443+09:00",
+      "error": "publisher redirect loop detected",
+      "result_count": 0,
+      "source_id": "publisher-007",
+      "status": "FAILED",
+      "url": "https://link.springer.com/article/10.1007/s10792-026-04198-1"
+    },
+    {
+      "accessed_at": "2026-08-09T10:02:33.510443+09:00",
+      "error": "publisher domain budget reached before access: www.ovid.com",
+      "result_count": 0,
+      "source_id": "publisher-008",
+      "status": "FAILED",
+      "url": "https://www.ovid.com/10.1097/MD.0000000000050049"
+    },
+    {
+      "accessed_at": "2026-08-09T10:02:33.510443+09:00",
+      "error": "publisher domain budget reached before access: www.ovid.com",
+      "result_count": 0,
+      "source_id": "publisher-009",
+      "status": "FAILED",
+      "url": "https://www.ovid.com/10.1097/MD.0000000000050081"
+    },
+    {
+      "accessed_at": "2026-08-09T10:02:33.510443+09:00",
+      "error": "publisher blocked automated access with HTTP 429",
+      "result_count": 0,
+      "source_id": "publisher-010",
+      "status": "FAILED",
+      "url": "https://bmjopen.bmj.com/lookup/doi/10.1136/bmjopen-2025-116006"
+    },
+    {
+      "accessed_at": "2026-08-09T10:02:33.510443+09:00",
+      "error": "publisher domain budget reached before access: www.ovid.com",
+      "result_count": 0,
+      "source_id": "publisher-011",
+      "status": "FAILED",
+      "url": "https://www.ovid.com/10.1097/MD.0000000000049903"
+    },
+    {
+      "accessed_at": "2026-08-09T10:02:33.510443+09:00",
+      "error": "publisher domain budget reached before access: www.ovid.com",
+      "result_count": 0,
+      "source_id": "publisher-012",
+      "status": "FAILED",
+      "url": "https://www.ovid.com/10.1097/MD.0000000000050084"
+    },
+    {
+      "accessed_at": "2026-08-09T10:02:33.510443+09:00",
+      "error": "publisher domain budget reached before access: link.springer.com",
+      "result_count": 0,
+      "source_id": "publisher-013",
+      "status": "FAILED",
+      "url": "https://link.springer.com/10.1007/s40279-026-02498-1"
+    },
+    {
+      "accessed_at": "2026-08-09T10:02:33.510443+09:00",
+      "result_count": 1,
+      "source_id": "publisher-014",
+      "status": "SUCCESS",
+      "url": "https://linkinghub.elsevier.com/retrieve/pii/S0883540326005541"
+    },
+    {
+      "accessed_at": "2026-08-09T10:02:33.510443+09:00",
+      "result_count": 1,
+      "source_id": "publisher-015",
+      "status": "SUCCESS",
+      "url": "https://linkinghub.elsevier.com/retrieve/pii/S2666636726005798"
+    }
+  ],
+  "started_at": "2026-08-09T10:02:33.510443+09:00",
+  "warnings": [
+    {
+      "code": "STATE_HISTORY_INCOMPLETE",
+      "message": "No complete canonical prior State was available; cross-run history is incomplete.",
+      "severity": "WARNING"
+    },
+    {
+      "code": "PUBLISHER_OUTPUT_BELOW_TARGET",
+      "message": "Publisher output target was 10-15; only 3 source pages were accessible.",
+      "severity": "WARNING"
+    },
+    {
+      "code": "PUBLISHER_OUTPUT_BELOW_TARGET",
+      "message": "Publisher access stopped for blocked domains: bmjopen.bmj.com, www.tandfonline.com",
+      "severity": "WARNING"
+    },
+    {
+      "code": "AUTOMATED_SOURCE_ADAPTER_GAP",
+      "message": "No GitHub adapter ran for: acl_anthology, arxiv, europe_pmc, formal_proceedings_or_publisher, openreview, pmlr",
+      "severity": "WARNING"
+    },
+    {
+      "code": "SOURCE_ADAPTER_FAILED",
+      "message": "Configured GitHub adapter did not complete for: openalex",
+      "severity": "WARNING"
+    },
+    {
+      "code": "AUTOMATED_CLAIM_REVIEW_REQUIRED",
+      "message": "Source pages and publication events were recorded, but substantive claims require ChatGPT Work or human review.",
+      "severity": "INFO"
+    }
+  ],
+  "window": {
+    "end": "2026-08-09T10:02:33.510443+09:00",
+    "hours": 72,
+    "start": "2026-08-06T10:02:33.510443+09:00"
+  }
+}

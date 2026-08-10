@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://evidenceradar.local/schemas/evidence-radar-translation-checkpoint.schema.json",
+  "title": "EvidenceRadar checkpointed Work translation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "request_sha256",
+    "batch_plan_sha256",
+    "completed_batch_ids",
+    "items",
+    "checkpoint_sha256"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "artifact_type": { "const": "EvidenceRadar_TranslationCheckpoint" },
+    "request_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "batch_plan_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "completed_batch_ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["immutable_candidate_id", "title_zh_tw", "summary_zh_tw"],
+        "properties": {
+          "immutable_candidate_id": { "type": "string", "minLength": 1 },
+          "title_zh_tw": { "type": "string", "minLength": 1 },
+          "summary_zh_tw": { "type": "string" }
+        }
+      }
+    },
+    "checkpoint_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}

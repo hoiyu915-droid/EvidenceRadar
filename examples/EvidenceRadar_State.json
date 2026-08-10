@@ -1,0 +1,59 @@
+{
+  "schema_version": "1.0",
+  "artifact_type": "EvidenceRadar_State",
+  "generated_at": "2026-08-08T10:13:00+08:00",
+  "timezone": "Asia/Hong_Kong",
+  "history_status": "COMPLETE",
+  "last_run_id": "run-20260808-1013",
+  "dedupe_priority": [
+    "doi",
+    "pmid",
+    "pmcid",
+    "arxiv_id",
+    "anthology_id",
+    "openalex_id",
+    "normalized_title"
+  ],
+  "works": [
+    {
+      "work_id": "doi:10.1234/example.2026.001",
+      "title": "Example study of a measurable outcome",
+      "normalized_title": "example study of a measurable outcome",
+      "identifiers": {
+        "doi": "10.1234/example.2026.001"
+      },
+      "first_seen_at": "2026-08-08T10:00:00+08:00",
+      "last_seen_at": "2026-08-08T10:13:00+08:00",
+      "seen_count": 1,
+      "notified_event_ids": [
+        "event-example-001"
+      ],
+      "category": "Clinical Medicine",
+      "streams": [
+        "clinical_medicine"
+      ],
+      "source_urls": [
+        "https://example.org/article/2026.001"
+      ],
+      "open_access": true,
+      "is_preprint": false
+    }
+  ],
+  "notified_events": [
+    {
+      "event_id": "event-example-001",
+      "work_id": "doi:10.1234/example.2026.001",
+      "event_type": "version_of_record_first_online",
+      "occurred_at": "2026-08-08",
+      "notified_at": "2026-08-08T10:13:00+08:00",
+      "source": "Example Publisher",
+      "source_url": "https://example.org/article/2026.001",
+      "source_field": "publisher_online_date",
+      "precision": "date",
+      "confidence": "publisher_verified"
+    }
+  ],
+  "notes": [
+    "Example only; replace with the latest GPT Work state artifact."
+  ]
+}

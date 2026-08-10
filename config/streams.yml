@@ -1,0 +1,354 @@
+execution:
+  contract_owner: repository
+  lanes:
+    chatgpt_work:
+      trigger: user_launched
+      retrieval: live_web_search_and_direct_source_read
+      claim_verification: full_source_and_claim_review
+    github_actions:
+      trigger: scheduled_or_workflow_dispatch
+      retrieval: every_configured_discovery_adapter_and_bounded_verification_access
+      claim_verification: metadata_and_source_access_only
+  query_strings_are_navigation_guidance: true
+  search_snippets_are_not_evidence: true
+  current_run_source_read_required_for_claims: true
+
+window:
+  lookback_days: 3
+  rolling_hours: 72
+
+# Coverage is a per-run audit contract, not a count of successful results.
+# The runner emits one CHECK summary for every source requested by any enabled
+# stream, including sources with no results, no adapter, or a blocked request.
+source_check_contract:
+  statuses: [SUCCESS, NO_RESULTS, FAILED, NOT_ATTEMPTED]
+  one_check_per_configured_source: true
+  checked_means_check_record_emitted: true
+  checked_does_not_imply_success: true
+  check_summary_required: true
+  stage_by_source:
+    pubmed: discovery
+    europe_pmc: discovery
+    openalex: discovery
+    arxiv: discovery
+    openreview: discovery
+    acl_anthology: discovery
+    pmlr: discovery
+    publisher: bounded_verification
+    formal_proceedings_or_publisher: bounded_verification
+  bounded_verification_sources:
+    - publisher
+    - formal_proceedings_or_publisher
+
+source_catalog:
+  pubmed:
+    role: biomedical_discovery_and_index_event
+    preferred_domain: pubmed.ncbi.nlm.nih.gov
+    stage: discovery
+    check_summary_required: true
+  europe_pmc:
+    role: biomedical_fulltext_and_repository_event
+    preferred_domain: europepmc.org
+    stage: discovery
+    check_summary_required: true
+  publisher:
+    role: version_event_and_final_claim_verification
+    stage: bounded_verification
+    check_summary_required: true
+  openalex:
+    role: broad_discovery_only
+    preferred_domain: openalex.org
+    stage: discovery
+    check_summary_required: true
+  arxiv:
+    role: preprint_discovery_and_version_identity
+    preferred_domain: arxiv.org
+    stage: discovery
+    check_summary_required: true
+  openreview:
+    role: formal_review_and_venue_identity
+    preferred_domain: openreview.net
+    stage: discovery
+    check_summary_required: true
+  acl_anthology:
+    role: formal_acl_publication_identity
+    preferred_domain: aclanthology.org
+    stage: discovery
+    check_summary_required: true
+  pmlr:
+    role: formal_proceedings_identity
+    preferred_domain: proceedings.mlr.press
+    stage: discovery
+    check_summary_required: true
+  formal_proceedings_or_publisher:
+    role: final_event_and_claim_verification
+    stage: bounded_verification
+    check_summary_required: true
+
+candidate_guidance:
+  suggested_max_per_query: 40
+  hard_max_per_category: 30
+
+streams:
+  clinical_medicine:
+    sources: [pubmed, europe_pmc, publisher]
+    relevance_terms:
+      - randomized controlled trial
+      - systematic review
+      - meta-analysis
+      - clinical guideline
+      - diagnosis
+      - screening
+      - treatment
+      - prevention
+      - prognosis
+      - mortality
+      - morbidity
+      - adverse event
+      - public health
+    queries:
+      - '(("JAMA Netw Open"[Journal] OR "EClinicalMedicine"[Journal] OR "BMC Med"[Journal] OR "BMJ Open"[Journal] OR "Commun Med (Lond)"[Journal] OR "PLoS Med"[Journal] OR "BMJ Med"[Journal] OR "Lancet Reg Health West Pac"[Journal] OR "Lancet Reg Health Eur"[Journal] OR "Lancet Reg Health Am"[Journal]) NOT (protocol[Title] OR letter[Publication Type] OR editorial[Publication Type] OR comment[Publication Type]))'
+      - '(((meta-analysis[Publication Type] OR systematic review[Publication Type] OR randomized controlled trial[Publication Type] OR practice guideline[Publication Type]) AND humans[MeSH Terms]) NOT (protocol[Title] OR letter[Publication Type] OR editorial[Publication Type] OR comment[Publication Type]))'
+      - '(("N Engl J Med"[Journal] OR Lancet[Journal] OR JAMA[Journal] OR BMJ[Journal] OR "Ann Intern Med"[Journal] OR "Nat Med"[Journal]) AND (clinical trial[Publication Type] OR randomized controlled trial[Publication Type] OR meta-analysis[Publication Type] OR systematic review[Publication Type]) NOT (protocol[Title] OR letter[Publication Type] OR editorial[Publication Type]))'
+
+  sport_science:
+    sources: [pubmed, europe_pmc, publisher]
+    relevance_terms:
+      - exercise physiology
+      - resistance training
+      - endurance training
+      - athletic performance
+      - muscle hypertrophy
+      - fatigue
+      - recovery
+      - biomechanics
+      - training load
+      - strength
+      - power
+      - occupational physical activity
+    queries:
+      - '(("exercise physiology"[Title/Abstract] OR "resistance training"[Title/Abstract] OR "endurance training"[Title/Abstract] OR "athletic performance"[Title/Abstract] OR "muscle hypertrophy"[Title/Abstract] OR biomechanics[Title/Abstract] OR "training load"[Title/Abstract]) NOT (protocol[Title] OR letter[Publication Type] OR editorial[Publication Type] OR comment[Publication Type]))'
+      - '((exercise[Title] OR athlete*[Title] OR sport*[Title] OR muscle[Title] OR training[Title]) AND (fatigue[Title/Abstract] OR recovery[Title/Abstract] OR strength[Title/Abstract] OR power[Title/Abstract] OR adaptation[Title/Abstract]) NOT (protocol[Title] OR letter[Publication Type] OR editorial[Publication Type] OR comment[Publication Type]))'
+
+  sport_nutrition:
+    sources: [pubmed, europe_pmc, publisher]
+    relevance_terms:
+      - sports nutrition
+      - carbohydrate availability
+      - protein
+      - creatine
+      - hydration
+      - supplement
+      - energy availability
+      - RED-S
+      - body composition
+      - nutritional periodization
+      - recovery nutrition
+    queries:
+      - '(("sports nutrition"[Title/Abstract] OR "energy availability"[Title/Abstract] OR RED-S[Title/Abstract] OR "relative energy deficiency"[Title/Abstract] OR "carbohydrate availability"[Title/Abstract]) NOT (protocol[Title] OR letter[Publication Type] OR editorial[Publication Type]))'
+      - '((athlete*[Title] OR sport*[Title] OR exercise[Title] OR training[Title] OR performance[Title] OR recovery[Title]) AND (protein[Title] OR carbohydrate*[Title] OR creatine[Title] OR hydration[Title] OR rehydration[Title] OR supplement*[Title] OR nutrition*[Title] OR diet*[Title]) NOT (protocol[Title] OR letter[Publication Type] OR editorial[Publication Type]))'
+
+  fitness_health:
+    sources: [pubmed, europe_pmc, publisher]
+    relevance_terms:
+      - physical fitness
+      - physical activity
+      - cardiorespiratory fitness
+      - muscular strength
+      - sedentary behaviour
+      - mortality
+      - aging
+      - sarcopenia
+      - exercise medicine
+      - step count
+      - dose response
+    queries:
+      - '(("physical fitness"[Title/Abstract] OR "cardiorespiratory fitness"[Title/Abstract] OR "muscular strength"[Title/Abstract] OR "step count"[Title/Abstract] OR "sedentary behavior"[Title/Abstract] OR "sedentary behaviour"[Title/Abstract]) NOT (protocol[Title] OR letter[Publication Type] OR editorial[Publication Type]))'
+      - '((("physical activity"[Title] OR exercise[Title] OR walking[Title] OR sarcopenia[Title]) AND (mortality[Title/Abstract] OR aging[Title/Abstract] OR "dose-response"[Title/Abstract] OR health[Title/Abstract])) NOT (protocol[Title] OR letter[Publication Type] OR editorial[Publication Type]))'
+
+  llm_l1_model_behavior:
+    sources: [openalex, arxiv, openreview, acl_anthology, pmlr, formal_proceedings_or_publisher]
+    relevance_terms:
+      - instruction following
+      - sycophancy
+      - hallucination
+      - uncertainty calibration
+      - robustness
+      - jailbreak
+      - alignment
+      - model behavior
+    queries:
+      - 'large language model instruction following sycophancy calibration'
+      - 'large language model hallucination robustness jailbreak alignment evaluation'
+
+  llm_l2_context_inference:
+    sources: [openalex, arxiv, openreview, acl_anthology, pmlr, formal_proceedings_or_publisher]
+    relevance_terms:
+      - long context
+      - context selection
+      - context compression
+      - test-time compute
+      - in-context learning
+      - reasoning scaffold
+      - self-reflection
+      - verification
+    queries:
+      - 'large language model long context context compression in-context learning'
+      - 'large language model test-time compute reasoning verification self-reflection'
+
+  llm_l3_retrieval_grounding:
+    sources: [openalex, arxiv, openreview, acl_anthology, pmlr, formal_proceedings_or_publisher]
+    relevance_terms:
+      - retrieval
+      - query rewriting
+      - reranking
+      - evidence selection
+      - source authority
+      - citation verification
+      - grounding
+      - retrieval corruption
+      - retrieval-augmented generation
+    queries:
+      - 'large language model retrieval reranking grounding evidence selection'
+      - 'retrieval augmented generation citation verification source authority safety'
+
+  llm_l4_memory_personalization:
+    sources: [openalex, arxiv, openreview, acl_anthology, pmlr, formal_proceedings_or_publisher]
+    relevance_terms:
+      - working memory
+      - episodic memory
+      - semantic memory
+      - continual memory
+      - memory consolidation
+      - forgetting
+      - temporal decay
+      - memory routing
+      - personalization
+      - user model
+      - longitudinal adaptation
+    queries:
+      - 'large language model episodic semantic working memory consolidation forgetting'
+      - 'large language model personalization user model longitudinal adaptation memory'
+
+  llm_l5_agents_decision:
+    sources: [openalex, arxiv, openreview, acl_anthology, pmlr, formal_proceedings_or_publisher]
+    relevance_terms:
+      - planning
+      - tool use
+      - action selection
+      - agent loop
+      - reflection
+      - browser agent
+      - computer use
+      - autonomous execution
+      - long-horizon task
+      - credit assignment
+      - agent safety
+    queries:
+      - 'large language model agent planning tool use action selection long horizon'
+      - 'language model browser computer use autonomous execution agent safety'
+
+  llm_l6_multi_agent:
+    sources: [openalex, arxiv, openreview, acl_anthology, pmlr, formal_proceedings_or_publisher]
+    relevance_terms:
+      - multi-agent
+      - coordination
+      - communication
+      - role assignment
+      - task decomposition
+      - debate
+      - cooperation
+      - competition
+      - collective failure
+      - emergent behavior
+    queries:
+      - 'large language model multi-agent coordination role assignment communication'
+      - 'language model agents debate cooperation collective failure emergent behavior'
+
+  llm_l7_systems_runtime:
+    sources: [openalex, arxiv, openreview, acl_anthology, pmlr, formal_proceedings_or_publisher]
+    relevance_terms:
+      - serving
+      - inference systems
+      - runtime
+      - orchestration
+      - state machine
+      - directed acyclic graph
+      - model context protocol
+      - sandbox
+      - observability
+      - latency
+      - reliability
+    queries:
+      - 'large language model inference systems runtime orchestration latency reliability'
+      - 'large language model tool runtime protocol model context protocol sandbox observability'
+
+  llm_l8_training_architecture:
+    sources: [openalex, arxiv, openreview, acl_anthology, pmlr, formal_proceedings_or_publisher]
+    relevance_terms:
+      - pretraining
+      - post-training
+      - supervised fine-tuning
+      - reinforcement learning
+      - preference optimization
+      - distillation
+      - continual learning
+      - parameter-efficient fine-tuning
+      - mixture of experts
+      - data curriculum
+      - synthetic data
+    queries:
+      - 'large language model post-training preference optimization distillation continual learning'
+      - 'large language model architecture mixture of experts PEFT synthetic data curriculum'
+
+  llm_l9_evaluation_measurement:
+    sources: [openalex, arxiv, openreview, acl_anthology, pmlr, formal_proceedings_or_publisher]
+    relevance_terms:
+      - benchmark design
+      - contamination
+      - judge reliability
+      - LLM-as-a-judge
+      - evaluation validity
+      - agent benchmark
+      - retrieval benchmark
+      - longitudinal evaluation
+      - ecological validity
+    queries:
+      - 'large language model benchmark contamination evaluation validity judge reliability'
+      - 'LLM as a judge agent retrieval benchmark longitudinal ecological evaluation'
+
+  human_h1_llm_relationship:
+    sources: [openalex, arxiv, openreview, acl_anthology, pmlr, formal_proceedings_or_publisher]
+    relevance_terms:
+      - AI companion
+      - human-LLM relationship
+      - attachment
+      - companionship
+      - anthropomorphism
+      - emotional dependence
+      - social connection
+      - well-being
+      - persona relational effects
+      - longitudinal relationship
+      - loneliness
+      - self-disclosure
+    queries:
+      - 'AI companion large language model attachment companionship relationship'
+      - 'chatbot anthropomorphism emotional dependence social connection longitudinal relationship'
+
+  human_h2_ai_hci:
+    sources: [openalex, arxiv, openreview, acl_anthology, pmlr, formal_proceedings_or_publisher]
+    relevance_terms:
+      - human-AI interaction
+      - interaction design
+      - decision support
+      - trust
+      - agency
+      - collaboration
+      - appropriation
+      - longitudinal use
+      - HCI
+      - CSCW
+    queries:
+      - 'human AI interaction HCI interaction design trust agency collaboration'
+      - 'human AI decision support appropriation longitudinal use CSCW'

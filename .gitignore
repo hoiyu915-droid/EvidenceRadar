@@ -1,0 +1,15 @@
+__pycache__/
+.pytest_cache/
+*.py[cod]
+.env
+.venv/
+data/raw/
+# GitHub Actions keeps the current lane output under version control.  Other
+# ad-hoc artifact directories remain ignored.
+/artifacts/*
+!/artifacts/current/
+!/artifacts/current/**
+/EvidenceRadar_Report.html
+/EvidenceRadar_State.json
+/EvidenceRadar_Evidence.json
+/EvidenceRadar_Run.json

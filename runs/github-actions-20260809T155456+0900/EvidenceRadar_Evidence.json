@@ -1,0 +1,207 @@
+{
+  "artifact_type": "EvidenceRadar_Evidence",
+  "claims": [],
+  "coverage": {
+    "all_configured_sources_checked": true,
+    "checked": [
+      "acl_anthology",
+      "arxiv",
+      "europe_pmc",
+      "formal_proceedings_or_publisher",
+      "openalex",
+      "openreview",
+      "pmlr",
+      "publisher",
+      "pubmed"
+    ],
+    "checks": [
+      {
+        "checked_at": "2026-08-09T15:57:29.036430+09:00",
+        "result_count": 0,
+        "source_id": "acl_anthology",
+        "stage": "discovery",
+        "status": "NO_RESULTS",
+        "summary": "22 configured query check(s); 0 provider result(s).",
+        "url": "https://aclanthology.org/papers/index.xml"
+      },
+      {
+        "checked_at": "2026-08-09T15:57:22.719024+09:00",
+        "result_count": 589,
+        "source_id": "arxiv",
+        "stage": "discovery",
+        "status": "SUCCESS",
+        "summary": "22 configured query check(s); 589 provider result(s).",
+        "url": "https://export.arxiv.org/api/query"
+      },
+      {
+        "checked_at": "2026-08-09T15:55:29.342999+09:00",
+        "result_count": 229,
+        "source_id": "europe_pmc",
+        "stage": "discovery",
+        "status": "SUCCESS",
+        "summary": "9 configured query check(s); 229 provider result(s).",
+        "url": "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
+      },
+      {
+        "checked_at": "2026-08-09T15:54:56.477906+09:00",
+        "notes": [
+          "Publisher access target was 10-15; only 1 source pages were accessible.",
+          "Publisher access stopped for blocked domains: bmjopen.bmj.com, onlinelibrary.wiley.com, www.tandfonline.com"
+        ],
+        "result_count": 1,
+        "source_id": "formal_proceedings_or_publisher",
+        "stage": "bounded_verification",
+        "status": "FAILED",
+        "summary": "Bounded verification attempted 15 page(s); 1 succeeded and 14 failed.",
+        "url": "https://doi.org/"
+      },
+      {
+        "checked_at": "2026-08-09T15:57:22.719019+09:00",
+        "notes": [
+          "OPENALEX_API_KEY is required for the OpenAlex discovery adapter",
+          "Provider circuit open after an earlier check failed: OPENALEX_API_KEY is required for the OpenAlex discovery adapter"
+        ],
+        "result_count": 0,
+        "source_id": "openalex",
+        "stage": "discovery",
+        "status": "FAILED",
+        "summary": "22 configured query check(s); 0 provider result(s).",
+        "url": "https://api.openalex.org/works"
+      },
+      {
+        "checked_at": "2026-08-09T15:57:25.795017+09:00",
+        "result_count": 0,
+        "source_id": "openreview",
+        "stage": "discovery",
+        "status": "NO_RESULTS",
+        "summary": "22 configured query check(s); 0 provider result(s).",
+        "url": "https://api2.openreview.net/notes/search"
+      },
+      {
+        "checked_at": "2026-08-09T15:57:29.037079+09:00",
+        "result_count": 0,
+        "source_id": "pmlr",
+        "stage": "discovery",
+        "status": "NO_RESULTS",
+        "summary": "22 configured query check(s); 0 provider result(s).",
+        "url": "https://proceedings.mlr.press/"
+      },
+      {
+        "checked_at": "2026-08-09T15:54:56.477906+09:00",
+        "notes": [
+          "Publisher access target was 10-15; only 1 source pages were accessible.",
+          "Publisher access stopped for blocked domains: bmjopen.bmj.com, onlinelibrary.wiley.com, www.tandfonline.com"
+        ],
+        "result_count": 1,
+        "source_id": "publisher",
+        "stage": "bounded_verification",
+        "status": "FAILED",
+        "summary": "Bounded verification attempted 15 page(s); 1 succeeded and 14 failed.",
+        "url": "https://doi.org/"
+      },
+      {
+        "checked_at": "2026-08-09T15:55:26.339300+09:00",
+        "result_count": 255,
+        "source_id": "pubmed",
+        "stage": "discovery",
+        "status": "SUCCESS",
+        "summary": "9 configured query check(s); 255 provider result(s).",
+        "url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
+      }
+    ],
+    "notes": [
+      "checked means a CHECK record was emitted; it does not mean the source succeeded.",
+      "NO_RESULTS is a successful source check with zero matching records.",
+      "GitHub Actions is an automated discovery/source-access lane; claim verification remains a ChatGPT Work or human-review task."
+    ],
+    "requested": [
+      "acl_anthology",
+      "arxiv",
+      "europe_pmc",
+      "formal_proceedings_or_publisher",
+      "openalex",
+      "openreview",
+      "pmlr",
+      "publisher",
+      "pubmed"
+    ],
+    "requested_sources": [
+      "acl_anthology",
+      "arxiv",
+      "europe_pmc",
+      "formal_proceedings_or_publisher",
+      "openalex",
+      "openreview",
+      "pmlr",
+      "publisher",
+      "pubmed"
+    ],
+    "searched": [
+      "acl_anthology",
+      "arxiv",
+      "europe_pmc",
+      "formal_proceedings_or_publisher",
+      "openreview",
+      "pmlr",
+      "publisher",
+      "pubmed"
+    ],
+    "searched_sources": [
+      "acl_anthology",
+      "arxiv",
+      "europe_pmc",
+      "formal_proceedings_or_publisher",
+      "openreview",
+      "pmlr",
+      "publisher",
+      "pubmed"
+    ],
+    "unavailable": [
+      "formal_proceedings_or_publisher",
+      "openalex",
+      "publisher"
+    ],
+    "unavailable_sources": [
+      "formal_proceedings_or_publisher",
+      "openalex",
+      "publisher"
+    ]
+  },
+  "coverage_status": "SOURCE_ACCESS_GAP",
+  "generated_at": "2026-08-09T15:57:53.458630+09:00",
+  "notes": [
+    "An empty claims ledger is intentional: metadata and snippets are not scientific conclusions."
+  ],
+  "run_id": "github-actions-20260809T155456+0900",
+  "schema_version": "1.0",
+  "sources": [
+    {
+      "access_status": "METADATA",
+      "accessed_at": "2026-08-09T15:54:56.477906+09:00",
+      "locator": "Bounded source landing page; automated access check only",
+      "notes": [
+        "No substantive claim was promoted without ChatGPT Work or human source review."
+      ],
+      "publisher": "Medicine",
+      "source_id": "publisher-source-001",
+      "source_type": "publisher",
+      "title": "Association of oral vancomycin prophylaxis with Clostridium difficile infection in hematopoietic stem cell transplant recipients: A systematic review and meta-analysis.",
+      "url": "https://www.ovid.com/jnls/md-journal/fulltext/10.1097/md.0000000000050096~association-of-oral-vancomycin-prophylaxis-with-clostridium"
+    }
+  ],
+  "works": [
+    {
+      "category": "clinical_medicine",
+      "identifiers": {
+        "doi": "10.1097/md.0000000000050096",
+        "pmid": "42566576"
+      },
+      "limitations": [
+        "Automated lane verified page access and event metadata, not the paper's substantive claims."
+      ],
+      "stream": "clinical_medicine",
+      "title": "Association of oral vancomycin prophylaxis with Clostridium difficile infection in hematopoietic stem cell transplant recipients: A systematic review and meta-analysis.",
+      "work_id": "doi:10.1097/md.0000000000050096"
+    }
+  ]
+}

@@ -1,0 +1,71 @@
+{
+  "artifact_type": "EvidenceRadar_Evidence",
+  "claims": [],
+  "coverage": {
+    "notes": [
+      "GitHub Actions is an automated discovery/source-access lane; claim verification remains a ChatGPT Work or human-review task."
+    ],
+    "requested_sources": [
+      "acl_anthology",
+      "arxiv",
+      "europe_pmc",
+      "formal_proceedings_or_publisher",
+      "openalex",
+      "openreview",
+      "pmlr",
+      "publisher",
+      "pubmed"
+    ],
+    "searched_sources": [
+      "publisher",
+      "pubmed"
+    ],
+    "unavailable_sources": [
+      "acl_anthology",
+      "arxiv",
+      "europe_pmc",
+      "formal_proceedings_or_publisher",
+      "openalex",
+      "openreview",
+      "pmlr",
+      "publisher"
+    ]
+  },
+  "coverage_status": "SOURCE_ACCESS_GAP",
+  "generated_at": "2026-08-09T14:35:26.251657+09:00",
+  "notes": [
+    "An empty claims ledger is intentional: metadata and snippets are not scientific conclusions."
+  ],
+  "run_id": "github-actions-20260809T143450+0900",
+  "schema_version": "1.0",
+  "sources": [
+    {
+      "access_status": "METADATA",
+      "accessed_at": "2026-08-09T14:34:50.695265+09:00",
+      "locator": "Publisher landing page; automated access check only",
+      "notes": [
+        "No substantive claim was promoted without ChatGPT Work or human source review."
+      ],
+      "publisher": "Medicine",
+      "source_id": "publisher-source-001",
+      "source_type": "publisher",
+      "title": "Efficacy and safety of first-line immune checkpoint inhibitors combinations for extensive-stage small-cell lung cancer: A systematic review and network meta-analysis.",
+      "url": "https://www.ovid.com/jnls/md-journal/fulltext/10.1097/md.0000000000050023~efficacy-and-safety-of-first-line-immune-checkpoint"
+    }
+  ],
+  "works": [
+    {
+      "category": "clinical_medicine",
+      "identifiers": {
+        "doi": "10.1097/md.0000000000050023",
+        "pmid": "42566592"
+      },
+      "limitations": [
+        "Automated lane verified page access and event metadata, not the paper's substantive claims."
+      ],
+      "stream": "clinical_medicine",
+      "title": "Efficacy and safety of first-line immune checkpoint inhibitors combinations for extensive-stage small-cell lung cancer: A systematic review and network meta-analysis.",
+      "work_id": "doi:10.1097/md.0000000000050023"
+    }
+  ]
+}

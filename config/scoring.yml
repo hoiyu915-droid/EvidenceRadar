@@ -1,0 +1,110 @@
+execution:
+  evaluators: [chatgpt_work, github_actions]
+  lane_capabilities:
+    chatgpt_work: evidence_and_relevance_review
+    github_actions: deterministic_candidate_ranking_only
+  deterministic_code_required_for_github_actions: true
+  explain_scores: true
+  rank_only_after_event_gate: true
+  metadata_must_not_be_promoted_to_claims: true
+
+selection:
+  candidate_min_score: 45
+  candidate_hard_max_per_category: 30
+  featured_target_min: 5
+  featured_hard_max: 8
+  padding_forbidden: true
+  section_caps:
+    anchor: 8
+    strong_watch: 8
+    weird_but_important: 2
+
+category_min_relevance:
+  clinical_medicine: 58
+  sport_science: 62
+  sport_nutrition_fitness: 62
+  llm_research: 65
+  human_ai: 65
+
+direction_diversity:
+  candidate_min_per_active_direction: 1
+  candidate_max_per_direction:
+    llm_research: 6
+    human_ai: 15
+  featured_min_per_active_direction: 1
+  featured_max_per_direction:
+    llm_research: 2
+    human_ai: 4
+
+categories:
+  clinical_medicine:
+    streams: [clinical_medicine]
+  sport_science:
+    streams: [sport_science]
+  sport_nutrition_fitness:
+    streams: [sport_nutrition, fitness_health]
+  llm_research:
+    streams:
+      - llm_l1_model_behavior
+      - llm_l2_context_inference
+      - llm_l3_retrieval_grounding
+      - llm_l4_memory_personalization
+      - llm_l5_agents_decision
+      - llm_l6_multi_agent
+      - llm_l7_systems_runtime
+      - llm_l8_training_architecture
+      - llm_l9_evaluation_measurement
+  human_ai:
+    streams: [human_h1_llm_relationship, human_h2_ai_hci]
+
+weights:
+  evidence_quality: 0.40
+  personal_relevance: 0.30
+  novelty_interest: 0.20
+  practical_impact: 0.10
+
+sections:
+  anchor:
+    min_evidence: 75
+  strong_watch:
+    min_evidence: 55
+    min_relevance: 60
+  weird_but_important:
+    min_interest: 85
+    min_relevance: 65
+
+candidate_routing:
+  preservation: retain_all_deduplicated_candidates
+  review_required:
+    - retracted_or_flagged
+  lower_priority:
+    - correspondence_or_editorial
+    - protocol_or_design_paper
+    - title_primary_relevance_failed
+    - missing_qualifying_event
+  hard_exclusions:
+    - malformed_or_unidentifiable_record
+
+evidence_governance:
+  allowed_support_states:
+    - SUPPORTED
+    - PARTIAL
+    - CONFLICT
+    - UNVERIFIED
+  required_claim_fields:
+    - claim_text
+    - support_state
+    - source_url
+    - locator
+    - transformation_provenance
+    - terminology_and_unit_review
+  required_numeric_fields:
+    - value
+    - sign
+    - unit
+    - direction
+    - comparator
+    - semantic_surface
+    - locator
+  unverified_claims_forbidden_in_conclusions: true
+  human_semantic_adjudication_required_for_conflict: true
