@@ -32,6 +32,7 @@ class MasterRuntime:
     source_adapters: dict[str, str]
     category_labels_zh_tw: dict[str, str]
     taxonomy: dict[str, Any]
+    limits: dict[str, Any]
 
 
 def _load_mapping(path: Path, *, json_only: bool = False) -> dict[str, Any]:
@@ -71,6 +72,137 @@ def _resolve_source_groups(master: dict[str, Any], stream: dict[str, Any]) -> li
     return list(dict.fromkeys(resolved))
 
 
+def _positive_int(value: Any, *, path: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        raise RadarControlError(f"{path} must be a positive integer")
+    return value
+
+
+def _validate_limit_block(limits: dict[str, Any], *, path: str = "master.limits") -> None:
+    discovery = limits.get("discovery")
+    ranking_pool = limits.get("ranking_pool")
+    selection = limits.get("selection")
+    verification = limits.get("verification")
+    if discovery is not None:
+        if not isinstance(discovery, dict):
+            raise RadarControlError(f"{path}.discovery must be an object")
+        if "max_per_query" in discovery:
+            _positive_int(discovery["max_per_query"], path=f"{path}.discovery.max_per_query")
+        # Discovery-ledger caps stay explicit nulls: they must never truncate the
+        # complete deduplicated candidate ledger.
+        for field in ("max_per_source", "max_per_category", "global_candidate_hard_max"):
+            if field in discovery and discovery[field] is not None:
+                raise RadarControlError(
+                    f"{path}.discovery.{field} is reserved for ledger-safe semantics; use null"
+                )
+    if ranking_pool is not None:
+        if not isinstance(ranking_pool, dict):
+            raise RadarControlError(f"{path}.ranking_pool must be an object")
+        if ranking_pool.get("max_per_category") is not None:
+            _positive_int(
+                ranking_pool["max_per_category"],
+                path=f"{path}.ranking_pool.max_per_category",
+            )
+    if selection is not None:
+        if not isinstance(selection, dict):
+            raise RadarControlError(f"{path}.selection must be an object")
+        target = selection.get("featured_target_per_category")
+        hard = selection.get("featured_hard_max_per_category")
+        if target is not None:
+            target = _positive_int(target, path=f"{path}.selection.featured_target_per_category")
+        if hard is not None:
+            hard = _positive_int(hard, path=f"{path}.selection.featured_hard_max_per_category")
+        if target is not None and hard is not None and target > hard:
+            raise RadarControlError(f"{path}.selection featured target cannot exceed hard max")
+        per_category = selection.get("per_category", {})
+        if not isinstance(per_category, dict):
+            raise RadarControlError(f"{path}.selection.per_category must be an object")
+        for category_id, values in per_category.items():
+            if not isinstance(values, dict):
+                raise RadarControlError(f"{path}.selection.per_category.{category_id} must be an object")
+            category_target = _positive_int(
+                values.get("target", target),
+                path=f"{path}.selection.per_category.{category_id}.target",
+            )
+            category_hard = _positive_int(
+                values.get("hard_max", hard),
+                path=f"{path}.selection.per_category.{category_id}.hard_max",
+            )
+            if category_target > category_hard:
+                raise RadarControlError(
+                    f"{path}.selection.per_category.{category_id} target cannot exceed hard max"
+                )
+        final_digest = selection.get("final_digest", {})
+        if not isinstance(final_digest, dict):
+            raise RadarControlError(f"{path}.selection.final_digest must be an object")
+        total_target = final_digest.get("target")
+        total_hard = final_digest.get("hard_max")
+        if total_target is not None:
+            total_target = _positive_int(total_target, path=f"{path}.selection.final_digest.target")
+        if total_hard is not None:
+            total_hard = _positive_int(total_hard, path=f"{path}.selection.final_digest.hard_max")
+        if total_target is not None and total_hard is not None and total_target > total_hard:
+            raise RadarControlError(f"{path}.selection final digest target cannot exceed hard max")
+    if verification is not None:
+        if not isinstance(verification, dict):
+            raise RadarControlError(f"{path}.verification must be an object")
+        target = verification.get("publisher_target_per_run")
+        hard = verification.get("publisher_hard_max_per_run")
+        per_domain = verification.get("publisher_per_domain_hard_max")
+        if target is not None:
+            target = _positive_int(target, path=f"{path}.verification.publisher_target_per_run")
+        if hard is not None:
+            hard = _positive_int(hard, path=f"{path}.verification.publisher_hard_max_per_run")
+        if per_domain is not None:
+            _positive_int(per_domain, path=f"{path}.verification.publisher_per_domain_hard_max")
+        if target is not None and hard is not None and target > hard:
+            raise RadarControlError(f"{path}.verification publisher target cannot exceed hard max")
+
+
+def _merge_mapping(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
+    merged = copy.deepcopy(base)
+    for key, value in override.items():
+        if isinstance(value, dict) and isinstance(merged.get(key), dict):
+            merged[key] = _merge_mapping(merged[key], value)
+        else:
+            merged[key] = copy.deepcopy(value)
+    return merged
+
+
+def _resolved_limits(master: dict[str, Any], profile: dict[str, Any], profile_id: str) -> dict[str, Any]:
+    base = _require_mapping(master, "limits")
+    override = profile.get("limits", {})
+    if not isinstance(override, dict):
+        raise RadarControlError(f"profile {profile_id} limits must be an object")
+    merged = _merge_mapping(base, override)
+    _validate_limit_block(merged, path=f"resolved limits for profile {profile_id}")
+    required = {
+        "discovery": ("max_per_query", "global_candidate_hard_max"),
+        "ranking_pool": ("max_per_category",),
+        "selection": (
+            "featured_target_per_category",
+            "featured_hard_max_per_category",
+            "per_category",
+            "final_digest",
+        ),
+        "verification": (
+            "publisher_target_per_run",
+            "publisher_hard_max_per_run",
+            "publisher_per_domain_hard_max",
+        ),
+    }
+    for section, fields in required.items():
+        section_value = merged.get(section)
+        if not isinstance(section_value, dict):
+            raise RadarControlError(f"resolved limits for profile {profile_id}.{section} is missing")
+        for field in fields:
+            if field not in section_value:
+                raise RadarControlError(
+                    f"resolved limits for profile {profile_id}.{section}.{field} is missing"
+                )
+    return merged
+
+
 def validate_master(master: dict[str, Any]) -> None:
     if master.get("artifact_type") != "EvidenceRadar_MasterControl":
         raise RadarControlError("artifact_type must be EvidenceRadar_MasterControl")
@@ -81,6 +213,8 @@ def validate_master(master: dict[str, Any]) -> None:
     categories = _require_mapping(master, "routing_categories")
     streams = _require_mapping(master, "stream_routing")
     profiles = _require_mapping(master, "profiles")
+    limits = _require_mapping(master, "limits")
+    _validate_limit_block(limits)
 
     for source_id, config in sources.items():
         if not isinstance(config, dict):
@@ -106,6 +240,17 @@ def validate_master(master: dict[str, Any]) -> None:
             if not isinstance(feeds, list) or not feeds:
                 raise RadarControlError(f"active rss_atom source {source_id} needs feeds[]")
 
+    # Source groups are a catalog convenience. They may exist before any stream
+    # selects them, but every member must at least exist in the source catalog.
+    for group_id, values in _require_mapping(master, "source_groups").items():
+        if not isinstance(values, list):
+            raise RadarControlError(f"source group {group_id} must be an array")
+        unknown_sources = sorted(set(map(str, values)) - set(sources))
+        if unknown_sources:
+            raise RadarControlError(
+                f"source group {group_id} references unknown sources: {', '.join(unknown_sources)}"
+            )
+
     for stream_id, stream in streams.items():
         if not isinstance(stream, dict):
             raise RadarControlError(f"stream_routing.{stream_id} must be an object")
@@ -130,8 +275,24 @@ def validate_master(master: dict[str, Any]) -> None:
         unknown_categories = sorted(set(map(str, profile.get("category_order", []))) - set(categories))
         if unknown_categories:
             raise RadarControlError(f"profile {profile_id} references unknown categories: {', '.join(unknown_categories)}")
+        if "limits" in profile:
+            if not isinstance(profile["limits"], dict):
+                raise RadarControlError(f"profile {profile_id} limits must be an object")
+            _validate_limit_block(profile["limits"], path=f"profile {profile_id}.limits")
+        resolved_profile_limits = _resolved_limits(master, profile, profile_id)
+        unknown_limit_categories = sorted(
+            set(map(str, resolved_profile_limits["selection"].get("per_category", {}))) - set(categories)
+        )
+        if unknown_limit_categories:
+            raise RadarControlError(
+                f"profile {profile_id} selection limits reference unknown categories: "
+                + ", ".join(unknown_limit_categories)
+            )
 
     control = _require_mapping(master, "control_plane")
+    authority = set(map(str, control.get("authoritative_for", [])))
+    if "limits" not in authority:
+        raise RadarControlError("control_plane.authoritative_for must include limits")
     for field in ("default_profile", "production_profile"):
         profile_id = str(control.get(field) or "")
         if profile_id not in profiles:
@@ -160,6 +321,7 @@ def compile_runtime(
     if profile_id not in profiles:
         raise RadarControlError(f"unknown profile: {profile_id}")
     profile = profiles[profile_id]
+    limits = _resolved_limits(master, profile, profile_id)
     sources = master["sources"]
     routing = master["stream_routing"]
     legacy_catalog = legacy_streams.get("streams", {})
@@ -186,6 +348,9 @@ def compile_runtime(
     source_catalog: dict[str, Any] = {}
     stage_by_source: dict[str, str] = {}
     verification_sources: list[str] = []
+    passthrough_fields = (
+        "oa_mode", "quality_tier", "journal", "publisher", "activation_blocker"
+    )
     for source_id in sorted(requested_source_ids):
         config = sources[source_id]
         source_catalog[source_id] = {
@@ -198,11 +363,21 @@ def compile_runtime(
             **({"preferred_domain": config["preferred_domains"][0]} if config.get("preferred_domains") else {}),
             **({"endpoint": config["endpoint"]} if config.get("endpoint") else {}),
             **({"feeds": copy.deepcopy(config["feeds"])} if config.get("feeds") else {}),
+            **({field: copy.deepcopy(config[field]) for field in passthrough_fields if field in config}),
         }
         stage_by_source[source_id] = str(config["stage"])
         if config["stage"] == "bounded_verification":
             verification_sources.append(source_id)
 
+    # Master limits replace the legacy candidate_guidance block. Discovery
+    # remains globally uncapped so every deduplicated candidate survives into
+    # the ledger; ranking/featured limits are a later presentation concern.
+    candidate_guidance = {
+        "suggested_max_per_query": int(limits["discovery"]["max_per_query"]),
+        "max_per_source": limits["discovery"].get("max_per_source"),
+        "max_per_category": limits["discovery"].get("max_per_category"),
+        "global_candidate_hard_max": limits["discovery"].get("global_candidate_hard_max"),
+    }
     streams_runtime = {
         "execution": copy.deepcopy(legacy_streams.get("execution", {})),
         "window": copy.deepcopy(legacy_streams.get("window", {})),
@@ -212,9 +387,13 @@ def compile_runtime(
             "bounded_verification_sources": sorted(verification_sources),
         },
         "source_catalog": source_catalog,
-        "candidate_guidance": copy.deepcopy(legacy_streams.get("candidate_guidance", {})),
+        "candidate_guidance": candidate_guidance,
         "streams": selected_streams,
-        "control_plane": {"master_schema_version": master["schema_version"], "profile_id": profile_id},
+        "control_plane": {
+            "master_schema_version": master["schema_version"],
+            "profile_id": profile_id,
+            "limits_authoritative": True,
+        },
     }
 
     scoring_runtime = copy.deepcopy(legacy_scoring)
@@ -239,6 +418,7 @@ def compile_runtime(
         source_adapters=adapters,
         category_labels_zh_tw=labels,
         taxonomy=copy.deepcopy(master["taxonomy"]),
+        limits=copy.deepcopy(limits),
     )
 
 

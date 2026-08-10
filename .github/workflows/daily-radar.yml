@@ -44,7 +44,7 @@ concurrency:
 env:
   RADAR_ROOT: "."
   RADAR_STATE_PATH: "state/current/EvidenceRadar_State.json"
-  RADAR_PROFILE: "current_plus_general"
+  RADAR_PROFILE: "owner_daily"
   EXECUTION_LANE: "github_actions"
   PUBLISHER_TARGET_MIN: ${{ inputs.publisher_target_min || '' }}
   PUBLISHER_HARD_MAX: ${{ inputs.publisher_hard_max || '' }}

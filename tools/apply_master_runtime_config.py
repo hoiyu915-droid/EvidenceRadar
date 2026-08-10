@@ -65,16 +65,22 @@ def _resolved_limits(master: dict[str, Any], profile_id: str | None) -> tuple[st
     limits = _merge_mapping(base, override)
 
     discovery = limits.get("discovery")
+    ranking_pool = limits.get("ranking_pool")
     selection = limits.get("selection")
     verification = limits.get("verification")
-    if not all(isinstance(value, dict) for value in (discovery, selection, verification)):
-        raise RuntimeConfigError("limits requires discovery, selection and verification objects")
+    if not all(isinstance(value, dict) for value in (discovery, ranking_pool, selection, verification)):
+        raise RuntimeConfigError(
+            "limits requires discovery, ranking_pool, selection and verification objects"
+        )
     _positive_int(discovery.get("max_per_query"), "limits.discovery.max_per_query")
-    for field in ("max_per_source", "max_per_category"):
+    for field in ("max_per_source", "max_per_category", "global_candidate_hard_max"):
         if discovery.get(field) is not None:
             raise RuntimeConfigError(
-                f"limits.discovery.{field} is reserved but complete-ledger cap semantics are not implemented; use null"
+                f"limits.discovery.{field} must remain null so the complete deduplicated ledger is never globally truncated"
             )
+    ranking_max = ranking_pool.get("max_per_category")
+    if ranking_max is not None:
+        _positive_int(ranking_max, "limits.ranking_pool.max_per_category")
     featured_target = _positive_int(
         selection.get("featured_target_per_category"),
         "limits.selection.featured_target_per_category",
@@ -85,6 +91,35 @@ def _resolved_limits(master: dict[str, Any], profile_id: str | None) -> tuple[st
     )
     if featured_target > featured_hard:
         raise RuntimeConfigError("featured target cannot exceed featured hard max")
+    per_category = selection.get("per_category", {})
+    if not isinstance(per_category, dict):
+        raise RuntimeConfigError("limits.selection.per_category must be an object")
+    for category_id, values in per_category.items():
+        if not isinstance(values, dict):
+            raise RuntimeConfigError(f"limits.selection.per_category.{category_id} must be an object")
+        category_target = _positive_int(
+            values.get("target", featured_target),
+            f"limits.selection.per_category.{category_id}.target",
+        )
+        category_hard = _positive_int(
+            values.get("hard_max", featured_hard),
+            f"limits.selection.per_category.{category_id}.hard_max",
+        )
+        if category_target > category_hard:
+            raise RuntimeConfigError(
+                f"limits.selection.per_category.{category_id} target cannot exceed hard max"
+            )
+    final_digest = selection.get("final_digest", {})
+    if not isinstance(final_digest, dict):
+        raise RuntimeConfigError("limits.selection.final_digest must be an object")
+    final_target = final_digest.get("target")
+    final_hard = final_digest.get("hard_max")
+    if final_target is not None:
+        final_target = _positive_int(final_target, "limits.selection.final_digest.target")
+    if final_hard is not None:
+        final_hard = _positive_int(final_hard, "limits.selection.final_digest.hard_max")
+    if final_target is not None and final_hard is not None and final_target > final_hard:
+        raise RuntimeConfigError("final digest target cannot exceed final digest hard max")
     publisher_target = _positive_int(
         verification.get("publisher_target_per_run"),
         "limits.verification.publisher_target_per_run",
@@ -112,18 +147,25 @@ def effective_configs(
     output = copy.deepcopy(_load_yaml(root / "config" / "output.yml"))
     deployment = copy.deepcopy(_load_yaml(root / "config" / "deployment.yml"))
 
-    # Only max_per_query is currently an executable discovery cap. The two
-    # reserved caps remain explicit nulls and the legacy ghost hard-max key is
-    # deliberately removed from the runtime input.
+    # Discovery remains globally uncapped: the old hard_max_per_category key is
+    # removed rather than repurposed. Ranking and digest limits live later.
     streams["candidate_guidance"] = {
         "suggested_max_per_query": int(limits["discovery"]["max_per_query"]),
         "max_per_source": None,
         "max_per_category": None,
+        "global_candidate_hard_max": None,
     }
 
-    featured = output.setdefault("selection", {}).setdefault("featured", {})
+    selection_runtime = output.setdefault("selection", {})
+    ranking_runtime = selection_runtime.setdefault("ranking_pool", {})
+    ranking_runtime["max_per_category"] = limits["ranking_pool"].get("max_per_category")
+    featured = selection_runtime.setdefault("featured", {})
     featured["target_min"] = int(limits["selection"]["featured_target_per_category"])
     featured["hard_max"] = int(limits["selection"]["featured_hard_max_per_category"])
+    featured["per_category"] = copy.deepcopy(limits["selection"].get("per_category", {}))
+    featured["final_digest"] = copy.deepcopy(
+        limits["selection"].get("final_digest", {"target": None, "hard_max": None})
+    )
 
     publisher = deployment.setdefault("publisher_output", {})
     publisher["target_min_per_run"] = int(limits["verification"]["publisher_target_per_run"])
@@ -134,6 +176,7 @@ def effective_configs(
         "profile_id": selected_profile,
         "limits": copy.deepcopy(limits),
         "candidate_guidance": copy.deepcopy(streams["candidate_guidance"]),
+        "ranking_pool": copy.deepcopy(ranking_runtime),
         "featured": copy.deepcopy(featured),
         "publisher_output": {
             key: publisher[key]

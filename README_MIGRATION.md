@@ -18,17 +18,29 @@ Source groups such as `oa_prestige_general`, `oa_prestige_biomed`, `oa_prestige_
 
 - `current_focus`: compatibility profile for the existing clinical, sport, LLM and human-AI streams.
 - `general_research`: broad Nature subject discovery plus the verified OA general/physics/chemistry layer.
-- `current_plus_general`: formal daily production union.
+- `owner_daily`: scheduled reader-scoped production profile for the owner’s clinical, sport, LLM and human-AI interests, with JAMA Network Open and topic-routed Nature Communications OA discovery.
+- `current_plus_general`: broad integration/stress profile; not the scheduled daily default.
 - `medicine_reader`, `llm_reader`, `physics_reader`, `chemistry_reader`: narrower examples that demonstrate reader-specific source selection.
 - `oa_general_reader`: only the verified broad OA journal layer.
+
+
+## LLM / OA prestige catalog
+
+The catalog may know about strong OA/public venues without activating them for every run. TMLR, JMLR, TACL, COLM, ICLR and NeurIPS are catalogued as LLM/ML prestige candidates. Venue-specific entries that still need accepted-only, venue-aware or first-party adapter semantics remain disabled and carry an explicit `activation_blocker`; the active LLM discovery containers remain OpenReview, ACL Anthology and PMLR until those semantics are implemented.
+
+`owner_daily` intentionally excludes broad Nature subject feeds, Scientific Reports and unrelated physics/chemistry sources. The global catalog remains reusable by `general_research`, discipline readers and the broad `current_plus_general` integration profile.
 
 ## Limits
 
 `radar_master.json.limits` is the source of truth for discovery, featured-selection and publisher-verification budgets. Profiles may override individual limit fields without changing global defaults.
 
-The default effective limits are 40 results per query, 5 featured items per category with a hard maximum of 8, and publisher verification target/hard/per-domain budgets of 10/15/2. `max_per_source` and `max_per_category` are intentionally `null`: complete-ledger semantics for those truncation modes are not implemented, so non-null values fail closed rather than pretending to cap the pool. The old `streams.yml` `hard_max_per_category` value is therefore not projected into runtime configuration.
+The default effective discovery limit is 40 results per query. There is deliberately **no global candidate hard cap**: every deduplicated discovery candidate remains in the Run/State ledger. `max_per_source`, discovery `max_per_category`, and `global_candidate_hard_max` are reserved as `null`; setting them non-null fails closed rather than silently discarding candidates.
 
-`tools/apply_master_runtime_config.py` materializes profile-derived output/deployment limits into a disposable runtime checkout. Scheduled production uses the master defaults; explicit workflow-dispatch publisher limits remain manual run overrides.
+Featured selection has a separate ranking pool (default 30 candidates per category) that limits only which candidates compete for digest slots; it never mutates or truncates the complete ledger. Global featured defaults remain target 5 / hard maximum 8 per category. Profiles may override category-specific target/hard values and may add a final-digest target/hard maximum. `owner_daily` uses clinical 4/6, sport science 3/5, sport nutrition/fitness 3/5, LLM 6/10, and human-AI 4/6, with a final digest target/hard maximum of 20/32.
+
+Publisher verification remains an independent network budget: target/hard/per-domain 10/15/2 by default. The old `streams.yml` `hard_max_per_category` value is not projected into runtime configuration.
+
+`tools/apply_master_runtime_config.py` materializes profile-derived discovery, ranking, featured and publisher limits into a disposable runtime checkout. Scheduled production resolves `owner_daily`; explicit workflow-dispatch publisher limits remain manual run overrides.
 
 ## Runtime migration bridge
 

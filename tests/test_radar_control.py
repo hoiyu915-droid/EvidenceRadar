@@ -48,10 +48,12 @@ class RadarControlTests(unittest.TestCase):
             <= authority
         )
         self.assertEqual(
-            self.master["control_plane"]["production_profile"], "current_plus_general"
+            self.master["control_plane"]["production_profile"], "owner_daily"
         )
         self.assertEqual(self.master["limits"]["discovery"]["max_per_query"], 40)
         self.assertIsNone(self.master["limits"]["discovery"]["max_per_category"])
+        self.assertIsNone(self.master["limits"]["discovery"]["global_candidate_hard_max"])
+        self.assertEqual(self.master["limits"]["ranking_pool"]["max_per_category"], 30)
 
     def test_verified_oa_feeds_are_active_first_class_sources(self) -> None:
         sources = self.master["sources"]
@@ -144,6 +146,51 @@ class RadarControlTests(unittest.TestCase):
         self.assertIn("pmlr", llm_sources)
         self.assertNotIn("pubmed", llm_sources)
         self.assertNotIn("nature_communications", llm_sources)
+
+    def test_owner_daily_is_reader_scoped_and_oa_biased(self) -> None:
+        runtime = self.runtime("owner_daily")
+        requested = {
+            source
+            for stream in runtime.streams["streams"].values()
+            for source in stream["sources"]
+        }
+        self.assertEqual(runtime.category_order, [
+            "clinical_medicine",
+            "sport_science",
+            "sport_nutrition_fitness",
+            "llm_research",
+            "human_ai",
+        ])
+        self.assertEqual(len(requested), 11)
+        self.assertIn("jama_network_open", requested)
+        self.assertIn("nature_communications", requested)
+        self.assertNotIn("scientific_reports", requested)
+        self.assertNotIn("nature_physics", requested)
+        self.assertNotIn("communications_physics", requested)
+        self.assertEqual(runtime.limits["selection"]["final_digest"], {"target": 20, "hard_max": 32})
+        self.assertEqual(
+            runtime.limits["selection"]["per_category"]["llm_research"],
+            {"target": 6, "hard_max": 10},
+        )
+
+    def test_llm_prestige_catalog_is_known_but_not_silently_active(self) -> None:
+        sources = self.master["sources"]
+        for source_id in [
+            "tacl_acl_anthology",
+            "colm_openreview",
+            "iclr_openreview",
+            "neurips_proceedings",
+        ]:
+            self.assertIn(source_id, sources)
+            self.assertFalse(sources[source_id]["enabled"])
+            self.assertEqual(sources[source_id]["status"], "planned")
+        owner = self.runtime("owner_daily")
+        owner_sources = {
+            source for stream in owner.streams["streams"].values() for source in stream["sources"]
+        }
+        self.assertTrue(
+            {"tacl_acl_anthology", "colm_openreview", "iclr_openreview", "neurips_proceedings"}.isdisjoint(owner_sources)
+        )
 
     def test_scoring_categories_are_profile_derived(self) -> None:
         runtime = self.runtime("general_research")

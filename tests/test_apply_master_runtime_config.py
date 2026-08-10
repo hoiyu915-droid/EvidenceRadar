@@ -20,6 +20,8 @@ class ApplyMasterRuntimeConfigTests(unittest.TestCase):
         self.assertEqual(streams["candidate_guidance"]["suggested_max_per_query"], 40)
         self.assertNotIn("hard_max_per_category", streams["candidate_guidance"])
         self.assertIsNone(streams["candidate_guidance"]["max_per_category"])
+        self.assertIsNone(streams["candidate_guidance"]["global_candidate_hard_max"])
+        self.assertEqual(output["selection"]["ranking_pool"]["max_per_category"], 30)
         self.assertEqual(output["selection"]["featured"]["target_min"], 5)
         self.assertEqual(output["selection"]["featured"]["hard_max"], 8)
         self.assertEqual(deployment["publisher_output"]["target_min_per_run"], 10)
@@ -47,13 +49,22 @@ class ApplyMasterRuntimeConfigTests(unittest.TestCase):
             self.assertEqual(deployment["publisher_output"]["target_min_per_run"], 10)
             self.assertEqual(deployment["publisher_output"]["hard_max_per_run"], 12)
 
+    def test_owner_daily_projects_category_and_total_digest_limits(self) -> None:
+        streams, output, _deployment, summary = effective_configs(ROOT, "owner_daily")
+        self.assertIsNone(streams["candidate_guidance"]["global_candidate_hard_max"])
+        featured = output["selection"]["featured"]
+        self.assertEqual(featured["per_category"]["clinical_medicine"], {"target": 4, "hard_max": 6})
+        self.assertEqual(featured["per_category"]["llm_research"], {"target": 6, "hard_max": 10})
+        self.assertEqual(featured["final_digest"], {"target": 20, "hard_max": 32})
+        self.assertEqual(summary["ranking_pool"]["max_per_category"], 30)
+
     def test_unimplemented_candidate_cap_fails_closed(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             shutil.copytree(ROOT / "config", root / "config")
             master_path = root / "config" / "radar_master.json"
             master = json.loads(master_path.read_text(encoding="utf-8"))
-            master["limits"]["discovery"]["max_per_category"] = 30
+            master["limits"]["discovery"]["global_candidate_hard_max"] = 100
             master_path.write_text(json.dumps(master, ensure_ascii=False) + "\n", encoding="utf-8")
             with self.assertRaises((RuntimeConfigError, RadarControlError)):
                 effective_configs(root, "current_focus")

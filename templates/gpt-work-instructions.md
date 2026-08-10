@@ -66,8 +66,10 @@ taxonomy, stream routing, profiles and run limits. Resolve one profile before
 searching. Do not activate every catalogued source merely because it exists:
 profiles select streams, and streams select source groups/sources. Planned or
 disabled catalog entries are never searched. When a profile is not explicitly
-supplied, use `control_plane.default_profile`; a broad production run may use
-`control_plane.production_profile` when that is the requested operating mode.
+supplied, use `control_plane.default_profile`. Scheduled owner delivery uses
+`control_plane.production_profile` (`owner_daily`); `current_plus_general` is a
+broad integration/stress profile and must not be substituted for routine daily
+delivery unless broad coverage is explicitly requested.
 
 Before executing the legacy-compatible runtime, materialize the selected
 profile's limits into the disposable runtime checkout:
@@ -181,11 +183,16 @@ UTF-8, lexically sorted object keys, no insignificant whitespace and unescaped
 Unicode. If no State was supplied, hash the empty byte string and keep
 `STATE_HISTORY_INCOMPLETE`.
 
-Use the resolved profile's `limits` from `radar_master.json`. The current global
-defaults are 40 results per query, 5–8 featured items per category, and a
-publisher verification target/hard maximum of 10/15 with at most 2 attempts per
-domain. A profile may override supported limits. `max_per_source` and
-`max_per_category` are explicitly uncapped (`null`) until complete-ledger cap
+Use the resolved profile's `limits` from `radar_master.json`. Discovery defaults
+to 40 results per query and has **no global candidate hard cap**. Preserve every
+deduplicated candidate in Run/State. The ranking-pool cap (default 30/category)
+only limits featured competition; it never truncates the ledger. Global
+featured defaults are 5–8/category, but a profile may override each category
+and add a final-digest target/hard maximum. `owner_daily` resolves to 4/6
+clinical, 3/5 sport science, 3/5 sport nutrition/fitness, 6/10 LLM and 4/6
+human-AI, with 20/32 final-digest target/hard. Publisher verification remains
+10/15 per run with at most 2 attempts per domain. `max_per_source`, discovery
+`max_per_category` and `global_candidate_hard_max` are explicitly uncapped (`null`) until complete-ledger cap
 semantics are implemented; do not resurrect the legacy ghost category cap.
 Stop a blocked publisher domain, report a gap, and finish below target when
 necessary; never pad candidates or treat access as claim verification.
