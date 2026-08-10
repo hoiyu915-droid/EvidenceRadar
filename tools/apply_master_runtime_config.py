@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Project profile-specific master limits into ephemeral legacy runtime configs.
+"""Project master/profile limits into ephemeral legacy runtime configs.
 
-The repository keeps output.yml and deployment.yml as compatibility inputs.
-This tool applies authoritative limits from radar_master.json to a disposable
-runtime checkout before EvidenceRadar executes. It never changes source/query
-routing; that remains the job of radar_control + the runner bridge.
+The repository keeps streams.yml, output.yml and deployment.yml as compatibility
+inputs. This tool overlays the authoritative limits from radar_master.json in a
+disposable runtime checkout before EvidenceRadar executes. Source/query routing
+is still compiled by radar_control + the runner bridge.
 """
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from typing import Any
 
 import yaml
 
-from tools.radar_control import RadarControlError, load_master_runtime
+from tools.radar_control import RadarControlError, load_master
 
 
 class RuntimeConfigError(RuntimeError):
@@ -33,32 +33,114 @@ def _load_yaml(path: Path) -> dict[str, Any]:
     return value
 
 
-def effective_configs(root: Path, profile_id: str | None = None) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+def _merge_mapping(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
+    merged = copy.deepcopy(base)
+    for key, value in override.items():
+        if isinstance(value, dict) and isinstance(merged.get(key), dict):
+            merged[key] = _merge_mapping(merged[key], value)
+        else:
+            merged[key] = copy.deepcopy(value)
+    return merged
+
+
+def _positive_int(value: Any, label: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        raise RuntimeConfigError(f"{label} must be a positive integer")
+    return value
+
+
+def _resolved_limits(master: dict[str, Any], profile_id: str | None) -> tuple[str, dict[str, Any]]:
+    profiles = master.get("profiles")
+    control = master.get("control_plane")
+    base = master.get("limits")
+    if not isinstance(profiles, dict) or not isinstance(control, dict) or not isinstance(base, dict):
+        raise RuntimeConfigError("radar_master.json requires profiles, control_plane and limits objects")
+    selected = profile_id or str(control.get("default_profile") or "")
+    profile = profiles.get(selected)
+    if not isinstance(profile, dict):
+        raise RuntimeConfigError(f"unknown profile: {selected}")
+    override = profile.get("limits", {})
+    if not isinstance(override, dict):
+        raise RuntimeConfigError(f"profile {selected} limits must be an object")
+    limits = _merge_mapping(base, override)
+
+    discovery = limits.get("discovery")
+    selection = limits.get("selection")
+    verification = limits.get("verification")
+    if not all(isinstance(value, dict) for value in (discovery, selection, verification)):
+        raise RuntimeConfigError("limits requires discovery, selection and verification objects")
+    _positive_int(discovery.get("max_per_query"), "limits.discovery.max_per_query")
+    for field in ("max_per_source", "max_per_category"):
+        if discovery.get(field) is not None:
+            raise RuntimeConfigError(
+                f"limits.discovery.{field} is reserved but complete-ledger cap semantics are not implemented; use null"
+            )
+    featured_target = _positive_int(
+        selection.get("featured_target_per_category"),
+        "limits.selection.featured_target_per_category",
+    )
+    featured_hard = _positive_int(
+        selection.get("featured_hard_max_per_category"),
+        "limits.selection.featured_hard_max_per_category",
+    )
+    if featured_target > featured_hard:
+        raise RuntimeConfigError("featured target cannot exceed featured hard max")
+    publisher_target = _positive_int(
+        verification.get("publisher_target_per_run"),
+        "limits.verification.publisher_target_per_run",
+    )
+    publisher_hard = _positive_int(
+        verification.get("publisher_hard_max_per_run"),
+        "limits.verification.publisher_hard_max_per_run",
+    )
+    _positive_int(
+        verification.get("publisher_per_domain_hard_max"),
+        "limits.verification.publisher_per_domain_hard_max",
+    )
+    if publisher_target > publisher_hard:
+        raise RuntimeConfigError("publisher target cannot exceed publisher hard max")
+    return selected, limits
+
+
+def effective_configs(
+    root: Path, profile_id: str | None = None
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]:
     root = Path(root).resolve()
-    runtime = load_master_runtime(root / "config" / "radar_master.json", profile_id=profile_id)
+    master = load_master(root / "config" / "radar_master.json")
+    selected_profile, limits = _resolved_limits(master, profile_id)
+    streams = copy.deepcopy(_load_yaml(root / "config" / "streams.yml"))
     output = copy.deepcopy(_load_yaml(root / "config" / "output.yml"))
     deployment = copy.deepcopy(_load_yaml(root / "config" / "deployment.yml"))
 
-    selection = output.setdefault("selection", {})
-    featured = selection.setdefault("featured", {})
-    featured["target_min"] = int(runtime.limits["selection"]["featured_target_per_category"])
-    featured["hard_max"] = int(runtime.limits["selection"]["featured_hard_max_per_category"])
+    # Only max_per_query is currently an executable discovery cap. The two
+    # reserved caps remain explicit nulls and the legacy ghost hard-max key is
+    # deliberately removed from the runtime input.
+    streams["candidate_guidance"] = {
+        "suggested_max_per_query": int(limits["discovery"]["max_per_query"]),
+        "max_per_source": None,
+        "max_per_category": None,
+    }
+
+    featured = output.setdefault("selection", {}).setdefault("featured", {})
+    featured["target_min"] = int(limits["selection"]["featured_target_per_category"])
+    featured["hard_max"] = int(limits["selection"]["featured_hard_max_per_category"])
 
     publisher = deployment.setdefault("publisher_output", {})
-    publisher["target_min_per_run"] = int(runtime.limits["verification"]["publisher_target_per_run"])
-    publisher["hard_max_per_run"] = int(runtime.limits["verification"]["publisher_hard_max_per_run"])
-    publisher["per_domain_hard_max"] = int(runtime.limits["verification"]["publisher_per_domain_hard_max"])
+    publisher["target_min_per_run"] = int(limits["verification"]["publisher_target_per_run"])
+    publisher["hard_max_per_run"] = int(limits["verification"]["publisher_hard_max_per_run"])
+    publisher["per_domain_hard_max"] = int(limits["verification"]["publisher_per_domain_hard_max"])
 
     summary = {
-        "profile_id": runtime.profile_id,
-        "limits": copy.deepcopy(runtime.limits),
+        "profile_id": selected_profile,
+        "limits": copy.deepcopy(limits),
+        "candidate_guidance": copy.deepcopy(streams["candidate_guidance"]),
         "featured": copy.deepcopy(featured),
         "publisher_output": {
             key: publisher[key]
             for key in ("target_min_per_run", "hard_max_per_run", "per_domain_hard_max")
         },
     }
-    return output, deployment, summary
+    return streams, output, deployment, summary
 
 
 def _atomic_yaml(path: Path, value: dict[str, Any]) -> None:
@@ -69,10 +151,13 @@ def _atomic_yaml(path: Path, value: dict[str, Any]) -> None:
     temporary.replace(path)
 
 
-def apply_runtime_config(root: Path, profile_id: str | None = None, *, check_only: bool = False) -> dict[str, Any]:
-    output, deployment, summary = effective_configs(root, profile_id=profile_id)
+def apply_runtime_config(
+    root: Path, profile_id: str | None = None, *, check_only: bool = False
+) -> dict[str, Any]:
+    streams, output, deployment, summary = effective_configs(root, profile_id=profile_id)
     if not check_only:
         root = Path(root).resolve()
+        _atomic_yaml(root / "config" / "streams.yml", streams)
         _atomic_yaml(root / "config" / "output.yml", output)
         _atomic_yaml(root / "config" / "deployment.yml", deployment)
     return summary
