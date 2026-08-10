@@ -17,13 +17,17 @@ boundary.
 Never return `TRANSLATION_REQUIRED`, a TranslationRequest, a checkpoint, a
 Stage A result, a Stage B waiting state, or an ETA as the result of a Work run.
 Do not switch the request to the `github_actions` lane merely because that lane
-has an automated handoff. A Work run is complete only after these four files
-exist and pass the required validators:
+has an automated handoff. A Work run is complete only after these four
+**canonical internal artifacts** exist and pass the required validators:
 
 1. `EvidenceRadar_Report.html`
 2. `EvidenceRadar_State.json`
 3. `EvidenceRadar_Evidence.json`
 4. `EvidenceRadar_Run.json`
+
+Canonical names are stable validator/replay inputs. They are not the final bare
+attachment names returned to the user; packaging creates timestamp-prefixed,
+byte-identical delivery aliases after validation.
 
 If a hard external blocker prevents those files from being produced, report
 the run as blocked with the exact cause. Never label an intermediate state as
@@ -46,7 +50,8 @@ Read the protocol, `config/`, schemas, templates and tools from that checkout
 at the resolved commit. A moving `main` link, cached browser page or an older
 attachment is not a source revision. Do not write generated artifacts into the
 repository checkout. Create a new Work-VM run directory whose name contains the
-run id, and keep the four outputs there until validation and packaging finish.
+run id, and keep the four canonical outputs there until validation and
+packaging finish.
 
 If a repository checkout is not available in the Work VM, use the released Work
 Pack path below and record its manifest source commit instead. The two modes
@@ -56,9 +61,32 @@ Read `EVIDENCE_RADAR_PROTOCOL.md`, `docs/SEMANTIC_CONTRACT_V3.md`, `config/`,
 `docs/research_taxonomy.md`, the latest valid canonical or explicitly imported
 `EvidenceRadar_State.json`, and the artifact schemas before each run.
 
-Use live web search and open the actual authoritative pages. Memory, old reports and search snippets are navigation aids only. Never present them as proof of the current window.
+`config/radar_master.json` is authoritative for source catalog, source groups,
+taxonomy, stream routing, profiles and run limits. Resolve one profile before
+searching. Do not activate every catalogued source merely because it exists:
+profiles select streams, and streams select source groups/sources. Planned or
+disabled catalog entries are never searched. When a profile is not explicitly
+supplied, use `control_plane.default_profile`; a broad production run may use
+`control_plane.production_profile` when that is the requested operating mode.
 
-For `daily`, use an exact rolling 72-hour window in Asia/Tokyo and search all five categories independently. Record every planned query, source target, URL, access result and execution time. Build candidates first; write conclusions only after event and evidence verification.
+Before executing the legacy-compatible runtime, materialize the selected
+profile's limits into the disposable runtime checkout:
+
+```sh
+python3 tools/apply_master_runtime_config.py \
+  --root "$WORK_SOURCE_DIR/EvidenceRadar" --profile "$RADAR_PROFILE" --check
+python3 tools/apply_master_runtime_config.py \
+  --root "$WORK_SOURCE_DIR/EvidenceRadar" --profile "$RADAR_PROFILE"
+```
+
+Use live web search and open the actual authoritative pages. Memory, old reports
+and search snippets are navigation aids only. Never present them as proof of the
+current window.
+
+For `daily`, use an exact rolling 72-hour window in Asia/Tokyo and search every
+category/stream selected by the resolved profile independently. Record every
+planned query, source target, URL, access result and execution time. Build
+candidates first; write conclusions only after event and evidence verification.
 
 Every real search, content fetch, claim verification and gap follow-up must
 produce one `retrieval_attempts` receipt from the executed operation. Reconcile
@@ -77,7 +105,10 @@ Apply identity priority:
 
 `DOI → PMID → PMCID → arXiv ID → Anthology ID → OpenAlex ID → normalized title`.
 
-Every reported item needs a qualifying event, direct source URL, source field, event time/precision/confidence, research design, main claim, caveat and correction/retraction status. Every visible number must preserve sign, unit, direction, comparator, semantic surface and source locator.
+Every reported item needs a qualifying event, direct source URL, source field,
+event time/precision/confidence, research design, main claim, caveat and
+correction/retraction status. Every visible number must preserve sign, unit,
+direction, comparator, semantic surface and source locator.
 
 Every Evidence claim needs `claim_kind`, `claim_origin`, exact citation
 bindings and `support_reason`. `MODEL_INFERENCE` belongs only in
@@ -99,9 +130,13 @@ Every candidate shown in HTML must also have a concise Traditional Chinese
 Write it from the source you actually read; do not paste an English abstract
 into the preview. The summary is navigation text, not evidence for a claim.
 
-Use only `SUPPORTED`, `PARTIAL`, `CONFLICT` or `UNVERIFIED` for claim support. Unverified claims cannot become report conclusions.
+Use only `SUPPORTED`, `PARTIAL`, `CONFLICT` or `UNVERIFIED` for claim support.
+Unverified claims cannot become report conclusions.
 
-Use only `COMPLETE`, `PARTIAL_SOURCE_COVERAGE`, `SOURCE_ACCESS_GAP`, `STATE_HISTORY_INCOMPLETE` or `NO_QUALIFYING_ITEMS` for the primary run status. Missing prior State requires `STATE_HISTORY_INCOMPLETE`. `NO_QUALIFYING_ITEMS` requires complete source coverage.
+Use only `COMPLETE`, `PARTIAL_SOURCE_COVERAGE`, `SOURCE_ACCESS_GAP`,
+`STATE_HISTORY_INCOMPLETE` or `NO_QUALIFYING_ITEMS` for the primary run status.
+Missing prior State requires `STATE_HISTORY_INCOMPLETE`. `NO_QUALIFYING_ITEMS`
+requires complete source coverage.
 
 Produce State, Evidence and Run JSON first. Then generate and validate the
 canonical report with:
@@ -114,43 +149,53 @@ The renderer synchronizes the current claim registry and claim count and binds
 the exact HTML hash. Correct JSON and rerun the renderer; never hand-edit
 substantive prose, numbers or claim labels into the final HTML.
 
-Deliver:
+The canonical bundle remains:
 
 1. `EvidenceRadar_Report.html`
 2. `EvidenceRadar_State.json`
 3. `EvidenceRadar_Evidence.json`
 4. `EvidenceRadar_Run.json`
 
-HTML is the primary delivery. It must agree with the JSON artifacts. Do not write to GitHub, invoke MCP/server/Codex, run the legacy Python crawler, or trigger TA/TP03/image generation unless the user separately requests that downstream work.
+HTML is the primary delivery. It must agree with the JSON artifacts. Do not
+write to GitHub, invoke MCP/server/Codex, run the legacy Python crawler, or
+trigger TA/TP03/image generation unless the user separately requests that
+downstream work.
 
-The HTML delivery contract is machine-checkable. The canonical renderer emits exactly one
-meta value for `evidenceradar-run-id`, `evidenceradar-execution-lane`,
-`evidenceradar-protocol-commit`, and
+The HTML delivery contract is machine-checkable. The canonical renderer emits
+exactly one meta value for `evidenceradar-run-id`,
+`evidenceradar-execution-lane`, `evidenceradar-protocol-commit`, and
 `evidenceradar-displayed-candidates`. Mark every displayed item with one unique
 `data-evidenceradar-work-id` whose value equals its Run candidate `work_id`.
 The displayed marker set must exactly equal candidates where
 `displayed_in_report: true`; `counts.displayed_candidates` and
 `counts.deduplicated_candidates` must agree with HTML and the complete ledger.
 It marks candidate summaries as navigation-only and every substantive claim
-with its Evidence claim ID; any extra unbound prose fails byte-parity validation.
+with its Evidence claim ID; any extra unbound prose fails byte-parity
+validation.
 
-For every new State and Run artifact, set `execution_lane` to
-`chatgpt_work`, record the exact `protocol_commit` or Work Pack source commit,
-record the SHA-256 of the canonical JSON form of the input State as
-`base_state_sha256`, and include every known parent run in `parent_run_ids`.
-Canonical JSON uses UTF-8, lexically sorted object keys, no insignificant
-whitespace and unescaped Unicode. If no State was supplied, hash the empty byte
-string and keep `STATE_HISTORY_INCOMPLETE`.
+For every new State and Run artifact, set `execution_lane` to `chatgpt_work`,
+record the exact `protocol_commit` or Work Pack source commit, record the
+SHA-256 of the canonical JSON form of the input State as `base_state_sha256`,
+and include every known parent run in `parent_run_ids`. Canonical JSON uses
+UTF-8, lexically sorted object keys, no insignificant whitespace and unescaped
+Unicode. If no State was supplied, hash the empty byte string and keep
+`STATE_HISTORY_INCOMPLETE`.
 
-The shared publisher-access budget is a target of 10 and a hard maximum of 15
-per run. Stop a blocked domain, report a gap, and finish below target when
+Use the resolved profile's `limits` from `radar_master.json`. The current global
+defaults are 40 results per query, 5–8 featured items per category, and a
+publisher verification target/hard maximum of 10/15 with at most 2 attempts per
+domain. A profile may override supported limits. `max_per_source` and
+`max_per_category` are explicitly uncapped (`null`) until complete-ledger cap
+semantics are implemented; do not resurrect the legacy ghost category cap.
+Stop a blocked publisher domain, report a gap, and finish below target when
 necessary; never pad candidates or treat access as claim verification.
 
 If the GitHub canonical State and this Work State later diverge, return this
 State as a separate artifact for deterministic merging with
 `tools/merge_radar_state.py`; do not overwrite either branch by timestamp.
 
-After canonical rendering and before returning files, always run the schema validator:
+After canonical rendering and before returning files, always run the schema
+validator:
 
 ```sh
 python3 tools/validate_gpt_work_artifacts.py \
@@ -192,19 +237,37 @@ python3 tools/package_work_delivery.py \
   --require-current-producer
 ```
 
-The command creates a fresh directory, a unique
+The package command creates a fresh canonical bundle directory, a unique
 `EvidenceRadar-WorkRun-<run_id>.zip`, and the matching `.zip.sha256` sidecar.
-The archive root contains the canonical four filenames plus `manifest.json`;
-the manifest records `run_id`, lane, protocol commit, and each file's SHA-256
-and byte size. Refuse to overwrite an existing run-id directory or archive.
-Attach the uniquely named ZIP and checksum (or the unique directory) from the
-Work VM. Do not attach four bare files with the same names as a previous run:
-that is how a corrected report can be replaced by stale attachment bytes.
+After that validation/package step succeeds, create the four byte-identical
+**direct-delivery aliases** beside the package:
 
-Return `EvidenceRadar_Report.html` as an actual downloadable file, not only a
-filesystem path. A Work project cannot create a public URL for a local file.
-If the user separately authorizes GitHub publication, publish only the
-validated, uniquely packaged four-file bundle through review, wait for the
-repository Pages job, then return the deployed `report_url` and
-`links_json_url`. Never invent or announce the Pages URL before deployment
-succeeds, and never label a Work run as `github_actions`.
+```sh
+python3 tools/materialize_delivery_aliases.py \
+  --source-dir "$WORK_RUN_DIR" \
+  --output-dir "$WORK_DELIVERY_DIR"
+```
+
+The aliases use the Run's finished time in Asia/Tokyo:
+
+```text
+YYYYMMDD_HHMMSS__EvidenceRadar_Report.html
+YYYYMMDD_HHMMSS__EvidenceRadar_State.json
+YYYYMMDD_HHMMSS__EvidenceRadar_Evidence.json
+YYYYMMDD_HHMMSS__EvidenceRadar_Run.json
+```
+
+The archive root and canonical bundle directory keep the four stable canonical
+filenames plus `manifest.json`. Existing alias names are never overwritten.
+Attach the four timestamp-prefixed aliases as the direct files the user asked
+for; also attach the unique ZIP/checksum when the complete immutable package is
+useful. Do not attach four bare canonical files with names that can collide with
+a previous run.
+
+Return the timestamp-prefixed `__EvidenceRadar_Report.html` alias as an actual
+downloadable file, not only a filesystem path. A Work project cannot create a
+public URL for a local file. If the user separately authorizes GitHub
+publication, publish only the validated, uniquely packaged canonical four-file
+bundle through review, wait for the repository Pages job, then return the
+deployed `report_url` and `links_json_url`. Never invent or announce the Pages
+URL before deployment succeeds, and never label a Work run as `github_actions`.
