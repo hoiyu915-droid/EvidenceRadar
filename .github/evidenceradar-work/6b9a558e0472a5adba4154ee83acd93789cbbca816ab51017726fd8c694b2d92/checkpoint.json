@@ -1,0 +1,132 @@
+{
+  "artifact_type": "EvidenceRadar_TranslationCheckpoint",
+  "batch_plan_sha256": "fd40f5d7b8d85f05fa4258d310dad803511138305fd36b0fa0a2bfcda8e70d35",
+  "checkpoint_sha256": "0b7ccae30cbbc6049001fd400bf9abc4965a83ed5ce111cf26faa872486c7d35",
+  "completed_batch_ids": [
+    "a5632fef21cd9833af10358311c8f231124809748553a80ad39a94ca0e6894e0"
+  ],
+  "items": [
+    {
+      "immutable_candidate_id": "arxiv_id:2608.06657",
+      "summary_zh_tw": "本研究聚焦於跨層漂移：偏差可起源於系統堆疊的任一層，但傳統單一模態監測無法定位發生層級或起始時間；研究旨在建立時間對齊的多層追蹤基準，以分析協調中斷及其傳播。",
+      "title_zh_tw": "TRACE：漂移與失敗情境下人類—AI 控制器協調的多層基準"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.06672",
+      "summary_zh_tw": "研究將系統追求事實正確、卻與接收者的社會或操作情境脫節之現象稱為情境解耦，並依公共衛生同儕支持社群研究，辨識即使檢索相關且回應正確仍可能存在的語言、認知與關係三類溝通錯位。",
+      "title_zh_tw": "TA-RAG：將語氣感知視為檢索增強生成的設計要務"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.06694",
+      "summary_zh_tw": "研究提出 CGMas 多代理框架，從聚合物與目標解析度的自然語言規格，自動完成拓撲建構、平衡化、映射、勢能推導與驗證；LLM 推理代理推斷全原子拓撲，分層自我修正處理不飽和、含雜原子與極性聚合物常見的物理錯誤。",
+      "title_zh_tw": "用於聚合物自動粗粒化分子動力學的多代理框架"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.06699",
+      "summary_zh_tw": "研究界定代理式 MLLM 合併的兩項挑戰：互動複雜度不同的能力保存不對稱，以及遺失關鍵行動時可能使長程執行偏離的行為關鍵遺忘；並提出無須訓練的 AgentPatch 由粗至細修復框架。",
+      "title_zh_tw": "AgentPatch：合併代理式多模態大型語言模型的由粗至細弱任務修復"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.06722",
+      "summary_zh_tw": "研究提出 CustomDance，由粗至細的客製化 3D 舞蹈互動系統；其 AI 輔助編舞典範借鑑專業編舞者工作流程，採用三個彼此連結的階段。",
+      "title_zh_tw": "CustomDance：以由粗至細的人本互動控制生成客製化 3D 舞蹈"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.06723",
+      "summary_zh_tw": "研究提出 HYMELL，以分析建模結合機器學習估算 LLM 推論延遲與能耗；三層架構依序涵蓋基本運算的分析估算、較高層元件的 ML 預測，以及納入 prefill、decode 階段系統開銷的端到端模型。",
+      "title_zh_tw": "以混合分析—機器學習預測器進行大型語言模型推論延遲與能耗的多層建模"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.06733",
+      "summary_zh_tw": "研究關注資料中心用電需求，文摘指出其占美國用電比重預期將從約 5% 成長，並以此作為建立企業層級 AI 使用之 GHG 排放衡量框架的背景。",
+      "title_zh_tw": "估算 AI 使用的 GHG 排放：企業層級衡量框架"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.06735",
+      "summary_zh_tw": "研究檢視一種訓練典範如何促使策略學習利用特定對手的規律，而非學得可跨對手泛化的策略；作者將此問題稱為靜態對手錯配，並在實驗中直接量化。",
+      "title_zh_tw": "IB-RL：用於策略對話代理的孤立雙邊強化學習"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.06741",
+      "summary_zh_tw": "研究探討如何利用求解器輸出引導 LLM 在遊戲中進行均衡式推理，並提出混合策略決策樹（MDT），把均衡的隱性最適性表達為人類與 LLM 均可理解的稀疏策略規則。",
+      "title_zh_tw": "求解器引導的混合均衡策略推理"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.06750",
+      "summary_zh_tw": "研究提出明確納入獎勵衰減建模的情境式多臂賭徒演算法，並利用期望最大化（EM）演算法，同時估計各臂參數與衰減參數。",
+      "title_zh_tw": "以衰減獎勵 Joint LinUCB 進行漸進式內容精煉"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.06752",
+      "summary_zh_tw": "研究提出 DKG-MTI，利用雙知識圖譜從線上旅遊評論進行統一的多任務使用者意圖推論，以處理階層式流程的錯誤傳播，以及檢索方法忽略領域知識結構關係的問題。",
+      "title_zh_tw": "留意落差：統一多任務使用者意圖推論的雙知識圖譜框架"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.06760",
+      "summary_zh_tw": "研究提出 PMKR-GPSR，以 LLM 進行符合協定的路由參數調適；其參數特定多索引檢索機制向 LLM 提供與參數相關的經驗，同時降低無關資訊干擾。",
+      "title_zh_tw": "面向 FANET 中 LLM-基礎 GPSR 最佳化的參數特定檢索與知識引導推理框架"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.06763",
+      "summary_zh_tw": "研究提出 CubicQuant，一種參數化非均勻純量格式，在各權重群組內調整重建層級時仍保留密集整數碼流；由兩個形狀參數與一個尺度指定的單調三次曲線，將等距幅值碼映射至非均勻層級。",
+      "title_zh_tw": "CubicQuant：採用 1-8 位元權重、用於高吞吐量 LLM 推論的參數化非均勻碼本"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.06769",
+      "summary_zh_tw": "研究提出 GraphVerse，在單圖與配對圖設定下，聯合評估 MLLM 的感知、視覺推理與文字式圖推理；核心採用一組保持語意的圖中心影像編輯（GIE）策略修改圖影像，作為視覺推理的主動測試。",
+      "title_zh_tw": "GraphVerse：多模態大型語言模型的綜合視覺圖推理基準"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.06771",
+      "summary_zh_tw": "研究描述一個環境健康研究的人類迴圈代理式框架，在每一步審查、驗證並修正 AI 產生的資料分析程式碼與結果，以模擬傳統研究團隊的指導結構，支援資料密集型環境健康研究的嚴謹與可重現使用。",
+      "title_zh_tw": "用於可重現人類迴圈環境健康研究的代理式人工智慧"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.06789",
+      "summary_zh_tw": "研究提出演進式 RAN 智慧控制器 EvoRIC，以階層架構回應傳統 ML 跨網路拓撲泛化有限，以及通用 LLM 計算需求高且缺乏領域知識的問題；框架以 non-RT RIC 進行全域模型更新，並結合 near-RT RIC 支援持續演進。",
+      "title_zh_tw": "EvoRIC：以強化學習微調、由 LLM-賦能的 RAN 智慧控制，邁向自主 O-RAN"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.06791",
+      "summary_zh_tw": "研究提出 HLSmith，把 C/C++ 程式轉成最佳化 HLS 加速器；框架整合含適用與不安全條件的最佳化知識庫、依專家 HLS 開發流程設計的回饋式分階段協調，以及將商用前沿模型最佳化軌跡轉為開放權重 LLM 微調資料的工具落地調適管線。",
+      "title_zh_tw": "HLSmith：將 C/C++ 轉譯為 HLS 的專家引導代理式框架"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.06795",
+      "summary_zh_tw": "研究針對 LoRA 低秩調適器的供應鏈風險：不受信任的後門調適器可能在輸入含隱藏觸發時，使模型產生有害內容、惡意程式碼、政治宣傳或隱蔽廣告。",
+      "title_zh_tw": "LoRAScan：透過降維投影活化尖峰偵測大型語言模型低秩轉接器中的後門提示"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.06808",
+      "summary_zh_tw": "研究提出潛力感知實例與演算法共同演化（PIAC）框架，以克服既有平行演算法組合演化方法的限制；文摘將核心貢獻概括為兩個部分。",
+      "title_zh_tw": "透過潛力感知的實例生成與 LLM 演化平行演算法組合"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.06811",
+      "summary_zh_tw": "研究提出 PMCoder 問題解決代理，結合階層式階段規劃器與情節記憶；目前規劃階段會約束記憶檢索，而由記憶取得的軌跡統計則用於判定卡住狀態及重新規劃。",
+      "title_zh_tw": "在用於軟體問題解決的 LLM 代理中結合規劃與情節記憶"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.06819",
+      "summary_zh_tw": "研究提出 FutureBridge，依候選 token 支援 SLM 後續推理的程度，排序 LLM-SLM 聯合候選；訓練時以答案驗證過的 LLM 軌跡提供固定共享未來，再由凍結的 SLM 在共同情境下評估各候選。",
+      "title_zh_tw": "FutureBridge：協作解碼中超越局部偏好的 token 選擇"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.06829",
+      "summary_zh_tw": "研究首次系統性檢視推理式程式碼生成的社會偏見，使用 9 個標準 LLM 與大型推理模型（LRM），在三種以人為中心的決策情境中評估貼近實務且具偏見敏感性的任務。",
+      "title_zh_tw": "推理如何塑造 LLM-生成程式碼中的社會偏見？"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.06830",
+      "summary_zh_tw": "研究依攻擊者存取條件建立二種通訊攻擊：外部進入點攻擊與具權限系統內攻擊，並以三個 LLM、五項具身多機器人任務，在 DMAS、HMAS-1 與 HMAS-2 上評估兩種攻擊。",
+      "title_zh_tw": "當協調成為威脅：LLM-控制多機器人系統中的通訊攻擊"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.06838",
+      "summary_zh_tw": "研究提出 StateFlow，供線性遞迴模型使用的序列管線平行系統；系統將每個序列切分為區塊並排程執行，同時跨區塊傳遞邊界狀態與梯度，以縮短活化值存留時間並改善訓練吞吐量。",
+      "title_zh_tw": "StateFlow：用於線性遞迴長情境建模的序列管線平行化"
+    }
+  ],
+  "request_sha256": "6b9a558e0472a5adba4154ee83acd93789cbbca816ab51017726fd8c694b2d92",
+  "schema_version": "1.0"
+}
