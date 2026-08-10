@@ -1,11 +1,12 @@
 {
   "artifact_type": "EvidenceRadar_TranslationCheckpoint",
   "batch_plan_sha256": "fd40f5d7b8d85f05fa4258d310dad803511138305fd36b0fa0a2bfcda8e70d35",
-  "checkpoint_sha256": "7e1b30a49d0254adfd93203799313555e4d486f61fa15c5eb3efbedfaba4fa02",
+  "checkpoint_sha256": "ee952c5571c73193566390c045aa9388ea39e265524953ed970500fabfd73892",
   "completed_batch_ids": [
     "a5632fef21cd9833af10358311c8f231124809748553a80ad39a94ca0e6894e0",
     "7f96e31acd5eac68c6f3460c85f1c6183af7ed8e719341c84aaaf4c77a305040",
-    "63a473bd7b977752415512702da7e984c8346b6954edb6a265b6b8b3576bf45e"
+    "63a473bd7b977752415512702da7e984c8346b6954edb6a265b6b8b3576bf45e",
+    "eda0221a8a9952d5b1067a5c9f5f45ed089c89dac9cd6c5349034e9f72668f3d"
   ],
   "items": [
     {
@@ -367,8 +368,129 @@
       "immutable_candidate_id": "arxiv_id:2608.07222",
       "summary_zh_tw": "研究提出 Skaling law，以單一交互作用指數耦合模型容量與資料，作為廣義函數形式，用於同時表達兩者對縮放關係的影響。",
       "title_zh_tw": "Skaling：Chinchilla 的指數遇上 Kaplan 的耦合"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.07226",
+      "summary_zh_tw": "研究記錄連線設定、容器配置、介面綁定、引發 NCCL 逾時的起始步驟評估錯誤、checkpoint 與疑難排解經驗，供小型實驗室重現；另以 77 份 CISA 通告建立網路安全微調資料集，含 338 段訓練與 37 段驗證對話，並用 17 題留出評估比較基準 SFT checkpoint 與 CTI 增強 checkpoint。",
+      "title_zh_tw": "透過 Tailscale 連接雙節點 NVIDIA DGX Spark：用於分散式 LLM 訓練與網路威脅情報微調的遠端存取測試平台"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.07243",
+      "summary_zh_tw": "研究透過兩項實驗檢驗迭代次數、生成器溫度及迴圈內選擇評分模型規模；反覆生成與選擇可產生創意分數可比人類基準的食譜，但僅增加迭代次數並不會提升創意。",
+      "title_zh_tw": "創意食譜：大型語言模型中的反覆生成與評估"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.07254",
+      "summary_zh_tw": "研究提出 SCALE（透過 LLMs 與嵌入進行科學概念聚合），在 OpenAlex 分類法的主題之下新增科學概念層級；方法不把關鍵詞視為孤立描述，而是將語意相關詞彙組成一致、可解釋的概念單元，再整合至既有學科階層。",
+      "title_zh_tw": "SCALE：透過 LLMs 與嵌入進行科學概念聚合，以擴充細粒度分類法"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.07261",
+      "summary_zh_tw": "研究在受控符號環境中從頭訓練 transformer，以分析雙跳泛化的內部機制；模型在第二跳符合訓練分布時能可靠泛化，但第二跳偏離該分布時總會失敗。",
+      "title_zh_tw": "為何知道兩個跳躍仍不足：理解語言模型的雙跳泛化"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.07267",
+      "summary_zh_tw": "研究提出 WNM-3D，這是以 3D 場景為條件、用於連續 VLN 的生成式世界導航模型；凍結的前饋幾何編碼器從單眼第一人稱 RGB 歷史提取幾何感知表示，可訓練的 3D 場景轉 token 轉接器再將其轉成世界動作 Diffusion Transformer token 空間中的固定長度前綴。",
+      "title_zh_tw": "WNM-3D：具 3D 場景條件化的閉迴路 VLN 世界導航模型"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.07279",
+      "summary_zh_tw": "研究探討在保留 MLLMs 多模態理解效能的同時，如何減少互動期間的資料傳輸量，並提出專為 MLLMs 設計的 token 通訊框架。",
+      "title_zh_tw": "多模態大型語言模型的 token 通訊"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.07282",
+      "summary_zh_tw": "研究提出預測視覺世界研究中注視行為的新方法，結合 CLIP 系列的簡易多模態雙編碼器模型與雙模態歸因方法。",
+      "title_zh_tw": "視覺世界實驗中的注視行為可用現成語言—視覺編碼器建模"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.07302",
+      "summary_zh_tw": "研究觀察到真實與幻覺物件在模型中後段層都獲得同樣強的視覺注意力，因此關鍵可能在模型注意了什麼及其原因，而非注意力多寡；以 Logit Lens 解碼高注意力區域的視覺特徵後，真實物件區域可正確解碼為目標 token，幻覺物件區域則不能。",
+      "title_zh_tw": "相同注意力、不同真相：在視覺注意力上使用 Logit Lens 偵測並緩解 LVLM 物件幻覺"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.07323",
+      "summary_zh_tw": "研究檢驗僅解碼器語言模型的 FFNs 是否需要 SwiGLU 的開放正尾部，並提出源自憶阻式分支幾何的封閉尾部比較器 MemGLU。",
+      "title_zh_tw": "SwiGLU 的開放正尾部是否必要？來自 MemGLU 封閉尾部閘控的證據"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.07346",
+      "summary_zh_tw": "研究提出 $A^2E$（代理稽核引擎），這是為代理 harness 設計的端對端評估引擎；$A^2E$ 使用新提出的代理任務協定 ATP，使評估任務可快速整合至不同 harness。",
+      "title_zh_tw": "端對端代理稽核引擎"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.07353",
+      "summary_zh_tw": "研究為受控探測 LLMs 的概念能力，設計抽象性、組合性與落地性測試；概念中心基準聚焦方向、距離、拓撲及其組合等空間概念，並以問答任務作為代理量測。",
+      "title_zh_tw": "大型語言模型的地理空間概念探測：抽象性、組合性與落地性"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.07361",
+      "summary_zh_tw": "研究分析一個以單一規劃 token 承載完整計畫、再由生成式規劃器解碼為軌跡的駕駛 VLA；研究把規劃器作為軌跡空間 Logit Lens，從 32 個解碼器層逐層解碼該 token，量測導航指令的線性可解碼性及其與凍結原生規劃器的軌跡相容性。",
+      "title_zh_tw": "駕駛視覺—語言—動作模型中規劃 token 的逐深度探測與剪枝"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.07367",
+      "summary_zh_tw": "研究依據歐洲社會調查，以 15 個社會人口變項及居住國分析 10 個主要商用 LLM 的價值對齊；各模型對不同社會人口群體的價值對齊並不均等，教育、收入、職業與宗教界定的群體尤其明顯。",
+      "title_zh_tw": "人不只是其國家：拆解歐洲各地 LLM 價值對齊的社會決定因素"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.07370",
+      "summary_zh_tw": "研究提出以科學論文文獻為依據的問答基準 LitTraceQA；系統接收研究問題與論文中繼資料池後，必須回傳相互連結的標準論文識別碼、佐證位置，以及自由文字、選擇題或結構化表格等一種或多種指定格式的答案。",
+      "title_zh_tw": "LitTraceQA：科學問答中多階段落地與驗證的基準"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.07373",
+      "summary_zh_tw": "研究針對部署於微積分基礎入門力學課程的蘇格拉底式 AI 家教，建立學生對話的由下而上分類法；LLM 編碼器依對話脈絡為每次學生發言指派浮現式自由文字標籤，再以相似度分組程序將近似改寫標籤整併為較少的對話類別。",
+      "title_zh_tw": "使用蘇格拉底式 AI 物理家教之學生對話的由下而上分類法"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.07378",
+      "summary_zh_tw": "研究提出 LSEAD，一個使用預訓練開源 LLMs 的語音式 AD 偵測框架；語音錄音會自動轉錄，文字嵌入則由本機部署的 LLMs 擷取。",
+      "title_zh_tw": "LSEAD：用於早期阿茲海默症篩檢、保護隱私的 LLM-Based 語音分析框架"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.07388",
+      "summary_zh_tw": "研究提出用於 Banach 格理論的 Lean 4 函式庫，旨在支援 Banach 格及相關領域當代研究的系統化形式化。",
+      "title_zh_tw": "Banach 格的 Lean 函式庫"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.07395",
+      "summary_zh_tw": "研究提出感知基本單元的程式碼演化 PACE，將局部邏輯與完整程式解耦，並把局部邏輯表示為稱為可執行演算法基本單元（EAPs）的持久單元；為支援程式碼層級轉移，PACE 會維護動態 EAPs 集合。",
+      "title_zh_tw": "PACE：用於自動演算法設計、感知基本單元的程式碼演化"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.07396",
+      "summary_zh_tw": "研究提出一項個案，說明 AI 的使用如何促成更團結的研究社群，以及對該數學領域更深入的理解。",
+      "title_zh_tw": "Banach 格與相位擷取：AI 用於數學的個案研究"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.07407",
+      "summary_zh_tw": "研究提出 AutoOPT，一個用於端對端最佳化研究自動化的領域特定 harness；它把最佳一階方法的探索分成數值設計、由前沿 LLMs 進行符號式分析描述與收斂論證探索、在 Lean 4 輔助系統中形式驗證，以及人工解讀與撰寫四個階段。",
+      "title_zh_tw": "用於端對端最佳化研究自動化的領域特定 harness"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.07411",
+      "summary_zh_tw": "研究提出完整的地理相關任務 LLMs 探測基準，審慎選取十二個公開資料集，涵蓋多種地理相關任務與領域，並用該基準評估一組 LLMs 的地理空間與時間理解。",
+      "title_zh_tw": "GeoBenchLLM：評估 LLMs 地理相關任務的完整基準"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.07418",
+      "summary_zh_tw": "研究提出 ResidencyRL，透過模擬多輪臨床互動訓練臨床 AI 代理的強化學習 RL 方法，每條軌跡最多 60 輪對話與 8 次工具呼叫；方法讓策略代理搭配能展現複雜對抗行為的 LLM 模擬器，並依診斷準確度、處置品質、溝通、紀錄與安全設計結構化獎勵。",
+      "title_zh_tw": "ResidencyRL：模擬臨床環境中的強化學習 RL"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.07419",
+      "summary_zh_tw": "研究提出以最大化預測分布熵作為校準目標，透過抑制過度集中的預測直接處理過度自信；受溫度縮放啟發，方法採雙層最佳化，下層以參數化損失訓練模型，上層選擇能最大化熵的損失超參數。",
+      "title_zh_tw": "超越事後溫度縮放：用於 LLM 校準的雙層最佳化"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.07427",
+      "summary_zh_tw": "研究指出 LLM 推論占 AI 營運能源逾 90%，且會隨輸入 token 數直接擴大；對電信網路分析與數值時間序列資料分析，4G/5G 基地台的多變量 KPI 視窗會展開成數千個浮點 token。VLMs 以 2D 圖編碼時間序列，可在 Llama-3.2-90B、Qwen2.5-VL-72B 與 Pixtral-12B 架構把輸入 token 減少 3.6-10.4 倍。",
+      "title_zh_tw": "一圖勝千 token：視覺語言模型如何在提升準確度的同時降低 AI 能源成本"
     }
   ],
   "request_sha256": "6b9a558e0472a5adba4154ee83acd93789cbbca816ab51017726fd8c694b2d92",
   "schema_version": "1.0"
 }
+38044391cd861500c3141d696ac87ebedc21fabe

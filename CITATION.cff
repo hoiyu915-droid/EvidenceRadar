@@ -1,8 +1,0 @@
-cff-version: 1.2.0
-message: "If you use EvidenceRadar, cite the repository and the exact commit or release."
-title: "EvidenceRadar"
-type: software
-authors:
-  - name: "hoiyu915-droid"
-repository-code: "https://github.com/hoiyu915-droid/EvidenceRadar"
-license: Apache-2.0

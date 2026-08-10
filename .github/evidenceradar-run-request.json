@@ -1,6 +1,0 @@
-{
-  "format": "evidenceradar-run-request",
-  "requested_at": "2026-08-10T09:55:00+09:00",
-  "reason": "verify publishable zh-TW title summaries after publication-mode env scoping fix",
-  "request_sequence": 3
-}
