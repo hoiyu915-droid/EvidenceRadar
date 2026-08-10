@@ -1,6 +1,6 @@
 {
   "format": "evidenceradar-run-request",
-  "requested_at": "2026-08-10T07:05:00+09:00",
-  "reason": "formal user-requested Radar execution",
-  "request_sequence": 1
+  "requested_at": "2026-08-10T09:52:00+09:00",
+  "reason": "post-release verification of meaningful zh-TW title summaries",
+  "request_sequence": 2
 }
