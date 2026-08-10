@@ -1,1 +1,1 @@
-Probe the exact Copilot JSON batch shape used by production while the current-main Radar run is active. Sequence: 4.
+Benchmark 10-item and 5-item production-shape Copilot translation batches before changing the formal runner. Sequence: 5.
