@@ -9,23 +9,48 @@ on:
 permissions:
   actions: write
   contents: read
+  copilot-requests: write
 
 jobs:
   inspect:
     runs-on: ubuntu-latest
     steps:
-      - name: Cancel stale post-merge Radar run if still active
+      - name: Set up Node.js for Copilot JSON smoke
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: Install GitHub Copilot CLI
+        run: npm install -g @github/copilot
+
+      - name: Probe production-shape Copilot JSON batch
         env:
-          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          stale_run=31347820559
-          status="$(gh run view "$stale_run" --repo "$GITHUB_REPOSITORY" --json status --jq .status || true)"
-          echo "stale run $stale_run status=$status"
-          if [ "$status" = "in_progress" ] || [ "$status" = "queued" ] || [ "$status" = "pending" ]; then
-            gh run cancel "$stale_run" --repo "$GITHUB_REPOSITORY"
-            echo "cancel requested for stale run $stale_run"
-          fi
+          prompt='Translate the following academic records into Taiwan Traditional Chinese. Return ONLY one JSON object with key items. Each item must contain exactly id, title_zh_tw, summary_zh_tw. title_zh_tw must be a complete faithful title translation. If source_excerpt is non-empty, summary_zh_tw should state the research purpose/population/method in one or two concise sentences without inventing results. Preserve every number, year and abbreviation. INPUT_JSON: {"items":[{"id":"one","title":"Time trends in stroke incidence and modifiable risk factor prevalence in England (2018-2024): A record linkage population-based study","source_excerpt":"This study examined stroke incidence and modifiable risk factors in England."},{"id":"two","title":"Conversational artificial intelligence health support in atrial fibrillation self-management (CHAT-AF-S): rationale and randomised controlled trial design","source_excerpt":"This paper describes the rationale and design of the CHAT-AF-S randomized controlled trial."}]}'
+          start="$(date +%s)"
+          timeout 90 copilot -p "$prompt" -s --no-ask-user > "$RUNNER_TEMP/copilot-json-smoke.txt"
+          end="$(date +%s)"
+          echo "elapsed_seconds=$((end-start))"
+          cat "$RUNNER_TEMP/copilot-json-smoke.txt"
+          python - <<'PY'
+          import json, os, re
+          from pathlib import Path
+          text=(Path(os.environ['RUNNER_TEMP'])/'copilot-json-smoke.txt').read_text(encoding='utf-8').strip()
+          start=text.find('{'); end=text.rfind('}')
+          if start < 0 or end < start:
+              raise SystemExit('no JSON object returned')
+          data=json.loads(text[start:end+1])
+          items=data.get('items')
+          if not isinstance(items,list) or {x.get('id') for x in items if isinstance(x,dict)} != {'one','two'}:
+              raise SystemExit(f'bad item set: {items!r}')
+          for item in items:
+              title=str(item.get('title_zh_tw') or '')
+              if not re.search(r'[\u3400-\u9fff]', title):
+                  raise SystemExit(f'missing Chinese title: {item!r}')
+          print('production-shape JSON batch smoke: PASS')
+          PY
 
       - name: Inspect main workflow runs
         env:
@@ -55,4 +80,3 @@ jobs:
           test -s EvidenceRadar-Runtime-v1.0.1.zip
           test -s EvidenceRadar-Runtime-v1.0.1.zip.sha256
           sha256sum -c EvidenceRadar-Runtime-v1.0.1.zip.sha256
-          unzip -l EvidenceRadar-Runtime-v1.0.1.zip | head -80
