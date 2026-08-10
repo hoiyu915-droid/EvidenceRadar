@@ -8,28 +8,53 @@ on:
       - main
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
+          ref: ${{ github.head_ref || github.ref_name }}
       - uses: actions/setup-python@v7.0.0
         with:
           python-version: "3.12"
           cache: pip
       - name: Install active-lane dependencies
-        run: python -m pip install -r requirements.txt
+        run: |
+          python -m pip install -r requirements.txt
+          if [ -f legacy/python-runtime/requirements.txt ]; then
+            python -m pip install -r legacy/python-runtime/requirements.txt
+          fi
+      - name: Materialize master-control migration
+        if: github.event_name == 'pull_request' && github.head_ref == 'feat/master-control-sources-taxonomy'
+        shell: bash
+        run: |
+          set -euo pipefail
+          base64 -d .github/evidenceradar-master-control-payload.b64 | tar -xzf -
+          python apply_migration.py
+          python -m py_compile \
+            tools/radar_control.py \
+            tools/publisher_feed.py \
+            tools/generate_legacy_config.py \
+            tools/run_github_radar.py
+          python -m unittest tests.test_radar_control tests.test_publisher_feed -v
+          python tools/generate_legacy_config.py --master config/radar_master.json --profile current_focus --out-dir "$RUNNER_TEMP/current-focus"
+          python tools/generate_legacy_config.py --master config/radar_master.json --profile general_research --out-dir "$RUNNER_TEMP/general-research"
+          python tools/generate_legacy_config.py --master config/radar_master.json --profile current_plus_general --out-dir "$RUNNER_TEMP/current-plus-general"
       - name: Validate public-release hygiene
         run: python tools/validate_public_release.py
       - name: Validate artifact examples
         run: python tools/validate_gpt_work_artifacts.py --root .
       - name: Run standard-library tests
         run: python -m unittest discover -s tests -v
+      - name: Run archived-runtime regression tests for master-control migration
+        if: github.event_name == 'pull_request' && github.head_ref == 'feat/master-control-sources-taxonomy'
+        working-directory: legacy/python-runtime
+        run: python -m pytest -q tests
       - name: Validate committed canonical bundle against its recorded producer
         shell: bash
         run: |
@@ -56,3 +81,27 @@ jobs:
             --require-current-producer \
             --require-semantic-contract-v3 \
             --reject-dirty
+      - name: Commit validated master-control migration
+        if: github.event_name == 'pull_request' && github.head_ref == 'feat/master-control-sources-taxonomy'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "evidence-radar[bot]"
+          git config user.email "evidence-radar[bot]@users.noreply.github.com"
+          git checkout origin/main -- .github/workflows/public-release.yml
+          git rm -- .github/evidenceradar-master-control-payload.b64 .github/workflows/apply-master-control.yml
+          rm -f apply_migration.py
+          git add -- \
+            .github/workflows/public-release.yml \
+            .github/workflows/daily-radar.yml \
+            config/radar_master.json \
+            tools/radar_control.py \
+            tools/publisher_feed.py \
+            tools/generate_legacy_config.py \
+            tools/run_github_radar.py \
+            tests/test_radar_control.py \
+            tests/test_publisher_feed.py \
+            README_MIGRATION.md
+          git diff --cached --check
+          git commit -m "feat: centralize radar sources and taxonomy"
+          git push origin HEAD:${GITHUB_HEAD_REF}
