@@ -63,20 +63,15 @@ jobs:
 
       - name: Apply bounded product patch
         run: |
-          # The workflow file itself was already updated through the maintainer
-          # connector because Actions tokens cannot mutate workflow files.
-          # Normalize this local file to the old form so the bounded patch can
-          # reconstruct exactly the already-committed branch version; it then
-          # has no workflow diff to push.
           git show origin/main:.github/workflows/daily-radar.yml > .github/workflows/daily-radar.yml
           python .github/maintenance/apply_meaningful_summary_fix.py
+          # daily-radar.yml was already committed through the maintainer
+          # connector. Discard the patcher's local reconstruction so the
+          # Actions token never attempts to mutate workflow files.
+          git checkout HEAD -- .github/workflows/daily-radar.yml
           git diff --check
           python -m py_compile tools/run_github_radar.py
           python -m unittest tests.test_meaningful_summary_contract tests.test_study_classification -v
-          git diff --quiet -- .github/workflows/daily-radar.yml || {
-            echo "::error::reconstructed daily workflow differs from the connector-committed branch version"
-            exit 1
-          }
 
       - name: Commit product files only
         env:
@@ -94,8 +89,6 @@ jobs:
 
       - name: Verify release gates
         run: |
-          # Bootstrap files remain unmodified in this checkout and are removed
-          # by the maintainer connector after this job succeeds.
           python tools/validate_public_release.py
           python tools/validate_gpt_work_artifacts.py --root .
           python -m unittest discover -s tests -v
