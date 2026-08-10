@@ -24,6 +24,7 @@ import tempfile
 import time
 import unicodedata
 import xml.etree.ElementTree as ET
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from datetime import date, datetime, time as datetime_time, timedelta, timezone as datetime_timezone
 from email.utils import parsedate_to_datetime
@@ -3021,6 +3022,94 @@ def _copilot_translation_batch(
     }
 
 
+def _copilot_translation_batch_adaptive(
+    items: list[dict[str, str]],
+    *,
+    timeout_seconds: int,
+    environ: dict[str, str],
+) -> tuple[dict[str, dict[str, str]], list[str]]:
+    """Translate one Copilot batch, recursively splitting a failed batch.
+
+    Copilot CLI response time grows materially with batch size.  A failed
+    multi-item request must not discard otherwise translatable records: retry
+    the same bounded input as two smaller batches until a single item remains.
+    The caller still fails publication if any single item cannot be translated.
+    """
+
+    if not items:
+        return {}, []
+    try:
+        returned = _copilot_translation_batch(
+            items,
+            timeout_seconds=timeout_seconds,
+            environ=environ,
+        )
+        expected_ids = {item["id"] for item in items}
+        if set(returned) != expected_ids:
+            raise RadarRuntimeError("Copilot CLI translation returned an incomplete batch")
+        for source_item in items:
+            translated = returned[source_item["id"]]
+            title_zh = str(translated.get("title_zh_tw") or "").strip()
+            summary_zh = str(translated.get("summary_zh_tw") or "").strip()
+            if not _valid_title_translation(source_item["title"], title_zh):
+                raise RadarRuntimeError("Copilot CLI returned an invalid title translation")
+            if source_item["source_excerpt"] and summary_zh and not _contains_han(summary_zh):
+                raise RadarRuntimeError("Copilot CLI returned a non-Chinese summary")
+        return returned, []
+    except (OSError, ValueError, TypeError, RadarRuntimeError):
+        if len(items) == 1:
+            return {}, [items[0]["id"]]
+        midpoint = len(items) // 2
+        left, left_failures = _copilot_translation_batch_adaptive(
+            items[:midpoint],
+            timeout_seconds=timeout_seconds,
+            environ=environ,
+        )
+        right, right_failures = _copilot_translation_batch_adaptive(
+            items[midpoint:],
+            timeout_seconds=timeout_seconds,
+            environ=environ,
+        )
+        return {**left, **right}, [*left_failures, *right_failures]
+
+
+def _copilot_translation_batches_adaptive(
+    items: list[dict[str, str]],
+    *,
+    batch_size: int,
+    max_workers: int,
+    timeout_seconds: int,
+    environ: dict[str, str],
+) -> tuple[dict[str, dict[str, str]], list[str]]:
+    """Run bounded Copilot batches concurrently and merge deterministically."""
+
+    batches = [items[offset : offset + batch_size] for offset in range(0, len(items), batch_size)]
+    if not batches:
+        return {}, []
+    worker_count = max(1, min(max_workers, len(batches)))
+    completed: dict[int, tuple[dict[str, dict[str, str]], list[str]]] = {}
+    with ThreadPoolExecutor(max_workers=worker_count) as executor:
+        futures = {
+            executor.submit(
+                _copilot_translation_batch_adaptive,
+                batch,
+                timeout_seconds=timeout_seconds,
+                environ=environ,
+            ): index
+            for index, batch in enumerate(batches)
+        }
+        for future in as_completed(futures):
+            completed[futures[future]] = future.result()
+
+    returned: dict[str, dict[str, str]] = {}
+    failures: list[str] = []
+    for index in range(len(batches)):
+        batch_returned, batch_failures = completed[index]
+        returned.update(batch_returned)
+        failures.extend(batch_failures)
+    return returned, failures
+
+
 def translate_candidate_summaries_zh_tw(
     candidates: list[Candidate],
     *,
@@ -3076,56 +3165,61 @@ def translate_candidate_summaries_zh_tw(
 
     model_env = str(config.get("model_env") or "EVIDENCERADAR_TRANSLATION_MODEL")
     model = str(environ.get(model_env) or config.get("default_model") or "gpt-5-mini").strip()
-    batch_size = max(1, min(int(config.get("batch_size", 20)), 20))
-    timeout_seconds = max(15, min(int(config.get("timeout_seconds", 90)), 240))
+    openai_batch_size = max(1, min(int(config.get("batch_size", 20)), 20))
+    openai_timeout_seconds = max(15, min(int(config.get("timeout_seconds", 90)), 240))
+    copilot_batch_size = max(1, min(int(config.get("copilot_batch_size", 10)), 10))
+    copilot_max_workers = max(1, min(int(config.get("copilot_max_workers", 2)), 2))
+    copilot_timeout_seconds = max(30, min(int(config.get("copilot_timeout_seconds", 75)), 120))
     summaries = dict(fallback)
     failures: list[str] = []
     translated_ids: set[str] = set()
     all_items = _translation_items(candidates, max_chars=max_chars)
+    returned: dict[str, dict[str, str]] = {}
 
-    for offset in range(0, len(all_items), batch_size):
-        batch = all_items[offset : offset + batch_size]
-        try:
-            if api_key:
-                returned = _openai_translation_batch(
+    if api_key:
+        provider_basis = "OPENAI"
+        for offset in range(0, len(all_items), openai_batch_size):
+            batch = all_items[offset : offset + openai_batch_size]
+            try:
+                returned.update(_openai_translation_batch(
                     session,
                     batch,
                     api_key=api_key,
                     model=model,
-                    timeout_seconds=timeout_seconds,
-                )
-                provider_basis = "OPENAI"
-            else:
-                returned = _copilot_translation_batch(
-                    batch,
-                    timeout_seconds=timeout_seconds,
-                    environ=environ,
-                )
-                provider_basis = "COPILOT"
-        except (OSError, ValueError, TypeError, requests.RequestException, RadarRuntimeError):
-            failures.extend(item["id"] for item in batch)
-            continue
+                    timeout_seconds=openai_timeout_seconds,
+                ))
+            except (OSError, ValueError, TypeError, requests.RequestException, RadarRuntimeError):
+                failures.extend(item["id"] for item in batch)
+    else:
+        provider_basis = "COPILOT"
+        returned, failures = _copilot_translation_batches_adaptive(
+            all_items,
+            batch_size=copilot_batch_size,
+            max_workers=copilot_max_workers,
+            timeout_seconds=copilot_timeout_seconds,
+            environ=environ,
+        )
 
-        for source_item in batch:
-            work_id = source_item["id"]
-            translated = returned.get(work_id, {})
-            title_zh = str(translated.get("title_zh_tw") or "").strip()
-            summary_zh = str(translated.get("summary_zh_tw") or "").strip()
-            if not _valid_title_translation(source_item["title"], title_zh):
-                failures.append(work_id)
-                continue
-            if source_item["source_excerpt"] and summary_zh and not _contains_han(summary_zh):
-                failures.append(work_id)
-                continue
-            title_sentence = f"中文題名：{title_zh.rstrip('。')}。"
-            if source_item["source_excerpt"] and summary_zh:
-                summary_text = _truncate_summary(f"{title_sentence}{summary_zh}", max_chars)
-                basis = f"TRANSLATED_TITLE_AND_ABSTRACT_ZH_TW_{provider_basis}"
-            else:
-                summary_text = _truncate_summary(title_sentence, max_chars)
-                basis = f"TRANSLATED_TITLE_ZH_TW_{provider_basis}"
-            summaries[work_id] = (summary_text, basis)
-            translated_ids.add(work_id)
+    for source_item in all_items:
+        work_id = source_item["id"]
+        translated = returned.get(work_id, {})
+        title_zh = str(translated.get("title_zh_tw") or "").strip()
+        summary_zh = str(translated.get("summary_zh_tw") or "").strip()
+        if not _valid_title_translation(source_item["title"], title_zh):
+            failures.append(work_id)
+            continue
+        if source_item["source_excerpt"] and summary_zh and not _contains_han(summary_zh):
+            failures.append(work_id)
+            continue
+        title_sentence = f"中文題名：{title_zh.rstrip('。')}。"
+        if source_item["source_excerpt"] and summary_zh:
+            summary_text = _truncate_summary(f"{title_sentence}{summary_zh}", max_chars)
+            basis = f"TRANSLATED_TITLE_AND_ABSTRACT_ZH_TW_{provider_basis}"
+        else:
+            summary_text = _truncate_summary(title_sentence, max_chars)
+            basis = f"TRANSLATED_TITLE_ZH_TW_{provider_basis}"
+        summaries[work_id] = (summary_text, basis)
+        translated_ids.add(work_id)
 
     unresolved = sorted(
         set(failures) | ({item["id"] for item in all_items} - translated_ids)
