@@ -8,6 +8,22 @@ configuration, schemas, examples, reusable instructions, the active V3
 renderer/runner and validation tools. The Work Pack itself is not a background service; the
 separate GitHub Actions lane may run on its own schedule.
 
+## Work run completion boundary
+
+An instruction to execute Radar starts one end-to-end Work run. The same run
+must perform search, verification, deduplication, translation, JSON assembly,
+canonical HTML rendering, validation, packaging, and delivery. A translation
+request, checkpoint, `TRANSLATION_REQUIRED`, Stage A, Stage B, or publication
+handoff is never a completed Work result. Those states belong to the separate
+`github_actions` transport and must not replace the Work run requested by the
+user.
+
+The Work run stops successfully only when the downloadable
+`EvidenceRadar_Report.html`, `EvidenceRadar_State.json`,
+`EvidenceRadar_Evidence.json`, and `EvidenceRadar_Run.json` all exist and pass
+the bundle validators. Internal batching may support recovery inside the run;
+it must continue until the terminal four-file contract is satisfied.
+
 This lane is user-launched. ChatGPT Scheduled Tasks currently cannot access a
 project's files when the task is created in a project that has files, so this
 pack does not claim unattended Work scheduling. See the official
