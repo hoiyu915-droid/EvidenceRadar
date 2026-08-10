@@ -1,0 +1,27 @@
+name: Inspect post-release workflow runs
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/maintenance/inspect-post-release-runs.txt"
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Inspect main workflow runs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          echo '--- daily-radar.yml ---'
+          gh run list --repo "$GITHUB_REPOSITORY" --workflow daily-radar.yml --branch main --limit 5 --json databaseId,event,headSha,status,conclusion,createdAt,updatedAt,url
+          echo '--- runtime-release.yml ---'
+          gh run list --repo "$GITHUB_REPOSITORY" --workflow runtime-release.yml --branch main --limit 5 --json databaseId,event,headSha,status,conclusion,createdAt,updatedAt,url
+          echo '--- pages.yml ---'
+          gh run list --repo "$GITHUB_REPOSITORY" --workflow pages.yml --branch main --limit 5 --json databaseId,event,headSha,status,conclusion,createdAt,updatedAt,url
