@@ -20,6 +20,11 @@ class MasterRuntimePatchTests(unittest.TestCase):
         self.assertIn('master_path = root / "config" / "radar_master.json"', patched)
         self.assertIn('adapter_key = str(source_config.get("adapter") or discovery_source)', patched)
         self.assertIn('parser.add_argument(\n        "--profile"', patched)
+        self.assertIn('featured_policy = featured_policy_from_output(', patched)
+        self.assertIn('featured_policy=featured_policy', patched)
+        self.assertIn('parse_featured_policy_note(run.get("notes", []))', patched)
+        self.assertIn('featured_policy_note(featured_policy)', patched)
+        self.assertIn('f"RADAR_PROFILE:{streams.get(\'control_plane\', {}).get(\'profile_id\', \'legacy\')}"', patched)
         self.assertNotEqual(source, patched)
 
     def test_patch_check_does_not_mutate_runner_copy(self) -> None:

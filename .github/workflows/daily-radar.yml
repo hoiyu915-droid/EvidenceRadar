@@ -22,14 +22,12 @@ on:
   workflow_dispatch:
     inputs:
       publisher_target_min:
-        description: "Per-run successful publisher access target (default: 10)"
+        description: "Optional manual override; blank uses profile/master limit"
         required: false
-        default: 10
         type: number
       publisher_hard_max:
-        description: "Per-run publisher network-attempt hard maximum (default: 15)"
+        description: "Optional manual override; blank uses profile/master limit"
         required: false
-        default: 15
         type: number
 
 # Hosted Actions performs Stage A only. It reads canonical State, uploads a
@@ -46,10 +44,10 @@ concurrency:
 env:
   RADAR_ROOT: "."
   RADAR_STATE_PATH: "state/current/EvidenceRadar_State.json"
-  RADAR_PROFILE: "current_plus_general"
+  RADAR_PROFILE: "owner_daily"
   EXECUTION_LANE: "github_actions"
-  PUBLISHER_TARGET_MIN: ${{ inputs.publisher_target_min || 10 }}
-  PUBLISHER_HARD_MAX: ${{ inputs.publisher_hard_max || 15 }}
+  PUBLISHER_TARGET_MIN: ${{ inputs.publisher_target_min || '' }}
+  PUBLISHER_HARD_MAX: ${{ inputs.publisher_hard_max || '' }}
   OPENALEX_API_KEY: ${{ secrets.OPENALEX_API_KEY }}
   OPENREVIEW_TOKEN: ${{ secrets.OPENREVIEW_TOKEN }}
   NCBI_EMAIL: ${{ vars.NCBI_EMAIL }}
@@ -92,11 +90,19 @@ jobs:
         working-directory: legacy/python-runtime
         run: python -m pytest -q tests
 
-      - name: Materialize master-controlled runner
+      - name: Materialize master-controlled runtime
         run: |
+          python tools/apply_master_runtime_config.py --root "$RADAR_ROOT" --profile "$RADAR_PROFILE" --check
+          python tools/apply_master_runtime_config.py --root "$RADAR_ROOT" --profile "$RADAR_PROFILE"
           python tools/apply_master_control_runtime.py --runner tools/run_github_radar.py --check
           python tools/apply_master_control_runtime.py --runner tools/run_github_radar.py
-          python -m py_compile tools/run_github_radar.py tools/radar_control.py tools/publisher_feed.py
+          python -m py_compile \
+            tools/run_github_radar.py \
+            tools/radar_control.py \
+            tools/publisher_feed.py \
+            tools/apply_master_runtime_config.py \
+            tools/package_work_delivery.py \
+            tools/materialize_delivery_aliases.py
 
       - name: Run EvidenceRadar GitHub lane
         id: radar
@@ -105,14 +111,20 @@ jobs:
           RADAR_TRANSLATION_REQUEST: ${{ runner.temp }}/EvidenceRadar_TranslationRequest.json
         run: |
           mkdir -p "$RADAR_OUTPUT_DIR"
+          publisher_args=()
+          if [ -n "${PUBLISHER_TARGET_MIN:-}" ]; then
+            publisher_args+=(--publisher-target-min "$PUBLISHER_TARGET_MIN")
+          fi
+          if [ -n "${PUBLISHER_HARD_MAX:-}" ]; then
+            publisher_args+=(--publisher-hard-max "$PUBLISHER_HARD_MAX")
+          fi
           result="$(python tools/run_github_radar.py \
             --root "$RADAR_ROOT" \
             --output-dir "$RADAR_OUTPUT_DIR" \
             --state "$RADAR_STATE_PATH" \
             --execution-lane "$EXECUTION_LANE" \
             --profile "$RADAR_PROFILE" \
-            --publisher-target-min "$PUBLISHER_TARGET_MIN" \
-            --publisher-hard-max "$PUBLISHER_HARD_MAX" \
+            "${publisher_args[@]}" \
             --translation-request "$RADAR_TRANSLATION_REQUEST")"
           echo "$result"
           status="$(python -c 'import json,sys; print(json.loads(sys.stdin.read())["run_status"])' <<<"$result")"
