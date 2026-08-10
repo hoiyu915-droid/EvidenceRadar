@@ -41,6 +41,7 @@ class GithubDeploymentSurfaceTests(unittest.TestCase):
 
     def test_read_permission_and_non_cancelling_concurrency_are_explicit(self) -> None:
         self.assertIn("permissions:\n  contents: read", self.workflow)
+        self.assertIn("issues: write", self.workflow)
         self.assertNotIn("contents: write", self.workflow)
         self.assertNotIn("actions: write", self.workflow)
         self.assertIn("concurrency:", self.workflow)
@@ -109,6 +110,25 @@ class GithubDeploymentSurfaceTests(unittest.TestCase):
         self.assertIn("evidenceradar-translation-request-", self.workflow)
         self.assertIn("github.run_id", self.workflow)
         self.assertIn("github.run_attempt", self.workflow)
+
+    def test_stage_a_queues_only_metadata_for_checkpointed_work(self) -> None:
+        for marker in (
+            "Queue checkpointed ChatGPT Work continuation",
+            "EvidenceRadar_WorkQueueEntry",
+            "evidenceradar-handoff",
+            "request_sha256",
+            "artifact_id",
+            "candidate_count",
+        ):
+            self.assertIn(marker, self.workflow)
+        queue_step = self.workflow[self.workflow.index("Queue checkpointed ChatGPT Work continuation") :]
+        self.assertNotIn("source_excerpt", queue_step)
+        self.assertNotIn("resume_context", queue_step)
+
+    def test_control_plane_delivery_can_preserve_an_existing_request(self) -> None:
+        self.assertIn("[skip-evidenceradar-stage-a]", self.workflow)
+        self.assertIn("github.event.head_commit.message", self.workflow)
+        self.assertIn("!contains", self.workflow)
 
     def test_hosted_stage_a_has_no_writeback_or_publication_dispatch(self) -> None:
         self.assertNotIn("git push", self.workflow)

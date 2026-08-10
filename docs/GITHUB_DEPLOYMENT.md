@@ -1,9 +1,10 @@
 # EvidenceRadar GitHub Actions 部署
 
-EvidenceRadar 有兩條可選的執行 lane：GitHub Actions 這份文件描述每日自動
-執行；ChatGPT Work 則按 [`docs/WORK_SETUP.md`](WORK_SETUP.md) 由使用者手動
-攜帶 artifact。兩條 lane 共用 protocol、schema 與設定，但不共用隱含的
-credentials，也不把其中一條的執行誤當成另一條的 source verification。
+EvidenceRadar 有兩條可選的 evidence execution lane：GitHub Actions 這份文件描述
+每日自動 discovery/source audit；ChatGPT Work 的完整 evidence review 則按
+[`docs/WORK_SETUP.md`](WORK_SETUP.md) 執行。另有一個受限的 scheduled Work control
+plane，只替 GitHub lane 的 frozen request 產生導航用繁中翻譯與搬運已驗證
+publication；它不是第三條 evidence lane，也不做 source verification。
 
 ## 建立自己的 repository
 
@@ -55,6 +56,11 @@ Provider 基線以 [NCBI E-utilities usage guidelines](https://www.ncbi.nlm.nih.
 整點尖峰。GitHub 的 [`schedule` syntax](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onschedule)
 使用 IANA timezone。**Run workflow** 可覆寫本輪 publisher 網路存取預算：
 
+若只交付已審閱的 queue／workflow control-plane 修正，而且已有仍在 retention 內的
+immutable request 等待處理，merge commit 可帶精確標記
+`[skip-evidenceradar-stage-a]`；它只略過該次 push-triggered discovery，不影響每日
+schedule 或 workflow_dispatch。一般 producer／schema／config 更新不得使用此標記。
+
 | input | 預設 | 意義 |
 | --- | ---: | --- |
 | `publisher_target_min` | 10 | 本輪成功存取目標下限 |
@@ -68,16 +74,18 @@ candidate attempts 的硬上限為 15；這不是補足數量的承諾。來源�
 `FAILED` 或 `NOT_ATTEMPTED` 都不代表候選沒有研究價值。
 
 Stage A 不產生報告；它上傳 SHA-bound TranslationRequest 並保持 State 不變。完成
-ordinary ChatGPT handoff 後，local Runtime Stage B 才會產生單一 self-contained HTML，包含本機可用的搜尋、類別／triage／source 篩選、
+checkpointed ChatGPT Work handoff 後，Stage B 才會產生單一 self-contained HTML，包含本機可用的搜尋、類別／triage／source 篩選、
 分類收合與逐 item 稽核詳情。每筆內容簡述固定使用繁體中文，並標記為 AI 輔助翻譯、
 來源繁中摘要、metadata template 或題名層級 fallback；全部都只是導航資訊，不是已核實結論。
 
 翻譯不使用 repository model secret。Request／Response contract 與操作指令見
 [`docs/RUNTIME_RELEASE.md`](RUNTIME_RELEASE.md)。
 
-Workflow 只宣告 `contents: read`。Stage A 讀取 canonical State 但不寫 repository；
-唯一的新產物是 Actions upload 中的 TranslationRequest。這避免 hosted lane 在普通
-chatbot response 尚不存在時誤寫 State 或公開半成品。
+Workflow 宣告 `contents: read` 與 `issues: write`。Stage A 讀取 canonical State，
+但不寫 repository contents；研究內容只存在 Actions upload 中的
+TranslationRequest。Issue 僅保存 artifact ID/name、request SHA、producer commit、
+base State SHA、run ID 與 candidate count，禁止保存 excerpt 或 frozen resume
+context。這避免 response 尚不存在時誤寫 State 或公開半成品。
 
 Stage B 驗證成功後才會產生四個 canonical artifact：
 
@@ -133,14 +141,27 @@ Pages workflow 的 deployment 成功前，不應把推算網址宣稱為已可�
 
 每日 hosted workflow 只執行 Stage A，產生並上傳
 `EvidenceRadar_TranslationRequest.json`，狀態為 `TRANSLATION_REQUIRED`。GitHub
-hosted runner 不會假裝能呼叫普通 ChatGPT chatbot，也不會 fallback 到 Copilot 或
-OpenAI API。使用者完成 chatbot handoff 後，應在 local Runtime 以同一 request 與
-response 執行 Stage B；只有 Stage B 四件套全部驗證通過才可進入 publication。
+hosted runner 不呼叫模型、不 fallback 到 Copilot 或 OpenAI API；它建立
+`evidenceradar-handoff` queue issue 後停止。
 
-Stage B 產物要公開時，維護者須以一般受審閱的 repository 流程提交四件套與
-canonical State，再明確啟動 `public-release.yml` 與 `pages.yml`。Daily Stage A
-本身不 push、不 dispatch publication，也不把 TranslationRequest 誤當成 recovery
-bundle 或公開報告。
+受限的 ChatGPT Work 排程按
+[`templates/work-stage-b-automation.md`](../templates/work-stage-b-automation.md)
+執行。它以每批最多 24 筆、每輪最多 8 個已驗證 batch 處理 request；plan SHA、
+checkpoint SHA、batch ID 與 candidate ID parity 都是 fail-closed。Checkpoint 只留在
+`automation/evidenceradar-translation-<request-sha>` branch，完成後 branch diff
+收斂成 `.github/evidenceradar-translation-submission.json` 一檔並經 PR validation。
+
+Submission 合併後，`translation-stage-b.yml` 下載原始 Actions artifact，核對 queue
+issue 與 full request SHA，checkout request 記錄的 exact producer commit，並以目前
+canonical State resume Stage B；它不重跑 discovery。State 若已改變、artifact 過期、
+ID 不完整或翻譯違反數字／縮寫／結果宣稱規則，Stage B 在產物上傳前停止。
+
+Stage B 通過三層 validator 後只上傳 immutable publication candidate，並把 issue
+改標 `evidenceradar-ready-to-publish`；workflow 本身沒有 `contents: write`、不 push
+也不直接改 State。Scheduled Work 再核對 package checksum／manifest，以恰好九個
+canonical/current/immutable-run paths 建 publication PR。Public release validation
+通過並合併後，`pages.yml` 才部署 HTML；只有 `links.json.run_id` readback 相符才關閉
+queue issue。
 
 每輪 Run 的 `source_coverage` 與 Evidence 的 `coverage` 都會逐一列出每個
 configured source 的 CHECK summary。欄位 `requested`、`checked`、`searched`、
@@ -154,11 +175,12 @@ configured source 的 CHECK summary。欄位 `requested`、`checked`、`searched
 
 ## ChatGPT Work 匯入邊界
 
-ChatGPT Work 不是 GitHub Actions 的背景 worker。要在 Work 續跑時，使用者明確
-帶入當次 `EvidenceRadar_State.json`（以及需要的 report/evidence 作為歷史參考），
-再按照 [`EVIDENCE_RADAR_PROTOCOL.md`](../EVIDENCE_RADAR_PROTOCOL.md) 重新搜尋與
-讀取目前來源。Work 必須重新驗證時窗、事件與 claims；GitHub 的 report、state
-或 log 不能直接當成目前來源證據，也不能讓 Work 自動把檔案寫回 repository。
+ChatGPT Work 的完整 evidence-review lane 仍必須明確帶入 State，按
+[`EVIDENCE_RADAR_PROTOCOL.md`](../EVIDENCE_RADAR_PROTOCOL.md) 重新搜尋與讀取目前
+來源；GitHub 的 report、state 或 log 不能直接當成目前來源證據。Scheduled Work
+control plane 是另一個更窄的角色：它只能翻譯 frozen request 的 navigation text、
+checkpoint 與搬運已經由 exact producer 驗證的 bundle，不能新增 claim、事件、
+source observation 或研究結論。
 
 若不想先下載 Work Pack，Work 也可從這個 public repository 直接讀取 `main` 的
 固定 commit、在 Work VM 執行，並把輸出留在 Work VM。依

@@ -16,7 +16,7 @@ GitHub Actions and ChatGPT Work are the two supported EvidenceRadar execution la
 
 | Lane | 適合用途 | 啟動方式 | 驗證邊界 |
 |---|---|---|---|
-| GitHub Actions | 每日 discovery/source audit 與翻譯 request | 排程或手動 Run workflow | Stage A 上傳 request；不假裝能無人值守呼叫普通 chatbot |
+| GitHub Actions | 每日 discovery/source audit 與翻譯 request | 排程或手動 Run workflow | Stage A 上傳 request 並建立 metadata-only Work queue；Stage B 只接受 SHA-bound response |
 | ChatGPT Work | 研究者主動執行完整 evidence review | 讀取固定 commit 的公開 repository，或上傳 released Work Pack | 即時搜尋、直接來源閱讀、claim／數字／衝突核實 |
 
 ## 自行部署：不必共用維護者的設定
@@ -25,19 +25,22 @@ GitHub Actions and ChatGPT Work are the two supported EvidenceRadar execution la
 
 1. 按 **Use this template** 建立自己的 repository；需要保留 upstream 關係時
    也可以 fork。
-2. 在自己的 repository 啟用 Actions；Stage A workflow 只需要讀取 contents。
+2. 在自己的 repository 啟用 Actions；Stage A workflow 讀取 contents，並以
+   `issues: write` 建立不含研究內容的 Work queue metadata。
 3. 到 **Actions → EvidenceRadar daily (GitHub Actions lane) → Run workflow**
    先跑一次。之後 workflow 每日依 `Asia/Tokyo` 排程執行。
 4. 把免費的 `OPENALEX_API_KEY` 設為 repository Secret，供 OpenAlex discovery
    使用。`NCBI_EMAIL`、`NCBI_API_KEY` 為 PubMed 建議／提額設定。缺少某來源的
    必要 key 時，runner 會 fail closed 記錄該來源 gap，而不是填入假結果。
-5. Workflow 正常結束為 `TRANSLATION_REQUIRED`，下載其
-   `EvidenceRadar_TranslationRequest.json` artifact。把它交給普通 ChatGPT
-   chatbot，將 JSON-only 回覆存為 `EvidenceRadar_TranslationResponse.json`，
-   再用 immutable Runtime 執行 Stage B。此流程不需模型 API key 或 Copilot。
+5. Workflow 正常結束為 `TRANSLATION_REQUIRED`，上傳
+   `EvidenceRadar_TranslationRequest.json` 並建立 `evidenceradar-handoff` issue。
+   受限的 ChatGPT Work 排程會分批翻譯、逐批驗證與 checkpoint，完成後經 PR
+   提交 SHA-bound response；Actions 再以 request 的 exact producer commit 執行
+   Stage B。此流程不需 repository model API key 或 Copilot。
 
-使用者的設定與 canonical State 留在自己的 repository；request/response 與 Stage B
-產出留在自己的 Actions artifacts 或 local workspace，不會寫回 upstream。完整設定見
+使用者的設定與 canonical State 留在自己的 repository；request 與 Stage B
+候選包保留為限時 Actions artifacts。Response 與 canonical publication 都只經過
+受審閱 PR 寫入自己的 repository，不會寫回 upstream。完整設定見
 [`docs/GITHUB_DEPLOYMENT.md`](docs/GITHUB_DEPLOYMENT.md)。
 
 ### 路徑 B：ChatGPT Work 使用者啟動
@@ -61,10 +64,13 @@ schema、template、範例、migration、manifest、V3 canonical renderer、目�
 runner、State merge、四件套 validation、run-id delivery packager 與 requirements；
 不含 credentials、歷史 State、每日報告、CI 或 legacy crawler。
 
-這條 lane 不宣稱能把含 Work Pack 檔案的 project 直接變成 unattended scheduled
-run。OpenAI 目前說明：[在含檔案的 project 建立 Scheduled Task 時，該 task
-不能存取 project files](https://help.openai.com/en/articles/10291617-tasks-in-chatgpt)。
-因此每日排程由 GitHub Actions lane 負責；Work lane 由使用者開啟 pack 後啟動。
+Web scheduled task 不保留本機 checkout 或 project folder；OpenAI 的現行說明是它
+可使用 connected tools、plugins 與 skills，但 durable input 必須留在可存取的
+project、upload 或 connected service：
+[Scheduled tasks](https://learn.chatgpt.com/docs/automations)。因此 EvidenceRadar
+仍由 GitHub Actions 執行 Stage A；Work 只從 immutable Actions artifact 讀取 frozen
+request，把 checkpoint 留在專用 branch，最後以 PR 交回 response。這個 control
+plane 不會把 scheduled translation 誤標成 `chatgpt_work` evidence-review lane。
 
 維護者或從 source 使用的人可重現建置：
 
