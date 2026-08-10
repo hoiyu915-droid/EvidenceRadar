@@ -27,6 +27,7 @@ on:
       - "tools/render_report_from_artifacts.py"
       - "tools/run_github_radar.py"
       - "tools/run_local_runtime.py"
+      - "tools/translation_handoff.py"
       - "tools/validate_delivery_bundle.py"
       - "tools/validate_gpt_work_artifacts.py"
       - "tools/verify_runtime_release.py"

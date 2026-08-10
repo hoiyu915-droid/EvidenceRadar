@@ -16,7 +16,7 @@ GitHub Actions and ChatGPT Work are the two supported EvidenceRadar execution la
 
 | Lane | 適合用途 | 啟動方式 | 驗證邊界 |
 |---|---|---|---|
-| GitHub Actions | 每日無人值守 discovery/source audit | 排程或手動 Run workflow | metadata、事件窗、來源頁可存取性；不產生未審閱科學結論 |
+| GitHub Actions | 每日 discovery/source audit 與翻譯 request | 排程或手動 Run workflow | Stage A 上傳 request；不假裝能無人值守呼叫普通 chatbot |
 | ChatGPT Work | 研究者主動執行完整 evidence review | 讀取固定 commit 的公開 repository，或上傳 released Work Pack | 即時搜尋、直接來源閱讀、claim／數字／衝突核實 |
 
 ## 自行部署：不必共用維護者的設定
@@ -25,19 +25,19 @@ GitHub Actions and ChatGPT Work are the two supported EvidenceRadar execution la
 
 1. 按 **Use this template** 建立自己的 repository；需要保留 upstream 關係時
    也可以 fork。
-2. 在自己的 repository 啟用 Actions，並允許 workflow 的 `GITHUB_TOKEN`
-   寫入 repository contents。
+2. 在自己的 repository 啟用 Actions；Stage A workflow 只需要讀取 contents。
 3. 到 **Actions → EvidenceRadar daily (GitHub Actions lane) → Run workflow**
    先跑一次。之後 workflow 每日依 `Asia/Tokyo` 排程執行。
 4. 把免費的 `OPENALEX_API_KEY` 設為 repository Secret，供 OpenAlex discovery
    使用。`NCBI_EMAIL`、`NCBI_API_KEY` 為 PubMed 建議／提額設定。缺少某來源的
    必要 key 時，runner 會 fail closed 記錄該來源 gap，而不是填入假結果。
-5. 若要將來源英文摘要翻成繁中，另設選用的
-   `EVIDENCERADAR_TRANSLATION_API_KEY` Secret；沒有設定仍會輸出繁中 metadata
-   fallback，不會在簡述欄貼回英文。
+5. Workflow 正常結束為 `TRANSLATION_REQUIRED`，下載其
+   `EvidenceRadar_TranslationRequest.json` artifact。把它交給普通 ChatGPT
+   chatbot，將 JSON-only 回覆存為 `EvidenceRadar_TranslationResponse.json`，
+   再用 immutable Runtime 執行 Stage B。此流程不需模型 API key 或 Copilot。
 
-使用者的設定、State 與產出只留在自己的 repository，不需要下載另一份部署
-程式，也不會把資料寫回 upstream。完整設定見
+使用者的設定與 canonical State 留在自己的 repository；request/response 與 Stage B
+產出留在自己的 Actions artifacts 或 local workspace，不會寫回 upstream。完整設定見
 [`docs/GITHUB_DEPLOYMENT.md`](docs/GITHUB_DEPLOYMENT.md)。
 
 ### 路徑 B：ChatGPT Work 使用者啟動
@@ -95,10 +95,10 @@ DOI、PubMed、OpenAlex 或 abstract landing page 的 HTTP 200 不會被誤報�
 
 HTML 提供題名／作者／期刊／簡述搜尋，以及類別、閱讀層級、來源、OA、全文存取
 篩選與分類收合。套用篩選時會展開完整池，不會只搜尋 Featured。
-每個 item 都必須有可讀的繁體中文題名。設定 `EVIDENCERADAR_TRANSLATION_API_KEY` 時，
-GitHub lane 會使用既有 OpenAI translation provider；未設定時，GitHub Actions 以 scoped
-`GITHUB_TOKEN` 呼叫 Copilot CLI 作翻譯後備。兩者都不可用、任何英文題名未成功翻譯、
-或回傳「題名所示／相關議題」等模板 filler 時，本輪 fail closed，不發佈 HTML。來源有
+每個 item 都必須有結構化 `title_zh_tw`。Stage A 的 request 以 canonical SHA-256
+綁定候選與凍結 resume context；Stage B 只接受同 SHA、exact ID parity 的普通 ChatGPT
+response。任何英文題名未成功翻譯、數字／年份／縮寫遺失，或回傳「題名所示／相關議題」
+等模板 filler 時，本輪 fail closed，不發佈 HTML。來源有
 摘要時可在中文題名後追加一至兩句研究目的／對象／方法簡述；沒有摘要時就只顯示忠實
 中文題名，不用空話補字數。這些 navigation text 不會被當成全文 claim 驗證。
 

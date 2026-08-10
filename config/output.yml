@@ -6,9 +6,9 @@ execution:
       trigger: user_launched
       repository_writeback: false
     github_actions:
-      method: automated_discovery_and_source_access_audit
+      method: automated_discovery_source_audit_and_translation_request
       trigger: scheduled_or_workflow_dispatch
-      repository_writeback: generated_artifacts_and_canonical_state
+      repository_writeback: false
   mcp: false
   external_server: false
   codex: false
@@ -123,15 +123,11 @@ rendering:
   candidate_summary_max_chars: 320
   summary_translation:
     enabled: true
-    provider: openai_responses
-    api_key_env: EVIDENCERADAR_TRANSLATION_API_KEY
-    model_env: EVIDENCERADAR_TRANSLATION_MODEL
-    default_model: gpt-5-mini
-    batch_size: 20
-    timeout_seconds: 60
-    copilot_batch_size: 10
-    copilot_timeout_seconds: 75
-    copilot_max_workers: 2
+    provider: ordinary_chatgpt_manual_handoff
+    request_artifact: EvidenceRadar_TranslationRequest.json
+    response_artifact: EvidenceRadar_TranslationResponse.json
+    request_sha256_binding: required
+    state_advancement_before_response: forbidden
     publication_missing_translation_behavior: fail_closed
     nonpublication_fixture_fallback: explicit_zh_tw_placeholder
   interactive_candidate_filters: true

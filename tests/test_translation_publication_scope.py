@@ -15,20 +15,21 @@ class TranslationPublicationScopeTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.workflow = WORKFLOW.read_text(encoding="utf-8")
 
-    def test_hard_gate_is_scoped_to_real_producer_step(self) -> None:
+    def test_hosted_lane_emits_manual_handoff_request_without_model_provider(self) -> None:
         jobs_index = self.workflow.index("\njobs:\n")
         global_env = self.workflow[:jobs_index]
         self.assertNotIn("EVIDENCERADAR_COPILOT_TRANSLATION", global_env)
         self.assertNotIn("EVIDENCERADAR_REQUIRE_ZH_TITLE_TRANSLATION", global_env)
         self.assertNotIn("EVIDENCERADAR_COPILOT_MODEL", global_env)
+        self.assertNotIn("EVIDENCERADAR_TRANSLATION_API_KEY", global_env)
 
         run_start = self.workflow.index("      - name: Run EvidenceRadar GitHub lane")
-        verify_start = self.workflow.index("      - name: Verify four EvidenceRadar artifacts", run_start)
+        verify_start = self.workflow.index("      - name: Upload TranslationRequest", run_start)
         run_block = self.workflow[run_start:verify_start]
-        self.assertIn('GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}', run_block)
-        self.assertIn('EVIDENCERADAR_COPILOT_TRANSLATION: "1"', run_block)
-        self.assertIn('EVIDENCERADAR_REQUIRE_ZH_TITLE_TRANSLATION: "1"', run_block)
-        self.assertIn("EVIDENCERADAR_COPILOT_MODEL:", run_block)
+        self.assertIn("--translation-request", run_block)
+        self.assertIn("TRANSLATION_REQUIRED", run_block)
+        self.assertNotIn("copilot", self.workflow.casefold())
+        self.assertNotIn("api.openai.com", self.workflow)
 
     def test_validation_suite_runs_before_publication_mode_step(self) -> None:
         test_index = self.workflow.index("      - name: Validate repository and active-lane tests")

@@ -647,6 +647,7 @@
         "work_id": { "type": "string", "minLength": 1 },
         "identity_status": { "type": "string", "enum": ["RESOLVED", "UNRESOLVED", "CONFLICT"] },
         "title": { "type": "string", "minLength": 1 },
+        "title_zh_tw": { "type": "string", "minLength": 1 },
         "category": { "type": "string", "minLength": 1 },
         "streams": {
           "type": "array",
@@ -680,7 +681,13 @@
             "ZH_TW_METADATA_TEMPLATE",
             "TITLE_ONLY_ZH_TW",
             "PROVIDER_ABSTRACT_EXCERPT",
-            "TITLE_ONLY"
+            "TITLE_ONLY",
+            "TRANSLATED_TITLE_ZH_TW_OPENAI",
+            "TRANSLATED_TITLE_AND_ABSTRACT_ZH_TW_OPENAI",
+            "TRANSLATED_TITLE_ZH_TW_COPILOT",
+            "TRANSLATED_TITLE_AND_ABSTRACT_ZH_TW_COPILOT",
+            "CHATBOT_TITLE_ZH_TW",
+            "CHATBOT_TITLE_AND_ABSTRACT_ZH_TW"
           ]
         },
         "summary_language": { "type": "string", "const": "zh-TW" },

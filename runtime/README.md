@@ -63,9 +63,25 @@ repository.
    python3 runtime/tools/run_local_runtime.py \
      --state input/EvidenceRadar_State.json \
      --output-dir output \
-     --runs-dir runs
+     --runs-dir runs \
+     --translation-request input/EvidenceRadar_TranslationRequest.json
    ```
 
+   This Stage A command ends normally with `TRANSLATION_REQUIRED`; State is
+   unchanged. Upload the request JSON to an ordinary ChatGPT chatbot and save
+   its JSON-only answer as `input/EvidenceRadar_TranslationResponse.json`.
+   Resume Stage B with the same request:
+
+   ```sh
+   python3 runtime/tools/run_local_runtime.py \
+     --state input/EvidenceRadar_State.json \
+     --output-dir output \
+     --runs-dir runs \
+     --translation-request input/EvidenceRadar_TranslationRequest.json \
+     --translation-response input/EvidenceRadar_TranslationResponse.json
+   ```
+
+No model API key, GitHub token, Codex, Copilot, or ChatGPT Work is required.
 The local runner verifies the extracted Runtime before execution, passes the
 manifest's exact source commit to the canonical producer, validates the
 resulting four-file bundle, verifies the Runtime again after execution, and

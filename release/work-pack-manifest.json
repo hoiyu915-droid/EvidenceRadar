@@ -16,6 +16,7 @@
     "tools/package_work_delivery.py",
     "tools/render_report_from_artifacts.py",
     "tools/run_github_radar.py",
+    "tools/translation_handoff.py",
     "tools/validate_delivery_bundle.py",
     "tools/validate_gpt_work_artifacts.py"
   ],
@@ -36,6 +37,7 @@
     "tools/package_work_delivery.py",
     "tools/render_report_from_artifacts.py",
     "tools/run_github_radar.py",
+    "tools/translation_handoff.py",
     "tools/validate_delivery_bundle.py",
     "tools/validate_gpt_work_artifacts.py"
   ],

@@ -185,6 +185,10 @@
           "type": "string",
           "minLength": 1
         },
+        "title_zh_tw": {
+          "type": "string",
+          "minLength": 1
+        },
         "normalized_title": {
           "type": "string",
           "minLength": 1
