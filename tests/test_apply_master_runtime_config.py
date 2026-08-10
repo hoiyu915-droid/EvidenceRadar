@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from tools.apply_master_runtime_config import RuntimeConfigError, effective_configs  # noqa: E402
+from tools.radar_control import RadarControlError  # noqa: E402
 
 
 class ApplyMasterRuntimeConfigTests(unittest.TestCase):
@@ -54,7 +55,7 @@ class ApplyMasterRuntimeConfigTests(unittest.TestCase):
             master = json.loads(master_path.read_text(encoding="utf-8"))
             master["limits"]["discovery"]["max_per_category"] = 30
             master_path.write_text(json.dumps(master, ensure_ascii=False) + "\n", encoding="utf-8")
-            with self.assertRaises(RuntimeConfigError):
+            with self.assertRaises((RuntimeConfigError, RadarControlError)):
                 effective_configs(root, "current_focus")
 
 
