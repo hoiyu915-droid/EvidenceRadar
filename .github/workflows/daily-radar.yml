@@ -44,6 +44,7 @@ on:
 permissions:
   actions: write
   contents: write
+  copilot-requests: write
 
 concurrency:
   group: evidence-radar-daily-${{ github.ref }}
@@ -67,10 +68,15 @@ env:
   OPENREVIEW_TOKEN: ${{ secrets.OPENREVIEW_TOKEN }}
   NCBI_EMAIL: ${{ vars.NCBI_EMAIL }}
   NCBI_API_KEY: ${{ secrets.NCBI_API_KEY }}
-  # Optional.  When absent, every card still receives a conservative zh-TW
-  # metadata summary and no English abstract excerpt is rendered.
+  # Title translation is publication-critical. OpenAI remains optional; when
+  # its key is absent the workflow uses GitHub Copilot CLI with the scoped
+  # GITHUB_TOKEN. If neither provider works, the run fails closed instead of
+  # publishing filler such as 「題名所示」.
   EVIDENCERADAR_TRANSLATION_API_KEY: ${{ secrets.EVIDENCERADAR_TRANSLATION_API_KEY }}
   EVIDENCERADAR_TRANSLATION_MODEL: ${{ vars.EVIDENCERADAR_TRANSLATION_MODEL || 'gpt-5-mini' }}
+  EVIDENCERADAR_COPILOT_TRANSLATION: "1"
+  EVIDENCERADAR_REQUIRE_ZH_TITLE_TRANSLATION: "1"
+  EVIDENCERADAR_COPILOT_MODEL: ${{ vars.EVIDENCERADAR_COPILOT_MODEL }}
 
 jobs:
   daily-radar:
@@ -96,6 +102,14 @@ jobs:
             pip install -r legacy/python-runtime/requirements.txt
           fi
 
+      - name: Set up Node.js for Copilot translation fallback
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: Install GitHub Copilot CLI
+        run: npm install -g @github/copilot
+
       - name: Validate repository and active-lane tests
         run: |
           python tools/validate_public_release.py
@@ -107,6 +121,8 @@ jobs:
         run: python -m pytest -q tests
 
       - name: Run EvidenceRadar GitHub lane
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           mkdir -p "$RADAR_OUTPUT_DIR" "$(dirname "$RADAR_STATE_PATH")" "$RADAR_RUNS_DIR"
           python tools/run_github_radar.py \
@@ -150,8 +166,6 @@ jobs:
 
       - name: Package immutable run delivery and recovery bundle
         run: |
-          # RUNNER_TEMP exists only after the job has been assigned a runner;
-          # the runner context is not legal in workflow-level env.
           RADAR_DELIVERY_OUTPUT_DIR="$RUNNER_TEMP/evidenceradar-work-delivery-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           run_id="$(python -c 'import json; print(json.load(open("artifacts/current/EvidenceRadar_Run.json", encoding="utf-8"))["run_id"])')"
           source_dir="$RADAR_RUNS_DIR/$run_id"
@@ -193,7 +207,6 @@ jobs:
           git config user.name "EvidenceRadar bot"
           git config user.email "evidenceradar-bot@users.noreply.github.com"
 
-          # Stage only generated output/state.  Never broaden this to git add .
           git add -- "$RADAR_OUTPUT_DIR" "$RADAR_STATE_PATH"
           if [ -d "$RADAR_RUNS_DIR" ]; then
             git add -- "$RADAR_RUNS_DIR"
@@ -206,10 +219,6 @@ jobs:
 
           git commit -m "chore: update EvidenceRadar GitHub artifacts"
 
-          # Compare-and-swap writeback: a Work publication, maintainer commit,
-          # or another lane that advanced main while this run was searching
-          # must make this push fail.  Never rebase a stale generated bundle
-          # on top of newer canonical State/artifacts.
           git fetch origin "$GITHUB_REF_NAME"
           remote_sha="$(git rev-parse "origin/$GITHUB_REF_NAME")"
           if [ "$remote_sha" != "$GITHUB_SHA" ]; then
@@ -240,9 +249,6 @@ jobs:
           fi
           git push origin "HEAD:$GITHUB_REF_NAME"
 
-          # A push made with this workflow's GITHUB_TOKEN does not recursively
-          # trigger push workflows. Explicit dispatch keeps the canonical
-          # validation and public Pages report aligned with the new State.
           gh workflow run public-release.yml \
             --repo "$GITHUB_REPOSITORY" \
             --ref "$GITHUB_REF_NAME"

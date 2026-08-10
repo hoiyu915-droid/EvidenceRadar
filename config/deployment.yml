@@ -60,7 +60,7 @@ provider_credentials:
   EVIDENCERADAR_TRANSLATION_API_KEY:
     storage: optional_github_actions_secret
     required_for: provider_abstract_translation_to_zh_tw
-    missing_behavior: emit_zh_tw_metadata_template_without_english_excerpt
+    missing_behavior: use_github_copilot_cli_fallback_or_fail_closed_in_publication_mode
   EVIDENCERADAR_TRANSLATION_MODEL:
     storage: optional_github_actions_variable
     required_for: translation_model_override
