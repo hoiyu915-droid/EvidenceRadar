@@ -25,9 +25,24 @@ The repository is authoritative for the protocol and settings. GitHub Actions
 may write only generated artifacts, immutable run bundles and canonical State;
 ChatGPT Work has no implicit repository write access.
 
+### ChatGPT Work terminal boundary
+
+A user-launched `chatgpt_work` execution is one end-to-end run. It starts with
+the configured live searches and ends only after State, Evidence and Run JSON
+have been completed, the canonical HTML has been rendered, the four-file bundle
+has passed validation, and the files have been returned to the user. Internal
+translation batches and checkpoints do not divide this run into separately
+completed stages.
+
+`TRANSLATION_REQUIRED`, TranslationRequest, Stage A and Stage B are
+`github_actions` handoff concepts only. They are not valid success results for
+`chatgpt_work`, and Work must not ask the user to wait for another invocation
+before receiving the HTML and JSON artifacts. A genuine hard blocker is
+reported as a blocked run with its exact cause, never as completed execution.
+
 ### Ordinary ChatGPT translation handoff
 
-The automated lane has two publication stages. Stage A performs discovery,
+The `github_actions` automated lane has two publication stages. Stage A performs discovery,
 deduplication, classification and source-access audit, then writes
 `EvidenceRadar_TranslationRequest.json` and exits normally with
 `TRANSLATION_REQUIRED`. The request contains the complete frozen resume context

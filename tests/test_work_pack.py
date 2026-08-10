@@ -64,6 +64,22 @@ class WorkPackTests(unittest.TestCase):
             self.assertIn("manifest.json", document)
         self.assertIn("mix policy files", setup)
 
+    def test_work_run_has_one_terminal_four_file_delivery_boundary(self) -> None:
+        setup = (ROOT / "docs" / "WORK_SETUP.md").read_text(encoding="utf-8")
+        instructions = (ROOT / "templates" / "gpt-work-instructions.md").read_text(
+            encoding="utf-8"
+        )
+        protocol = (ROOT / "EVIDENCE_RADAR_PROTOCOL.md").read_text(encoding="utf-8")
+        for document in (setup, instructions, protocol):
+            self.assertIn("end-to-end", document)
+            self.assertIn("TRANSLATION_REQUIRED", document)
+            self.assertIn("EvidenceRadar_Report.html", document)
+            self.assertIn("EvidenceRadar_State.json", document)
+            self.assertIn("EvidenceRadar_Evidence.json", document)
+            self.assertIn("EvidenceRadar_Run.json", document)
+        self.assertIn("Never return `TRANSLATION_REQUIRED`", instructions)
+        self.assertIn("not valid success results", protocol)
+
     def test_build_is_byte_reproducible_and_manifest_verifies_every_file(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
