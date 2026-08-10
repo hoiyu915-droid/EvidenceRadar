@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import yaml
+
 
 class RadarControlError(RuntimeError):
     pass
@@ -15,15 +17,8 @@ ALLOWED_STAGES = {"discovery", "bounded_verification"}
 ALLOWED_SOURCE_STATUS = {"active", "planned", "disabled"}
 ALLOWED_DISCOVERY_TIERS = {"primary", "supplemental"}
 IMPLEMENTED_ADAPTERS = {
-    "pubmed",
-    "europe_pmc",
-    "openalex",
-    "arxiv",
-    "openreview",
-    "acl_anthology",
-    "pmlr",
-    "rss_atom",
-    "bounded_publisher",
+    "pubmed", "europe_pmc", "openalex", "arxiv", "openreview",
+    "acl_anthology", "pmlr", "rss_atom", "bounded_publisher",
 }
 
 
@@ -39,13 +34,19 @@ class MasterRuntime:
     taxonomy: dict[str, Any]
 
 
-def load_master(path: Path) -> dict[str, Any]:
+def _load_mapping(path: Path, *, json_only: bool = False) -> dict[str, Any]:
     try:
-        value = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        raise RadarControlError(f"cannot load master control {path}: {exc}") from exc
+        text = path.read_text(encoding="utf-8")
+        value = json.loads(text) if json_only else yaml.safe_load(text)
+    except (OSError, json.JSONDecodeError, yaml.YAMLError) as exc:
+        raise RadarControlError(f"cannot load control input {path}: {exc}") from exc
     if not isinstance(value, dict):
-        raise RadarControlError("master control must be a JSON object")
+        raise RadarControlError(f"control input must be an object/mapping: {path}")
+    return value
+
+
+def load_master(path: Path) -> dict[str, Any]:
+    value = _load_mapping(path, json_only=True)
     validate_master(value)
     return value
 
@@ -59,7 +60,7 @@ def _require_mapping(master: dict[str, Any], key: str) -> dict[str, Any]:
 
 def _resolve_source_groups(master: dict[str, Any], stream: dict[str, Any]) -> list[str]:
     groups = _require_mapping(master, "source_groups")
-    resolved: list[str] = [str(item) for item in stream.get("sources", [])]
+    resolved = [str(item) for item in stream.get("sources", [])]
     for group_id in stream.get("source_groups", []):
         if group_id not in groups:
             raise RadarControlError(f"unknown source group: {group_id}")
@@ -75,11 +76,10 @@ def validate_master(master: dict[str, Any]) -> None:
         raise RadarControlError("artifact_type must be EvidenceRadar_MasterControl")
     if str(master.get("schema_version") or "") != "1.0":
         raise RadarControlError("unsupported master schema_version")
-
     sources = _require_mapping(master, "sources")
     domains = _require_mapping(_require_mapping(master, "taxonomy"), "domains")
     categories = _require_mapping(master, "routing_categories")
-    streams = _require_mapping(master, "streams")
+    streams = _require_mapping(master, "stream_routing")
     profiles = _require_mapping(master, "profiles")
 
     for source_id, config in sources.items():
@@ -97,9 +97,7 @@ def validate_master(master: dict[str, Any]) -> None:
             if tier not in ALLOWED_DISCOVERY_TIERS:
                 raise RadarControlError(f"source {source_id} has invalid discovery_tier {tier!r}")
         if status == "active" and adapter not in IMPLEMENTED_ADAPTERS:
-            raise RadarControlError(
-                f"active source {source_id} uses an unimplemented adapter {adapter!r}"
-            )
+            raise RadarControlError(f"active source {source_id} uses an unimplemented adapter {adapter!r}")
         for domain in config.get("domains", []):
             if domain != "*" and domain not in domains:
                 raise RadarControlError(f"source {source_id} references unknown domain {domain}")
@@ -110,65 +108,79 @@ def validate_master(master: dict[str, Any]) -> None:
 
     for stream_id, stream in streams.items():
         if not isinstance(stream, dict):
-            raise RadarControlError(f"stream {stream_id} must be an object")
+            raise RadarControlError(f"stream_routing.{stream_id} must be an object")
         category = str(stream.get("category") or "")
         if category not in categories:
             raise RadarControlError(f"stream {stream_id} references unknown category {category}")
         for domain in stream.get("domains", []):
             if domain not in domains:
                 raise RadarControlError(f"stream {stream_id} references unknown domain {domain}")
-        queries = stream.get("queries")
-        if not isinstance(queries, list) or not queries:
-            raise RadarControlError(f"stream {stream_id} must define at least one query")
         for source_id in _resolve_source_groups(master, stream):
             if source_id not in sources:
                 raise RadarControlError(f"stream {stream_id} references unknown source {source_id}")
             if sources[source_id].get("status") != "active" or not sources[source_id].get("enabled"):
-                raise RadarControlError(
-                    f"stream {stream_id} references source {source_id} that is not active+enabled"
-                )
+                raise RadarControlError(f"stream {stream_id} references source {source_id} that is not active+enabled")
 
     for profile_id, profile in profiles.items():
         if not isinstance(profile, dict):
             raise RadarControlError(f"profile {profile_id} must be an object")
-        active_streams = [str(item) for item in profile.get("streams", [])]
-        unknown = sorted(set(active_streams) - set(streams))
+        unknown = sorted(set(map(str, profile.get("streams", []))) - set(streams))
         if unknown:
-            raise RadarControlError(
-                f"profile {profile_id} references unknown streams: {', '.join(unknown)}"
-            )
-        order = [str(item) for item in profile.get("category_order", [])]
-        unknown_categories = sorted(set(order) - set(categories))
+            raise RadarControlError(f"profile {profile_id} references unknown streams: {', '.join(unknown)}")
+        unknown_categories = sorted(set(map(str, profile.get("category_order", []))) - set(categories))
         if unknown_categories:
-            raise RadarControlError(
-                f"profile {profile_id} references unknown categories: {', '.join(unknown_categories)}"
-            )
+            raise RadarControlError(f"profile {profile_id} references unknown categories: {', '.join(unknown_categories)}")
 
-    default_profile = str(master.get("control_plane", {}).get("default_profile") or "")
-    if default_profile not in profiles:
-        raise RadarControlError(f"default profile does not exist: {default_profile}")
+    control = _require_mapping(master, "control_plane")
+    for field in ("default_profile", "production_profile"):
+        profile_id = str(control.get(field) or "")
+        if profile_id not in profiles:
+            raise RadarControlError(f"{field} does not exist: {profile_id}")
 
 
-def compile_runtime(master: dict[str, Any], profile_id: str | None = None) -> MasterRuntime:
+def _legacy_paths(master_path: Path, master: dict[str, Any]) -> tuple[Path, Path]:
+    root = master_path.parent.parent
+    control = master["control_plane"]
+    return (
+        root / str(control.get("legacy_query_catalog") or "config/streams.yml"),
+        root / str(control.get("legacy_scoring_policy") or "config/scoring.yml"),
+    )
+
+
+def compile_runtime(
+    master: dict[str, Any],
+    *,
+    legacy_streams: dict[str, Any],
+    legacy_scoring: dict[str, Any],
+    profile_id: str | None = None,
+) -> MasterRuntime:
     validate_master(master)
     profiles = master["profiles"]
-    if profile_id is None:
-        profile_id = str(master["control_plane"]["default_profile"])
+    profile_id = profile_id or str(master["control_plane"]["default_profile"])
     if profile_id not in profiles:
         raise RadarControlError(f"unknown profile: {profile_id}")
     profile = profiles[profile_id]
     sources = master["sources"]
+    routing = master["stream_routing"]
+    legacy_catalog = legacy_streams.get("streams", {})
+    if not isinstance(legacy_catalog, dict):
+        raise RadarControlError("legacy streams.yml has no streams mapping")
+
     selected_streams: dict[str, Any] = {}
     requested_source_ids: set[str] = set()
-
     for stream_id in profile["streams"]:
-        source_stream = master["streams"][stream_id]
-        resolved_sources = _resolve_source_groups(master, source_stream)
+        route = routing[stream_id]
+        resolved_sources = _resolve_source_groups(master, route)
         requested_source_ids.update(resolved_sources)
+        legacy = legacy_catalog.get(stream_id, {})
+        queries = copy.deepcopy(route.get("queries", legacy.get("queries", [])))
+        relevance_terms = copy.deepcopy(route.get("relevance_terms", legacy.get("relevance_terms", [])))
+        if not isinstance(queries, list) or not queries:
+            raise RadarControlError(f"stream {stream_id} has no query definition in master or legacy catalog")
         selected_streams[stream_id] = {
             "sources": resolved_sources,
-            "relevance_terms": copy.deepcopy(source_stream.get("relevance_terms", [])),
-            "queries": copy.deepcopy(source_stream.get("queries", [])),
+            "relevance_terms": relevance_terms if isinstance(relevance_terms, list) else [],
+            "queries": queries,
         }
 
     source_catalog: dict[str, Any] = {}
@@ -192,47 +204,32 @@ def compile_runtime(master: dict[str, Any], profile_id: str | None = None) -> Ma
             verification_sources.append(source_id)
 
     streams_runtime = {
-        "execution": copy.deepcopy(master["execution"]),
-        "window": copy.deepcopy(master["window"]),
+        "execution": copy.deepcopy(legacy_streams.get("execution", {})),
+        "window": copy.deepcopy(legacy_streams.get("window", {})),
         "source_check_contract": {
-            **copy.deepcopy(master["source_check_contract"]),
+            **copy.deepcopy(legacy_streams.get("source_check_contract", {})),
             "stage_by_source": stage_by_source,
             "bounded_verification_sources": sorted(verification_sources),
         },
         "source_catalog": source_catalog,
-        "candidate_guidance": copy.deepcopy(master["candidate_guidance"]),
+        "candidate_guidance": copy.deepcopy(legacy_streams.get("candidate_guidance", {})),
         "streams": selected_streams,
-        "control_plane": {
-            "master_schema_version": master["schema_version"],
-            "profile_id": profile_id,
-        },
+        "control_plane": {"master_schema_version": master["schema_version"], "profile_id": profile_id},
     }
 
+    scoring_runtime = copy.deepcopy(legacy_scoring)
     categories: dict[str, Any] = {}
     category_min: dict[str, int] = {}
     for stream_id in profile["streams"]:
-        category_id = str(master["streams"][stream_id]["category"])
+        category_id = str(routing[stream_id]["category"])
         categories.setdefault(category_id, {"streams": []})["streams"].append(stream_id)
         category_min[category_id] = int(master["routing_categories"][category_id]["min_relevance"])
-
-    scoring_runtime = copy.deepcopy(master["scoring"])
     scoring_runtime["categories"] = categories
     scoring_runtime["category_min_relevance"] = category_min
 
-    endpoints = {
-        source_id: str(sources[source_id].get("endpoint") or "")
-        for source_id in requested_source_ids
-        if sources[source_id].get("endpoint")
-    }
-    adapters = {
-        source_id: str(sources[source_id]["adapter"])
-        for source_id in requested_source_ids
-    }
-    labels = {
-        category_id: str(config.get("label_zh_tw") or category_id)
-        for category_id, config in master["routing_categories"].items()
-        if category_id in categories
-    }
+    endpoints = {source_id: str(sources[source_id].get("endpoint") or "") for source_id in requested_source_ids if sources[source_id].get("endpoint")}
+    adapters = {source_id: str(sources[source_id]["adapter"]) for source_id in requested_source_ids}
+    labels = {category_id: str(config.get("label_zh_tw") or category_id) for category_id, config in master["routing_categories"].items() if category_id in categories}
     return MasterRuntime(
         profile_id=profile_id,
         streams=streams_runtime,
@@ -246,9 +243,16 @@ def compile_runtime(master: dict[str, Any], profile_id: str | None = None) -> Ma
 
 
 def load_master_runtime(path: Path, profile_id: str | None = None) -> MasterRuntime:
-    return compile_runtime(load_master(path), profile_id=profile_id)
+    master = load_master(path)
+    streams_path, scoring_path = _legacy_paths(path, master)
+    return compile_runtime(
+        master,
+        legacy_streams=_load_mapping(streams_path),
+        legacy_scoring=_load_mapping(scoring_path),
+        profile_id=profile_id,
+    )
 
 
-def legacy_projection(master: dict[str, Any], profile_id: str | None = None) -> tuple[dict[str, Any], dict[str, Any]]:
-    runtime = compile_runtime(master, profile_id=profile_id)
+def legacy_projection(master_path: Path, profile_id: str | None = None) -> tuple[dict[str, Any], dict[str, Any]]:
+    runtime = load_master_runtime(master_path, profile_id=profile_id)
     return runtime.streams, runtime.scoring
