@@ -1,9 +1,10 @@
 {
   "artifact_type": "EvidenceRadar_TranslationCheckpoint",
   "batch_plan_sha256": "fd40f5d7b8d85f05fa4258d310dad803511138305fd36b0fa0a2bfcda8e70d35",
-  "checkpoint_sha256": "0b7ccae30cbbc6049001fd400bf9abc4965a83ed5ce111cf26faa872486c7d35",
+  "checkpoint_sha256": "9f060a1d0fda7ff76d18addd7314803e180292f90da6c058fdd76af66640272b",
   "completed_batch_ids": [
-    "a5632fef21cd9833af10358311c8f231124809748553a80ad39a94ca0e6894e0"
+    "a5632fef21cd9833af10358311c8f231124809748553a80ad39a94ca0e6894e0",
+    "7f96e31acd5eac68c6f3460c85f1c6183af7ed8e719341c84aaaf4c77a305040"
   ],
   "items": [
     {
@@ -125,6 +126,126 @@
       "immutable_candidate_id": "arxiv_id:2608.06838",
       "summary_zh_tw": "研究提出 StateFlow，供線性遞迴模型使用的序列管線平行系統；系統將每個序列切分為區塊並排程執行，同時跨區塊傳遞邊界狀態與梯度，以縮短活化值存留時間並改善訓練吞吐量。",
       "title_zh_tw": "StateFlow：用於線性遞迴長情境建模的序列管線平行化"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.06848",
+      "summary_zh_tw": "研究首次系統性檢視模型編輯作為安全程式碼生成之模型層級強化機制，跨不同 LLM 家族評估 3 種先進編輯方法，並與代表性的推論階段方法 CoSec 比較安全性、穩健性、泛化及功能正確性。",
+      "title_zh_tw": "理解並改進安全程式碼生成的模型編輯"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.06861",
+      "summary_zh_tw": "研究提出 Gated-BEPO，從實證 rollout 圖取得步驟層級信用；框架為每個 rollout 群組建構實證圖，並以反映當前策略實證行動分布的 mean-backup Bellman 固定點估計節點值。",
+      "title_zh_tw": "Gated-BEPO：大型語言模型代理的信心閘控 Bellman 信用分配"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.06862",
+      "summary_zh_tw": "研究形式化一種可藏入自主合成產物結構冗餘、跨內部狀態更新持續存在並繞過標準審查的威脅，提出 SynChain 自我合成攻擊典範，以具持續性感知的有向監督微調，誘導代理建立受污染但外觀良性的產物。",
+      "title_zh_tw": "SynChain：誘使電腦使用代理系統自行建構攻擊鏈"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.06865",
+      "summary_zh_tw": "研究建立 FaceVid-Forensics-100K 大型深偽影片資料集，含 100,000 部影片與 33 種合成方法，涵蓋換臉、臉部重演及全臉合成，並納入 Seedance 2.0；細緻文字標註由進階 MLLM 驅動的多模型聚合與衝突解決管線自動產生。",
+      "title_zh_tw": "用於可泛化深偽影片偵測的多代理鑑識推理"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.06867",
+      "summary_zh_tw": "研究把 LLM 路由統一表述為由情境編碼器、模型編碼器、評分函數、決策規則與學習訊號五部分構成的序列決策流程，涵蓋單輪、多輪及個人化路由，並建立自動化管線以建構監督資料及聯合評估回應品質與推論成本。",
+      "title_zh_tw": "LLMRouter：開發、評估與部署 LLM 路由器的統一基礎設施"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.06871",
+      "summary_zh_tw": "研究提出 CEDAR，以大型語言模型（LLM）代理自主探索符合使用者指定行為目標的複雜系統；方法將 LLM 驅動的 Monte Carlo Tree Search（MCTS）與系統耦合，由 LLM Judge 評估湧現行為、LLM Editor 提出變體，形成類演化計算的生成—評估迴圈。",
+      "title_zh_tw": "CEDAR：以代理協調樹搜尋進行複雜系統的目標導向最佳化"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.06909",
+      "summary_zh_tw": "研究提出軌跡歸因任務及其基準與標註框架，以統一元件綱要組織異質軌跡，標註主要歸因元件，並在適用時附上攻擊鏈與執行鏈。",
+      "title_zh_tw": "長程代理軌跡歸因：統一基準與細緻標註框架"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.06922",
+      "summary_zh_tw": "研究在受控框架中檢視提示詞所設定的情緒如何影響 LLM 價格協商；買方與賣方代理各自被指派六種情緒狀態之一，針對 350 項真實消費產品，在兩種預算條件下協商。",
+      "title_zh_tw": "Deal Me Maybe：情緒在多代理協商中的角色"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.06931",
+      "summary_zh_tw": "研究提出 Science Edge Evaluation（SEE），由專家依同儕審查文獻與化學、生物學及材料科學的實驗實務編製多模態問題，並以 19 個多模態大型語言模型（MLLM）進行評估。",
+      "title_zh_tw": "科學前沿評估：SEE 通往真實科學發現所缺的一步"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.06938",
+      "summary_zh_tw": "研究先提出文字錨定資料建構管線，以 Fact-Frequency Distillation（FFD）估計常識事實的先驗強度，並把驗證過的反常識情境蒸餾為高品質文字語料；再以 TACT 文字錨定後訓練框架，在不使用視覺訓練資料下對共享語言解碼器去偏。",
+      "title_zh_tw": "在文字中去偏、相信雙眼：用於視覺反常識推理的文字錨定跨模態遷移"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.06940",
+      "summary_zh_tw": "研究檢視 LLM 評審團高度相關的錯誤，以及聚合獨立性指標是否能辨識外部證據訊號的價值；方法比較由多位評審構成的面板，並加入執行測試套件等不同證據來源，評估有效票數資訊。",
+      "title_zh_tw": "看不見關鍵一票：聚合獨立性指標遺漏驗證真正有幫助之處"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.06949",
+      "summary_zh_tw": "研究以合成災難檢傷模擬器比較單一代理與角色分工的多代理流程；配對病例在臨床上相同、僅一項人口屬性不同，於 GPT-4o-mini 上執行 192 回合（2,304 組已解決病例配對），比較單代理控制條件與九代理流程，並獨立改變三項壓力維度。",
+      "title_zh_tw": "把檢傷決策拆分給多個代理，會隱藏偏見還是有助於發現偏見？在稽核能力限制下以 LLM-基礎資源分配進行的多代理模擬研究"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.06955",
+      "summary_zh_tw": "研究使用來自 Anthropic、OpenAI、Alibaba 與 Mistral 四個家族的八個模型，建立含 200 部電影且分為影評佳評、商業成功及雙重正當性三組的基準；每個模型進行 20,000 次成對強迫選擇比較，再以 Bradley–Terry 估計分析。",
+      "title_zh_tw": "大型語言模型的影評取向：來自電影偏好引出的證據"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.06960",
+      "summary_zh_tw": "研究提出涵蓋結構、行為與語意相似性的九維品質評估指標；針對開源路由器平台 OpenWrt 的 318 個程式，以五種方法產生 19,625 份反編譯結果，其中一種為規則式、四種為 LLM-基礎方法，再進行統計分析。",
+      "title_zh_tw": "用於 IoT 弱點偵測之反編譯可執行性與程式等價性的統計分析"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.06967",
+      "summary_zh_tw": "研究把視覺創意構想（VCI）定義為產生實用、具表達力且對群體而言新穎的文字視覺計畫之能力，提出涵蓋抽象、組合、轉換與調適的 400 任務 Ekphrasis 基準；方法以各維度清單評分匿名成對比較，透過 Bradley-Terry 模型聚合偏好，並用 Typed Idea Graphs 建立新穎性參照。",
+      "title_zh_tw": "語言模型不看也能想像嗎？Ekphrasis：衡量純文字 LLMs 的視覺創意構想"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.06968",
+      "summary_zh_tw": "研究使用預訓練語言模型設計環狀同步實驗，在固定物理系統下介入狀態編碼；各代理只看鄰居相對相位摘要，並選擇前進、維持或延後，方法比較以低階圓矩與直方圖編碼狀態時的集體結果。",
+      "title_zh_tw": "相同物理狀態、不同集體動力學：狀態編碼在語言模型代理中選擇同步結果"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.06975",
+      "summary_zh_tw": "研究提出 PHASE-Tree 多時間尺度角色狀態樹，以不可變的身分根節點搭配可變的人格、對話場次與當下層，使各可變欄位都能成為局部、單回合內或跨回合更新的可定址目標。",
+      "title_zh_tw": "PHASE-Tree：長程角色扮演對話中的角色狀態演化建模"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.06977",
+      "summary_zh_tw": "研究檢視 LLM 在多大程度上會強化使用者於提示詞中表達的偏見，並區分隱性框架效應與明示提示操弄；方法評估 LLM 面對鼓勵支持或挑戰特定立場的直接與暗示性提示時之易受影響程度。",
+      "title_zh_tw": "確認我們的偏見？評估大型語言模型的能力、風險與社會影響"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.06980",
+      "summary_zh_tw": "研究以社會協作可支援個人反思、且是創造力重要構成為背景，探討包含以 AI 模擬社會夥伴在內、用於支援更協作工作方式的創意科技。",
+      "title_zh_tw": "創意反思的社會促進：AI-代理與人類"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.06989",
+      "summary_zh_tw": "研究指出統一記憶體的既有假設不適用於現代 LLM 工作負載，並把 prefill 等推論階段變化列為需要重新設計記憶體視圖的背景。",
+      "title_zh_tw": "重新思考 NPU-PIM 系統的統一記憶體：用於 LLM 動態推論的雙視圖記憶體"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.06992",
+      "summary_zh_tw": "研究提供大型語言模型（LLM）具體化之大型消歧知識庫（KB）網頁展示；GPTKB 2.0 包含 1.6M 個標準實體上的 38.4M 筆三元組，以及 207.6K 個整合關係與 66K 個整合類別。",
+      "title_zh_tw": "GPTKB 2.0：瀏覽、查詢與稽核由 LLM-衍生的消歧知識庫"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.07001",
+      "summary_zh_tw": "研究提出 GraceKV，在固定快取預算下，把 KV 快取壓縮表述為解析度與涵蓋率的全域資源配置問題；方法以每個 layer-KV head-slot 組合為原子單位並建立原型樹。",
+      "title_zh_tw": "每個快取項目各得其所：KV 快取壓縮的解析度與涵蓋率全域配置"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.07004",
+      "summary_zh_tw": "研究提出 CoDyControlBench，包含 132 種系統設定，並沿 DoF 數量、系統類型、耦合程度、阻尼機制與控制器類型五個維度評估；六個先進 LLM 各進行三次獨立測試，涵蓋 GPT、Gemini、Claude 三個商用模型及 GLM、DeepSeek、Qwen 三個開源模型。",
+      "title_zh_tw": "用於複雜動力系統回饋控制器設計之大型語言模型基準評測與推理蒸餾"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.07006",
+      "summary_zh_tw": "研究檢視擴散語言模型（DLM）在視覺檢索增強生成中，增加檢索頁面與把全部頁面無條件交給生成器之差異，並以潛在來源分析探討平行去噪中的來源一致性損失及語意衝突。",
+      "title_zh_tw": "檢索更多證據，是否有助於使用擴散語言模型的視覺檢索增強生成？"
     }
   ],
   "request_sha256": "6b9a558e0472a5adba4154ee83acd93789cbbca816ab51017726fd8c694b2d92",
