@@ -7,15 +7,6 @@ on:
     paths:
       - "artifacts/current/**"
       - "state/current/EvidenceRadar_State.json"
-      - "schemas/**"
-      - "config/**"
-      - "EVIDENCE_RADAR_PROTOCOL.md"
-      - "tools/build_pages_site.py"
-      - "tools/delivery_contract.py"
-      - "tools/run_github_radar.py"
-      - "tools/validate_delivery_bundle.py"
-      - "tools/validate_gpt_work_artifacts.py"
-      - ".github/workflows/pages.yml"
   workflow_dispatch:
 
 permissions:

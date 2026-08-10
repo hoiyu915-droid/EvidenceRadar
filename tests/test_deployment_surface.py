@@ -87,6 +87,24 @@ class GithubDeploymentSurfaceTests(unittest.TestCase):
         self.assertNotIn("Verify four EvidenceRadar artifacts", self.workflow)
         self.assertNotIn("EvidenceRadar_Report.html", self.workflow)
 
+    def test_runner_temp_is_scoped_to_steps(self) -> None:
+        top_level_env = self.workflow[
+            self.workflow.index("\nenv:\n") : self.workflow.index("\n\njobs:\n")
+        ]
+        self.assertNotIn("runner.temp", top_level_env)
+        self.assertIn(
+            "RADAR_OUTPUT_DIR: ${{ runner.temp }}/evidenceradar-pending-output",
+            self.workflow,
+        )
+        self.assertIn(
+            "RADAR_TRANSLATION_REQUEST: ${{ runner.temp }}/EvidenceRadar_TranslationRequest.json",
+            self.workflow,
+        )
+        self.assertIn(
+            "path: ${{ runner.temp }}/EvidenceRadar_TranslationRequest.json",
+            self.workflow,
+        )
+
     def test_request_artifact_name_is_unique_per_actions_attempt(self) -> None:
         self.assertIn("evidenceradar-translation-request-", self.workflow)
         self.assertIn("github.run_id", self.workflow)
@@ -151,6 +169,22 @@ class GithubDeploymentSurfaceTests(unittest.TestCase):
         )
         build_index = self.pages_workflow.index("python tools/build_pages_site.py")
         self.assertLess(install_index, build_index)
+
+    def test_pages_push_requires_a_canonical_artifact_change(self) -> None:
+        push_paths = self.pages_workflow[
+            self.pages_workflow.index("  push:\n") : self.pages_workflow.index(
+                "  workflow_dispatch:", self.pages_workflow.index("  push:\n")
+            )
+        ]
+        self.assertIn('"artifacts/current/**"', push_paths)
+        self.assertIn('"state/current/EvidenceRadar_State.json"', push_paths)
+        for forbidden in (
+            '"schemas/**"',
+            '"config/**"',
+            '"tools/',
+            '".github/workflows/pages.yml"',
+        ):
+            self.assertNotIn(forbidden, push_paths)
 
     def test_documentation_covers_template_secrets_state_and_work_boundary(self) -> None:
         for marker in (
