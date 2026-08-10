@@ -6,7 +6,7 @@ EvidenceRadar now separates the global source catalog from the sources selected 
 
 `config/radar_master.json` owns source identities and capabilities, reusable source groups, the scholarly taxonomy, routing categories, stream-to-source routing, profiles and runtime limits. Existing query text and non-category scoring policy remain compatibility inputs during this migration. Adapter implementation remains code; JSON selects which implemented adapter a source uses.
 
-`tools/radar_control.py` validates and compiles that control plane into the runtime source-check contract, stream set, scoring categories, category thresholds, source endpoints, adapter mapping and effective limits. `tools/generate_legacy_config.py` can still project `streams.yml` and `scoring.yml` while downstream consumers migrate.
+`tools/radar_control.py` validates and compiles source/profile routing into the runtime source-check contract, stream set, scoring categories, category thresholds, source endpoints and adapter mapping. `tools/apply_master_runtime_config.py` separately validates and projects the selected profile's effective limits into the disposable compatibility configs. `tools/generate_legacy_config.py` can still project `streams.yml` and `scoring.yml` while downstream consumers migrate.
 
 ## OA-biased source catalog
 
@@ -47,7 +47,7 @@ Canonical validator inputs remain:
 
 `YYYYMMDD_HHMMSS__<canonical filename>`
 
-The canonical bundle/ZIP retains the stable filenames for validators, State handoff and reproducibility. User-facing direct attachments use the timestamped aliases, and packaging refuses to overwrite an existing alias or run bundle.
+The canonical bundle/ZIP retains the stable filenames for validators, State handoff and reproducibility. User-facing direct attachments use the timestamped aliases; the package and alias materializer each refuse to overwrite their existing targets.
 
 ## Migration rule
 
