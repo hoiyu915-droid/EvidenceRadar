@@ -1,0 +1,95 @@
+name: One-time meaningful zh-TW summary release fix
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/maintenance/meaningful-summary-fix-request.txt"
+
+permissions:
+  contents: write
+  copilot-requests: write
+
+jobs:
+  apply-fix:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out PR head branch
+        uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.ref }}
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          if [ -f legacy/python-runtime/requirements.txt ]; then
+            pip install -r legacy/python-runtime/requirements.txt
+          fi
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: Install GitHub Copilot CLI
+        run: npm install -g @github/copilot
+
+      - name: Verify built-in Copilot translation entitlement
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          copilot -p 'Translate exactly this academic title to Taiwan Traditional Chinese. Output the translation only, no explanation: Time trends in stroke incidence in England (2018-2024)' -s --no-ask-user > "$RUNNER_TEMP/copilot-smoke.txt"
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          text = (Path(os.environ['RUNNER_TEMP']) / 'copilot-smoke.txt').read_text(encoding='utf-8').strip()
+          if not any('\u3400' <= ch <= '\u9fff' for ch in text):
+              raise SystemExit(f'Copilot smoke did not return Chinese text: {text[:200]!r}')
+          if '2018' not in text or '2024' not in text:
+              raise SystemExit(f'Copilot smoke lost title years: {text[:200]!r}')
+          print(text)
+          PY
+
+      - name: Apply bounded source patch
+        run: |
+          python .github/maintenance/apply_meaningful_summary_fix.py
+          git diff --check
+          python -m py_compile tools/run_github_radar.py
+          python -m unittest tests.test_meaningful_summary_contract tests.test_study_classification -v
+
+      - name: Commit release fix and remove bootstrap files
+        env:
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          rm -f -- \
+            .github/workflows/apply-meaningful-summary-fix.yml \
+            .github/maintenance/apply_meaningful_summary_fix.py \
+            .github/maintenance/meaningful-summary-fix-request.txt
+          git config user.name "EvidenceRadar maintenance"
+          git config user.email "evidenceradar-maintenance@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "::error::bounded patch produced no product change"
+            exit 1
+          fi
+          git commit -m "fix: require meaningful zh-TW title summaries"
+          git push origin "HEAD:${HEAD_BRANCH}"
+
+      - name: Verify clean release gates
+        run: |
+          test -z "$(git status --porcelain)"
+          python tools/validate_public_release.py
+          python tools/validate_gpt_work_artifacts.py --root .
+          python -m unittest discover -s tests -v
+          (cd legacy/python-runtime && python -m pytest -q tests)
