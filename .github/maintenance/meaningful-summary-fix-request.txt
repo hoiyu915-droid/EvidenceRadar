@@ -1,1 +1,1 @@
-Apply the bounded zh-TW title/summary release fix, verify Copilot fallback entitlement, run release gates. Request sequence: 2.
+Apply the bounded zh-TW title/summary release fix, verify Copilot fallback entitlement, run release gates. Request sequence: 3.
