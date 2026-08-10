@@ -68,15 +68,11 @@ env:
   OPENREVIEW_TOKEN: ${{ secrets.OPENREVIEW_TOKEN }}
   NCBI_EMAIL: ${{ vars.NCBI_EMAIL }}
   NCBI_API_KEY: ${{ secrets.NCBI_API_KEY }}
-  # Title translation is publication-critical. OpenAI remains optional; when
-  # its key is absent the workflow uses GitHub Copilot CLI with the scoped
-  # GITHUB_TOKEN. If neither provider works, the run fails closed instead of
-  # publishing filler such as 「題名所示」.
+  # The optional OpenAI provider can stay globally mapped because the test
+  # suite never enters publication mode. Copilot activation and the hard title
+  # gate are scoped to the real producer step below so fixtures remain offline.
   EVIDENCERADAR_TRANSLATION_API_KEY: ${{ secrets.EVIDENCERADAR_TRANSLATION_API_KEY }}
   EVIDENCERADAR_TRANSLATION_MODEL: ${{ vars.EVIDENCERADAR_TRANSLATION_MODEL || 'gpt-5-mini' }}
-  EVIDENCERADAR_COPILOT_TRANSLATION: "1"
-  EVIDENCERADAR_REQUIRE_ZH_TITLE_TRANSLATION: "1"
-  EVIDENCERADAR_COPILOT_MODEL: ${{ vars.EVIDENCERADAR_COPILOT_MODEL }}
 
 jobs:
   daily-radar:
@@ -123,6 +119,9 @@ jobs:
       - name: Run EvidenceRadar GitHub lane
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EVIDENCERADAR_COPILOT_TRANSLATION: "1"
+          EVIDENCERADAR_REQUIRE_ZH_TITLE_TRANSLATION: "1"
+          EVIDENCERADAR_COPILOT_MODEL: ${{ vars.EVIDENCERADAR_COPILOT_MODEL }}
         run: |
           mkdir -p "$RADAR_OUTPUT_DIR" "$(dirname "$RADAR_STATE_PATH")" "$RADAR_RUNS_DIR"
           python tools/run_github_radar.py \
