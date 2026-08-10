@@ -43,12 +43,10 @@ concurrency:
 
 env:
   RADAR_ROOT: "."
-  RADAR_OUTPUT_DIR: ${{ runner.temp }}/evidenceradar-pending-output
   RADAR_STATE_PATH: "state/current/EvidenceRadar_State.json"
   EXECUTION_LANE: "github_actions"
   PUBLISHER_TARGET_MIN: ${{ inputs.publisher_target_min || 10 }}
   PUBLISHER_HARD_MAX: ${{ inputs.publisher_hard_max || 15 }}
-  RADAR_TRANSLATION_REQUEST: ${{ runner.temp }}/EvidenceRadar_TranslationRequest.json
   OPENALEX_API_KEY: ${{ secrets.OPENALEX_API_KEY }}
   OPENREVIEW_TOKEN: ${{ secrets.OPENREVIEW_TOKEN }}
   NCBI_EMAIL: ${{ vars.NCBI_EMAIL }}
@@ -90,6 +88,9 @@ jobs:
 
       - name: Run EvidenceRadar GitHub lane
         id: radar
+        env:
+          RADAR_OUTPUT_DIR: ${{ runner.temp }}/evidenceradar-pending-output
+          RADAR_TRANSLATION_REQUEST: ${{ runner.temp }}/EvidenceRadar_TranslationRequest.json
         run: |
           mkdir -p "$RADAR_OUTPUT_DIR"
           result="$(python tools/run_github_radar.py \
@@ -113,4 +114,4 @@ jobs:
           name: evidenceradar-translation-request-${{ github.run_id }}-${{ github.run_attempt }}
           if-no-files-found: error
           retention-days: 14
-          path: ${{ env.RADAR_TRANSLATION_REQUEST }}
+          path: ${{ runner.temp }}/EvidenceRadar_TranslationRequest.json
