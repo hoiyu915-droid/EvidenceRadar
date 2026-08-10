@@ -1,1 +1,1 @@
-Inspect Runtime v1.0.2, formal daily Radar, public-release, and Pages delivery after merge e104c2e97d609a10e4ec2a61618e9e986e962786. Sequence: 7.
+Benchmark 4 concurrent 5-item Copilot batches with 640-character source excerpts after v1.0.2 daily timeout. Sequence: 8.
