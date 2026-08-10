@@ -1,12 +1,13 @@
 {
   "artifact_type": "EvidenceRadar_TranslationCheckpoint",
   "batch_plan_sha256": "fd40f5d7b8d85f05fa4258d310dad803511138305fd36b0fa0a2bfcda8e70d35",
-  "checkpoint_sha256": "ee952c5571c73193566390c045aa9388ea39e265524953ed970500fabfd73892",
+  "checkpoint_sha256": "514d553305ca1f4686931292c8db8ba8b1db101eeb99132b21e8db93762071b4",
   "completed_batch_ids": [
     "a5632fef21cd9833af10358311c8f231124809748553a80ad39a94ca0e6894e0",
     "7f96e31acd5eac68c6f3460c85f1c6183af7ed8e719341c84aaaf4c77a305040",
     "63a473bd7b977752415512702da7e984c8346b6954edb6a265b6b8b3576bf45e",
-    "eda0221a8a9952d5b1067a5c9f5f45ed089c89dac9cd6c5349034e9f72668f3d"
+    "eda0221a8a9952d5b1067a5c9f5f45ed089c89dac9cd6c5349034e9f72668f3d",
+    "57f67582b491c046d16813a7608f7249e04d1dd187849f9fbacecabeaee2a256"
   ],
   "items": [
     {
@@ -488,9 +489,128 @@
       "immutable_candidate_id": "arxiv_id:2608.07427",
       "summary_zh_tw": "研究指出 LLM 推論占 AI 營運能源逾 90%，且會隨輸入 token 數直接擴大；對電信網路分析與數值時間序列資料分析，4G/5G 基地台的多變量 KPI 視窗會展開成數千個浮點 token。VLMs 以 2D 圖編碼時間序列，可在 Llama-3.2-90B、Qwen2.5-VL-72B 與 Pixtral-12B 架構把輸入 token 減少 3.6-10.4 倍。",
       "title_zh_tw": "一圖勝千 token：視覺語言模型如何在提升準確度的同時降低 AI 能源成本"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.07430",
+      "summary_zh_tw": "研究把 DLLMs 同時視為攻擊目標與對手，揭露擴散式對齊的機制弱點，並指出 DLLMs 的安全對齊仍然稀疏且可跨架構轉移。",
+      "title_zh_tw": "作為目標與對手的擴散 LLMs：機制式安全漏洞利用"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.07434",
+      "summary_zh_tw": "研究提出兩類分數：用於輸出區間之定位器的雙側邊界擴展分數，以及用於輸出相關性訊號之定位器的超水平集合分數；另建立定位專用理論，界定認證區域大小、依事件長度條件化後的覆蓋保留，以及不同影片片段破壞可交換性時的退化。",
+      "title_zh_tw": "任何影片時間定位器的共形覆蓋保證"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.07435",
+      "summary_zh_tw": "研究提出 SABRE，可把以 Markdown 撰寫、含資料綱要的測試引子轉為結構化規格、生成或編輯後影像及問答配對；自動篩選會移除可由篩選 VLM 解出的候選，人工作業則驗證候選有效性並支援標註修正與局部影像修復。",
+      "title_zh_tw": "SABRE：壓力情境下 VLMs 的可擴展自動化基準測試"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.07437",
+      "summary_zh_tw": "研究指出，代理即使正確執行分析，仍常因細微推論錯誤得出不正確結論；既有基準很少評估所報 p 值在資料假設下是否具統計效度，因而未能捕捉此失敗模式。",
+      "title_zh_tw": "Fisher-R1：訓練 LLM 代理進行可靠假設檢定"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.07438",
+      "summary_zh_tw": "研究提出 PsychoAgent，將事實記憶與情感記憶分開，再由衝突感知執行控制器整合；情感記憶先依語意相關性篩選，再依顯著性重排，在維持主題契合之餘讓情緒重要痕跡進入提示詞。",
+      "title_zh_tw": "PsychoAgent：用於 LLM 代理衝突感知記憶的情感敏感認知架構"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.07439",
+      "summary_zh_tw": "研究評估 LLM 輔助前處理流程，透過受控改寫壓縮、簡化或拆解中等複雜度金融情緒句，使其與解析器相容並降低電路成本，同時保留承載情緒的意義；研究比較提示策略、語言模型與篩選設定，基線為 Stein 等人的僅低複雜度 DisCoCat 方法。",
+      "title_zh_tw": "以 DisCoCat 情緒分析為目的之 LLM-Assisted 中等複雜度金融句改寫探索性評估"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.07440",
+      "summary_zh_tw": "研究提出爆炸半徑，一個預測式記憶管理層，用以估計新提示詞透過耦合脈絡與程式碼通道的觸及範圍；NECROPHORESIS 以逐字封存已死脈絡實現可逆驅逐，Recurring Dead Matter（RDM）則辨識並埋藏反覆出現的逐字稿。",
+      "title_zh_tw": "爆炸半徑"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.07446",
+      "summary_zh_tw": "研究提出結構化協定，透過分類法驅動的開源 LLM 評估與安全工具分析，自動化 AI 風險緩解；方法把 21 項主要開源工具的能力映射至擴充版 MIT AI 風險緩解與回應分類法的 32 個子類別。",
+      "title_zh_tw": "以分類法驅動的開源 AI 風險緩解工具分析"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.07449",
+      "summary_zh_tw": "研究提出 SkillProx，一個受近端梯度啟發的前向—後向框架，結合閉迴路診斷演化與效用感知近端精煉；前向階段在同一任務批次重做診斷驅動編輯、回退退化，並把量測結果提供給後續診斷。",
+      "title_zh_tw": "SkillProx：透過近端文字梯度下降讓代理技能自我演化"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.07454",
+      "summary_zh_tw": "研究介紹建構於大型語言模型的代理式框架 SynthEx，可為傳統設計演算法難以處理的複雜天然產物規劃路徑；它提出競爭策略，把例行與關鍵步驟組成連貫路徑，並批判及改進自身設計，其偏好的化學路徑比既有工具更具匯聚性，也涵蓋目錄式工具無法匹配的反應空間。",
+      "title_zh_tw": "複雜天然產物的策略優先合成規劃"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.07460",
+      "summary_zh_tw": "研究提出可擴展指令微調方法 CreativeInstruct，學習注入特殊 [StartCreativity] 區段以偏向創意生成，使 LLMs 在基礎模型式創意與後訓練模型品質間取得平衡；另提出以圖編輯距離為基礎的結構多樣性指標，捕捉純詞彙與語意指標遺漏的敘事層次變化。",
+      "title_zh_tw": "CreativeInstruct：可擴展地教導 LLMs 平衡品質、創意與多樣性"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.07462",
+      "summary_zh_tw": "研究提出 SemBridge，一個僅在訓練期間使用的語意 token 錨定框架；它以離散語意 token 直接監督自迴歸 LM 狀態，並用語意對齊聲學 VAE 在相同語意參照下組織連續目標空間。",
+      "title_zh_tw": "SemBridge：用於連續潛在自迴歸語音生成的語意 token 錨定"
+    },
+    {
+      "immutable_candidate_id": "doi:10.1001/jamanetworkopen.2026.26851",
+      "summary_zh_tw": "",
+      "title_zh_tw": "產後照護使用、血壓與健康行為"
+    },
+    {
+      "immutable_candidate_id": "doi:10.1001/jamanetworkopen.2026.26970",
+      "summary_zh_tw": "妊娠高血壓疾病 HDP 影響 US 10% 至 16% 的妊娠，並提高日後發生心血管疾病的風險；指引建議曾有此診斷者在產後 12 個月內接受基層照護，以評估及管理心血管健康。",
+      "title_zh_tw": "產後照護的照護導航、自我量測血壓與健康指導：隨機臨床試驗"
+    },
+    {
+      "immutable_candidate_id": "doi:10.1001/jamanetworkopen.2026.27643",
+      "summary_zh_tw": "腦部成熟在個體間存在差異，青少年期等動態發展階段尤其如此；直接評估縱向軌跡差異，可辨識相對常模模式的偏離。",
+      "title_zh_tw": "青少年腦成熟的圍產期因素與神經影像變化"
+    },
+    {
+      "immutable_candidate_id": "doi:10.1001/jamanetworkopen.2026.27655",
+      "summary_zh_tw": "研究建立有效 PHC 覆蓋指數，整合兒童 PHC 服務供給與可近性的核心面向，並分為逐步遞增的覆蓋類別；結果變項為兒童死亡率，採雙向固定效果多變量 Poisson 迴歸與兒童群聚標準誤，並調整個人、區域及國家層級的相關混雜因素。",
+      "title_zh_tw": "撒哈拉以南非洲的基層健康照護 PHC 覆蓋與兒童死亡率"
+    },
+    {
+      "immutable_candidate_id": "doi:10.1001/jamanetworkopen.2026.27714",
+      "summary_zh_tw": "醫療照護相關血流感染 BSIs，尤其中央導管相關 BSIs（CLABSIs），仍是入住新生兒加護病房 NICUs 之新生兒的重要罹病原因；描述韓國 NICU 相關感染趨勢與醫院間差異的長期全國資料仍有限。",
+      "title_zh_tw": "韓國 NICU 血流感染的趨勢與醫院間差異"
+    },
+    {
+      "immutable_candidate_id": "doi:10.1001/jamanetworkopen.2026.27727",
+      "summary_zh_tw": "阿富汗人是全球最大的難民族群之一；阿富汗女性因社會文化限制、識字率低、被迫流離與醫療可近性有限而面臨複合健康風險，但外界對其在 US 安置後的醫療經驗所知甚少。",
+      "title_zh_tw": "US 阿富汗難民女性的健康與醫療照護可近性"
+    },
+    {
+      "immutable_candidate_id": "doi:10.1001/jamanetworkopen.2026.27732",
+      "summary_zh_tw": "",
+      "title_zh_tw": "US 第 1 型糖尿病發生率與盛行率"
+    },
+    {
+      "immutable_candidate_id": "doi:10.1001/jamanetworkopen.2026.27738",
+      "summary_zh_tw": "",
+      "title_zh_tw": "成人肥胖診斷的 Lancet 定義與其他標準比較"
+    },
+    {
+      "immutable_candidate_id": "doi:10.1001/jamanetworkopen.2026.27988",
+      "summary_zh_tw": "",
+      "title_zh_tw": "學術醫療系統內患者參與研究合作的興趣與障礙"
+    },
+    {
+      "immutable_candidate_id": "doi:10.1001/jamanetworkopen.2026.31421",
+      "summary_zh_tw": "",
+      "title_zh_tw": "署名錯誤"
+    },
+    {
+      "immutable_candidate_id": "doi:10.1002/advs.76955",
+      "summary_zh_tw": "研究針對傳統光響應 4D 材料無法獨立調控光致形變與多色螢光，以及加密系統安全性不足等瓶頸，以萘醯亞胺官能化碳點 CDs 為核心功能單元，首次提出並驗證以長壽命 S 1 躍遷作為動力學電容器的新型能量調控策略。",
+      "title_zh_tw": "時間解耦：以模組化調控色彩與形變的新型 4D 光響應碳點薄膜典範"
+    },
+    {
+      "immutable_candidate_id": "doi:10.1002/ccs3.70104",
+      "summary_zh_tw": "研究旨在探討紫草素促進 PDLSCs 成骨分化的潛在機制；PDLSCs 取自正畸拔除前臼齒的牙周韌帶。",
+      "title_zh_tw": "紫草素透過調控 p38 MAPK/ETS 轉錄因子 1／牙骨質蛋白 1 軸，促進牙周韌帶幹細胞體外成骨分化"
     }
   ],
   "request_sha256": "6b9a558e0472a5adba4154ee83acd93789cbbca816ab51017726fd8c694b2d92",
   "schema_version": "1.0"
 }
-38044391cd861500c3141d696ac87ebedc21fabe
