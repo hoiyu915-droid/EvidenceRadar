@@ -71,6 +71,19 @@ DOCUMENT_TYPES = {"journal_article", "preprint", "conference_paper", "protocol",
 STUDY_DESIGNS = {"randomized_controlled_trial", "clinical_trial", "systematic_review", "meta_analysis", "scoping_review", "review", "cohort_study", "case_control_study", "cross_sectional_study", "case_report", "qualitative_study", "observational_study", "animal_study", "in_vitro_study", "computational_study", "protocol"}
 CLASSIFICATION_BASES = {"PROVIDER_METADATA", "TITLE_EXPLICIT", "PROVIDER_METADATA_AND_TITLE", "SOURCE_CLASS", "UNKNOWN"}
 STUDY_CLASSIFICATION_PARITY_FIELDS = ("provider_publication_types", "document_type", "document_type_basis", "study_designs", "study_design_basis")
+TRANSLATED_SUMMARY_BASES = {
+    "TRANSLATED_ABSTRACT_EXCERPT_ZH_TW",
+    "TRANSLATED_TITLE_ZH_TW_OPENAI",
+    "TRANSLATED_TITLE_AND_ABSTRACT_ZH_TW_OPENAI",
+    "TRANSLATED_TITLE_ZH_TW_COPILOT",
+    "TRANSLATED_TITLE_AND_ABSTRACT_ZH_TW_COPILOT",
+    "CHATBOT_TITLE_ZH_TW",
+    "CHATBOT_TITLE_AND_ABSTRACT_ZH_TW",
+}
+CHATBOT_SUMMARY_BASES = {
+    "CHATBOT_TITLE_ZH_TW",
+    "CHATBOT_TITLE_AND_ABSTRACT_ZH_TW",
+}
 STATE_RUN_PARITY_FIELDS = (
     "identity_status",
     "oa_status",
@@ -163,6 +176,10 @@ def _v3_contract(run: Mapping[str, Any]) -> bool:
 
 def _study_classification_contract(run: Mapping[str, Any]) -> bool:
     return _contract_marker(run, "STUDY_CLASSIFICATION_V1")
+
+
+def _chatbot_translation_contract(run: Mapping[str, Any]) -> bool:
+    return _contract_marker(run, "CHATBOT_TRANSLATION_HANDOFF_V1")
 
 
 def _study_classification_errors(item: Mapping[str, Any], index: int) -> list[str]:
@@ -262,6 +279,12 @@ def _candidate_errors(run: Mapping[str, Any], report_html: str) -> list[str]:
                 errors.append(f"displayed candidate {work_id} must use summary_language zh-TW")
             if not isinstance(item.get("content_summary"), str) or not str(item["content_summary"]).strip():
                 errors.append(f"displayed candidate {work_id} is missing content_summary")
+        if _chatbot_translation_contract(run):
+            title_zh = item.get("title_zh_tw")
+            if not isinstance(title_zh, str) or not re.search(r"[\u3400-\u4dbf\u4e00-\u9fff]", title_zh):
+                errors.append(f"chatbot-translated candidate {work_id} is missing title_zh_tw")
+            if item.get("summary_basis") not in CHATBOT_SUMMARY_BASES:
+                errors.append(f"chatbot-translated candidate {work_id} has a non-chatbot summary_basis")
     if len(work_ids) != len(set(work_ids)):
         errors.append("Run.candidates contains duplicate work_id values")
     if displayed_count is not None and displayed_count != len(displayed_ids):
@@ -297,7 +320,7 @@ def _candidate_errors(run: Mapping[str, Any], report_html: str) -> list[str]:
             1
             for item in candidates
             if isinstance(item, Mapping)
-            and item.get("summary_basis") == "TRANSLATED_ABSTRACT_EXCERPT_ZH_TW"
+            and item.get("summary_basis") in TRANSLATED_SUMMARY_BASES
         ),
         "summaries_fallback_zh_tw": sum(
             1
@@ -935,6 +958,8 @@ def _state_run_parity_errors(
         )
         if _study_classification_contract(run):
             parity_fields = (*parity_fields, *STUDY_CLASSIFICATION_PARITY_FIELDS)
+        if _chatbot_translation_contract(run):
+            parity_fields = (*parity_fields, "title_zh_tw")
         for field in parity_fields:
             if field not in candidate:
                 errors.append(f"Run.candidates[{index}] is missing State parity field {field!r}")

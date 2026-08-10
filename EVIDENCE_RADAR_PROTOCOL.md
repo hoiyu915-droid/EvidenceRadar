@@ -25,6 +25,24 @@ The repository is authoritative for the protocol and settings. GitHub Actions
 may write only generated artifacts, immutable run bundles and canonical State;
 ChatGPT Work has no implicit repository write access.
 
+### Ordinary ChatGPT translation handoff
+
+The automated lane has two publication stages. Stage A performs discovery,
+deduplication, classification and source-access audit, then writes
+`EvidenceRadar_TranslationRequest.json` and exits normally with
+`TRANSLATION_REQUIRED`. The request contains the complete frozen resume context
+and a canonical SHA-256. It does not advance State or publish the four-file
+bundle.
+
+The user uploads that request to an ordinary ChatGPT chatbot and receives
+`EvidenceRadar_TranslationResponse.json`. Stage B accepts only translations
+with exact candidate-ID parity and the matching request SHA-256. It rejects a
+stale State, missing/extra/duplicate IDs, changed request content, missing
+numbers/years/abbreviations, filler, non-Chinese titles and unsupported result
+claims. Stage B resumes from the frozen context without another search. Normal
+runtime use requires no OpenAI API key, GitHub token, Codex, Copilot, or
+ChatGPT Work.
+
 ## 2. Modes and window
 
 | Mode | Window | Scope | Verification |
@@ -309,14 +327,13 @@ than individual medical advice. Run and the readable report both contain the
 complete deduplicated candidate set; the report groups it by category.
 
 Every displayed candidate includes `content_summary` and `summary_basis` in
-Run, `summary_language: zh-TW`, and a visible Traditional Chinese preview in
-HTML. The GitHub lane uses `TRANSLATED_ABSTRACT_EXCERPT_ZH_TW` only after a
-bounded translation response passes ID, language, length and numeric-token
-checks. Without a configured credential, on provider failure, or when no
-abstract exists, it emits `ZH_TW_METADATA_TEMPLATE` or `TITLE_ONLY_ZH_TW` and
-does not expose the English abstract in the preview. ChatGPT Work writes the
-preview directly in Traditional Chinese after reading the source. Every basis
-is navigation metadata, not claim verification.
+Run, `summary_language: zh-TW`, structured `title_zh_tw`, and a visible
+Traditional Chinese title/preview in HTML while retaining the English original.
+`CHATBOT_TITLE_ZH_TW` is used when no source excerpt exists;
+`CHATBOT_TITLE_AND_ABSTRACT_ZH_TW` is used only after the SHA-bound response
+passes exact ID, language, filler, number/year/abbreviation and unsupported
+result checks. Legacy summary bases remain schema-compatible. Every basis is
+navigation metadata, not claim verification.
 The self-contained HTML provides text search, category/triage/source/OA/access
 filters, collapsible category sections, Featured/full-pool separation and
 expandable audit details without removing any candidate from the report.

@@ -1,9 +1,7 @@
 name: EvidenceRadar daily (GitHub Actions lane)
 
 on:
-  # Producer/schema changes should immediately publish a fresh bundle.
-  # Generated artifact writeback touches only artifacts/state/runs, so it
-  # cannot recursively retrigger this path-scoped push event.
+  # Producer/schema changes should immediately produce a fresh handoff request.
   push:
     branches: [main]
     paths:
@@ -33,46 +31,28 @@ on:
         required: false
         default: 15
         type: number
-      cas_retry:
-        description: "Internal bounded CAS retry; leave false for normal/manual runs"
-        required: false
-        default: false
-        type: boolean
 
-# The optional GitHub lane writes only its generated artifacts and canonical
-# state back to the repository.  Forks/templates receive their own token.
+# Hosted Actions performs Stage A only. It reads canonical State and uploads a
+# TranslationRequest artifact; it does not publish or advance State.
 permissions:
-  actions: write
-  contents: write
-  copilot-requests: write
+  contents: read
 
 concurrency:
   group: evidence-radar-daily-${{ github.ref }}
   cancel-in-progress: false
 
 env:
-  # Keep output layout in one place: the runner contract can change without
-  # making every later verification, upload, or writeback step guess paths.
   RADAR_ROOT: "."
-  RADAR_OUTPUT_DIR: "artifacts/current"
-  RADAR_REPORT_PATH: "artifacts/current/EvidenceRadar_Report.html"
+  RADAR_OUTPUT_DIR: ${{ runner.temp }}/evidenceradar-pending-output
   RADAR_STATE_PATH: "state/current/EvidenceRadar_State.json"
-  RADAR_EVIDENCE_PATH: "artifacts/current/EvidenceRadar_Evidence.json"
-  RADAR_RUN_PATH: "artifacts/current/EvidenceRadar_Run.json"
-  RADAR_RUNS_DIR: "runs"
   EXECUTION_LANE: "github_actions"
   PUBLISHER_TARGET_MIN: ${{ inputs.publisher_target_min || 10 }}
   PUBLISHER_HARD_MAX: ${{ inputs.publisher_hard_max || 15 }}
-  CAS_RETRY: ${{ inputs.cas_retry || false }}
+  RADAR_TRANSLATION_REQUEST: ${{ runner.temp }}/EvidenceRadar_TranslationRequest.json
   OPENALEX_API_KEY: ${{ secrets.OPENALEX_API_KEY }}
   OPENREVIEW_TOKEN: ${{ secrets.OPENREVIEW_TOKEN }}
   NCBI_EMAIL: ${{ vars.NCBI_EMAIL }}
   NCBI_API_KEY: ${{ secrets.NCBI_API_KEY }}
-  # The optional OpenAI provider can stay globally mapped because the test
-  # suite never enters publication mode. Copilot activation and the hard title
-  # gate are scoped to the real producer step below so fixtures remain offline.
-  EVIDENCERADAR_TRANSLATION_API_KEY: ${{ secrets.EVIDENCERADAR_TRANSLATION_API_KEY }}
-  EVIDENCERADAR_TRANSLATION_MODEL: ${{ vars.EVIDENCERADAR_TRANSLATION_MODEL || 'gpt-5-mini' }}
 
 jobs:
   daily-radar:
@@ -98,14 +78,6 @@ jobs:
             pip install -r legacy/python-runtime/requirements.txt
           fi
 
-      - name: Set up Node.js for Copilot translation fallback
-        uses: actions/setup-node@v6
-        with:
-          node-version: "24"
-
-      - name: Install GitHub Copilot CLI
-        run: npm install -g @github/copilot
-
       - name: Validate repository and active-lane tests
         run: |
           python tools/validate_public_release.py
@@ -117,140 +89,28 @@ jobs:
         run: python -m pytest -q tests
 
       - name: Run EvidenceRadar GitHub lane
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          EVIDENCERADAR_COPILOT_TRANSLATION: "1"
-          EVIDENCERADAR_REQUIRE_ZH_TITLE_TRANSLATION: "1"
-          EVIDENCERADAR_COPILOT_MODEL: ${{ vars.EVIDENCERADAR_COPILOT_MODEL }}
+        id: radar
         run: |
-          mkdir -p "$RADAR_OUTPUT_DIR" "$(dirname "$RADAR_STATE_PATH")" "$RADAR_RUNS_DIR"
-          python tools/run_github_radar.py \
+          mkdir -p "$RADAR_OUTPUT_DIR"
+          result="$(python tools/run_github_radar.py \
             --root "$RADAR_ROOT" \
             --output-dir "$RADAR_OUTPUT_DIR" \
             --state "$RADAR_STATE_PATH" \
-            --runs-dir "$RADAR_RUNS_DIR" \
             --execution-lane "$EXECUTION_LANE" \
             --publisher-target-min "$PUBLISHER_TARGET_MIN" \
-            --publisher-hard-max "$PUBLISHER_HARD_MAX"
+            --publisher-hard-max "$PUBLISHER_HARD_MAX" \
+            --translation-request "$RADAR_TRANSLATION_REQUEST")"
+          echo "$result"
+          status="$(python -c 'import json,sys; print(json.loads(sys.stdin.read())["run_status"])' <<<"$result")"
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          test "$status" = "TRANSLATION_REQUIRED"
+          test -s "$RADAR_TRANSLATION_REQUEST"
 
-      - name: Verify four EvidenceRadar artifacts
-        run: |
-          for path in \
-            "$RADAR_REPORT_PATH" \
-            "$RADAR_STATE_PATH" \
-            "$RADAR_EVIDENCE_PATH" \
-            "$RADAR_RUN_PATH"; do
-            if [ ! -s "$path" ]; then
-              echo "::error file=$path::missing or empty EvidenceRadar artifact"
-              exit 1
-            fi
-          done
-          python tools/validate_gpt_work_artifacts.py \
-            --root "$RADAR_ROOT" \
-            "$RADAR_STATE_PATH" \
-            "$RADAR_EVIDENCE_PATH" \
-            "$RADAR_RUN_PATH"
-          python tools/validate_delivery_bundle.py \
-            --root "$RADAR_ROOT" \
-            --bundle "$RADAR_OUTPUT_DIR" \
-            --canonical-state "$RADAR_STATE_PATH" \
-            --expected-lane "$EXECUTION_LANE" \
-            --expected-protocol-commit "$GITHUB_SHA" \
-            --require-current-producer \
-            --require-semantic-contract-v3 \
-            --reject-dirty
-          cmp --silent \
-            "$RADAR_OUTPUT_DIR/EvidenceRadar_State.json" \
-            "$RADAR_STATE_PATH"
-
-      - name: Package immutable run delivery and recovery bundle
-        run: |
-          RADAR_DELIVERY_OUTPUT_DIR="$RUNNER_TEMP/evidenceradar-work-delivery-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          run_id="$(python -c 'import json; print(json.load(open("artifacts/current/EvidenceRadar_Run.json", encoding="utf-8"))["run_id"])')"
-          source_dir="$RADAR_RUNS_DIR/$run_id"
-          if [ ! -d "$source_dir" ]; then
-            echo "::error::immutable run directory is missing: $source_dir"
-            exit 1
-          fi
-          if [ -e "$RADAR_DELIVERY_OUTPUT_DIR" ]; then
-            echo "::error::delivery output path already exists: $RADAR_DELIVERY_OUTPUT_DIR"
-            exit 1
-          fi
-          python tools/package_work_delivery.py \
-            --source-dir "$source_dir" \
-            --output-dir "$RADAR_DELIVERY_OUTPUT_DIR" \
-            --run-id "$run_id" \
-            --expected-lane "$EXECUTION_LANE" \
-            --require-current-producer
-          test -s "$RADAR_DELIVERY_OUTPUT_DIR/EvidenceRadar-WorkRun-$run_id.zip"
-          test -s "$RADAR_DELIVERY_OUTPUT_DIR/EvidenceRadar-WorkRun-$run_id.zip.sha256"
-
-      - name: Upload the run artifacts
+      - name: Upload TranslationRequest for ordinary ChatGPT handoff
+        if: steps.radar.outputs.status == 'TRANSLATION_REQUIRED'
         uses: actions/upload-artifact@v7.0.1
         with:
-          name: evidenceradar-${{ github.run_id }}-${{ github.run_attempt }}
+          name: evidenceradar-translation-request-${{ github.run_id }}-${{ github.run_attempt }}
           if-no-files-found: error
           retention-days: 14
-          path: |
-            ${{ env.RADAR_REPORT_PATH }}
-            ${{ env.RADAR_STATE_PATH }}
-            ${{ env.RADAR_EVIDENCE_PATH }}
-            ${{ env.RADAR_RUN_PATH }}
-            ${{ runner.temp }}/evidenceradar-work-delivery-${{ github.run_id }}-${{ github.run_attempt }}
-
-      - name: Commit generated artifacts and state
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          git config user.name "EvidenceRadar bot"
-          git config user.email "evidenceradar-bot@users.noreply.github.com"
-
-          git add -- "$RADAR_OUTPUT_DIR" "$RADAR_STATE_PATH"
-          if [ -d "$RADAR_RUNS_DIR" ]; then
-            git add -- "$RADAR_RUNS_DIR"
-          fi
-
-          if git diff --cached --quiet; then
-            echo "No generated changes; safe exit."
-            exit 0
-          fi
-
-          git commit -m "chore: update EvidenceRadar GitHub artifacts"
-
-          git fetch origin "$GITHUB_REF_NAME"
-          remote_sha="$(git rev-parse "origin/$GITHUB_REF_NAME")"
-          if [ "$remote_sha" != "$GITHUB_SHA" ]; then
-            echo "::error::canonical branch advanced from $GITHUB_SHA to $remote_sha; generated bundle was not published"
-            {
-              echo "## EvidenceRadar writeback failed: CAS conflict"
-              echo ""
-              echo "The canonical branch advanced while this run was searching. No stale State was rebased or pushed."
-              echo "The uniquely named run delivery and SHA-256 sidecar are preserved as an uploaded Actions recovery artifact; they are not a publication."
-            } >> "$GITHUB_STEP_SUMMARY"
-            if [ "$CAS_RETRY" = "true" ]; then
-              echo "::error::bounded CAS retry already consumed; no further automatic retry will be dispatched"
-              echo "Manual rerun is required after reviewing the recovery artifact."
-            else
-              echo "Queueing one bounded retry from the newest canonical branch..."
-              if gh workflow run daily-radar.yml \
-                --repo "$GITHUB_REPOSITORY" \
-                --ref "$GITHUB_REF_NAME" \
-                -f publisher_target_min="$PUBLISHER_TARGET_MIN" \
-                -f publisher_hard_max="$PUBLISHER_HARD_MAX" \
-                -f cas_retry=true; then
-                echo "Retry queued with cas_retry=true and the same publisher budget."
-              else
-                echo "::error::automatic CAS retry dispatch failed; manual workflow rerun is required"
-              fi
-            fi
-            exit 1
-          fi
-          git push origin "HEAD:$GITHUB_REF_NAME"
-
-          gh workflow run public-release.yml \
-            --repo "$GITHUB_REPOSITORY" \
-            --ref "$GITHUB_REF_NAME"
-          gh workflow run pages.yml \
-            --repo "$GITHUB_REPOSITORY" \
-            --ref "$GITHUB_REF_NAME"
+          path: ${{ env.RADAR_TRANSLATION_REQUEST }}

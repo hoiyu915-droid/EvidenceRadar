@@ -181,3 +181,14 @@ The classifier is deliberately conservative and metadata-first:
 - no abstract/model/venue-topic inference is allowed in v1; unresolved designs remain an empty list with `study_design_basis=UNKNOWN`;
 - `document_type_basis` and `study_design_basis` make the classification provenance auditable;
 - canonical HTML exposes `data-document-type` and `data-study-designs`, visible study chips, and a study-type filter; validators fail closed when marker-bearing Run/State/HTML projections drift.
+
+## Additive ordinary-chatbot translation handoff v1
+
+`CHATBOT_TRANSLATION_HANDOFF_V1` is an additive V3 extension. A marker-bearing
+Run requires `title_zh_tw` for every candidate, projects the same title into
+State, and renders the Traditional Chinese title with the English original.
+Stage A freezes discovery and source-access facts in a canonical SHA-bound
+TranslationRequest and does not advance State. Stage B validates exact ID
+parity and the request SHA, resumes without rediscovery, and emits only
+`CHATBOT_TITLE_ZH_TW` or `CHATBOT_TITLE_AND_ABSTRACT_ZH_TW`. Legacy V2/V3
+bundles remain valid without this marker or these fields.

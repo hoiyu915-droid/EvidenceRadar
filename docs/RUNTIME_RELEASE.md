@@ -117,8 +117,27 @@ Then run:
 python3 workspace/runtime/tools/run_local_runtime.py \
   --state workspace/input/EvidenceRadar_State.json \
   --output-dir workspace/output \
-  --runs-dir workspace/runs
+  --runs-dir workspace/runs \
+  --translation-request workspace/input/EvidenceRadar_TranslationRequest.json
 ```
+
+Stage A returns `TRANSLATION_REQUIRED` without advancing State. Upload the
+request to an ordinary ChatGPT chatbot, save the JSON-only response, and resume
+without rediscovery:
+
+```sh
+python3 workspace/runtime/tools/run_local_runtime.py \
+  --state workspace/input/EvidenceRadar_State.json \
+  --output-dir workspace/output \
+  --runs-dir workspace/runs \
+  --translation-request workspace/input/EvidenceRadar_TranslationRequest.json \
+  --translation-response workspace/input/EvidenceRadar_TranslationResponse.json
+```
+
+The request SHA binds the response to the frozen candidate set and execution
+context. Stage B rejects a changed State or stale/malformed response before any
+canonical artifact is installed. This user flow has no OpenAI API key, GitHub
+token, Codex, Copilot, or ChatGPT Work dependency.
 
 The wrapper performs these gates in order:
 
@@ -127,10 +146,11 @@ The wrapper performs these gates in order:
 3. check the required runtime dependencies;
 4. invoke the canonical `tools/run_github_radar.py` producer using the exact
    manifest `source_commit` as `--protocol-commit`;
-5. validate the resulting four-file bundle with
+5. stop normally after Stage A until a SHA-bound chatbot response is supplied;
+6. validate the resulting four-file bundle with
    `tools/validate_delivery_bundle.py` against that exact producer commit;
-6. verify the Runtime tree again after execution;
-7. write `EvidenceRadar_RuntimeReceipt.json` outside the Runtime tree.
+7. verify the Runtime tree again after execution;
+8. write `EvidenceRadar_RuntimeReceipt.json` outside the Runtime tree.
 
 The receipt records the Runtime version, exact source commit, manifest SHA-256,
 execution host, canonical lane, run ID and SHA-256 of the four output artifacts.

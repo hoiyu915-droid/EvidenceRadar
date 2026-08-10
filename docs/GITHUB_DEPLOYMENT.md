@@ -41,8 +41,6 @@ credentials，也不把其中一條的執行誤當成另一條的 source verific
 | `OPENREVIEW_TOKEN` | Secret | 選用；公開 OpenReview search 被限制時可改用 authenticated access |
 | `NCBI_EMAIL` | Variable | NCBI 建議的 E-utilities client identification |
 | `NCBI_API_KEY` | Secret | 選用；PubMed 從每秒 3 次提高到預設每秒 10 次 |
-| `EVIDENCERADAR_TRANSLATION_API_KEY` | Secret | 選用；將 provider abstract 批次整理為繁中，缺少時使用繁中 metadata fallback |
-| `EVIDENCERADAR_TRANSLATION_MODEL` | Variable | 選用；覆寫翻譯模型，預設 `gpt-5-mini` |
 
 不要把 token 寫入 YAML、config、report 或 Work Pack。Workflow 只以 environment
 reference 讀取這些值，不輸出值本身。
@@ -61,7 +59,6 @@ Provider 基線以 [NCBI E-utilities usage guidelines](https://www.ncbi.nlm.nih.
 | --- | ---: | --- |
 | `publisher_target_min` | 10 | 本輪成功存取目標下限 |
 | `publisher_hard_max` | 15 | 本輪網路探測硬上限；runner 拒絕任何大於 15 的值 |
-| `cas_retry` | false | 內部使用的單次 CAS conflict retry；一般手動執行保持 false |
 
 每輪以 10 筆成功的 publisher/source-page audit records 為目標，publisher-page
 candidate attempts 的硬上限為 15；這不是補足數量的承諾。來源被擋、來源不足或
@@ -70,23 +67,19 @@ candidate attempts 的硬上限為 15；這不是補足數量的承諾。來源�
 保存相同的完整候選 ledger。候選的 routing score 只影響排序，`LOWER_PRIORITY`、
 `FAILED` 或 `NOT_ATTEMPTED` 都不代表候選沒有研究價值。
 
-報告是單一 self-contained HTML，包含本機可用的搜尋、類別／triage／source 篩選、
+Stage A 不產生報告；它上傳 SHA-bound TranslationRequest 並保持 State 不變。完成
+ordinary ChatGPT handoff 後，local Runtime Stage B 才會產生單一 self-contained HTML，包含本機可用的搜尋、類別／triage／source 篩選、
 分類收合與逐 item 稽核詳情。每筆內容簡述固定使用繁體中文，並標記為 AI 輔助翻譯、
 來源繁中摘要、metadata template 或題名層級 fallback；全部都只是導航資訊，不是已核實結論。
 
-若要把 provider abstract 翻譯為繁中，在 repository secrets 設定
-`EVIDENCERADAR_TRANSLATION_API_KEY`；可選擇在 repository variables 設定
-`EVIDENCERADAR_TRANSLATION_MODEL`，預設為 `gpt-5-mini`。憑證只透過 Actions secret
-注入，不會寫入 artifact 或 log。沒有設定時 runner 仍輸出繁中保守簡述，不會退回英文。
+翻譯不使用 repository model secret。Request／Response contract 與操作指令見
+[`docs/RUNTIME_RELEASE.md`](RUNTIME_RELEASE.md)。
 
-Workflow 宣告 `permissions: actions: write` 與 `contents: write`：前者只用來在
-CAS conflict 時排一次同 workflow 的 bounded retry，後者才用於將產生的 artifact、
-state 與 `runs/` 歷史寫回同一個 repository。提交步驟使用 `EvidenceRadar bot` 身份，
-精準 stage 這些生成路徑；沒有內容變更時安全退出。啟用 branch protection、
-required checks 或限制 Actions token 時，依自己的治理規則調整，並保留可追溯
-的 run log 與 artifact upload。
+Workflow 只宣告 `contents: read`。Stage A 讀取 canonical State 但不寫 repository；
+唯一的新產物是 Actions upload 中的 TranslationRequest。這避免 hosted lane 在普通
+chatbot response 尚不存在時誤寫 State 或公開半成品。
 
-每次 run 會驗證並上傳四個 artifact：
+Stage B 驗證成功後才會產生四個 canonical artifact：
 
 ```text
 artifacts/current/EvidenceRadar_Report.html
@@ -95,10 +88,9 @@ artifacts/current/EvidenceRadar_Run.json
 state/current/EvidenceRadar_State.json
 ```
 
-`EvidenceRadar_State.json` 是 GitHub lane 的 canonical cross-run state，保存所有
-去重候選的 first/last seen 與通知歷史；runner
-也會把四檔保存到 `runs/<run_id>/` 作 immutable run record，並在提交前確認
-current State 與 canonical State byte-identical。不要手動刪除 state 來繞過
+`EvidenceRadar_State.json` 是 canonical cross-run state，保存所有
+去重候選的 first/last seen 與通知歷史。Local Runtime 可把四檔保存到
+`runs/<run_id>/` 作 immutable run record。不要手動刪除 state 來繞過
 dedupe 或 publisher hard max；先檢查 run log、source access 與 schema validation。
 
 新 run 同時標記 `SEMANTIC_CONTRACT_V3`。`EvidenceRadar_Run.json` 的每個 query、
@@ -113,7 +105,7 @@ V3 HTML 由 Run + Evidence canonical render，Run 保存 report SHA-256；Pages 
 delivery validator 會重新渲染並要求 byte-identical。這可阻擋手寫到 HTML、但沒有
 claim/source/locator binding 的額外結論或數字。
 
-Actions 也會在 upload 前建立唯一的
+Stage B 可在交付前建立唯一的
 `EvidenceRadar-WorkRun-<run_id>.zip`、包內 `manifest.json` 與外部
 `.zip.sha256`。manifest 保留四個 canonical artifact 的 SHA-256 與 byte size，
 因此 branch conflict 時仍可從該次 Actions artifact 取回完整 run；附件名稱不
@@ -139,20 +131,16 @@ Pages workflow 的 deployment 成功前，不應把推算網址宣稱為已可�
 公開連結，先交付實際 HTML 檔，再經審閱的 GitHub publication 更新 bundle；部署
 完成後讀取 `links.json` 回傳網址。
 
-每日 workflow 使用內建 `GITHUB_TOKEN` 完成 CAS push；這類 push 不會再次觸發
-其他 `push` workflows。因此成功寫回後會 explicit workflow_dispatch
-`public-release.yml` 與 `pages.yml`，讓 canonical bundle 的驗證和公開 Pages 都跟上
-剛寫入的 commit。任一 dispatch 失敗會讓 daily run 顯示失敗，不會把 recovery
-artifact 誤當成已更新的公開網站。
+每日 hosted workflow 只執行 Stage A，產生並上傳
+`EvidenceRadar_TranslationRequest.json`，狀態為 `TRANSLATION_REQUIRED`。GitHub
+hosted runner 不會假裝能呼叫普通 ChatGPT chatbot，也不會 fallback 到 Copilot 或
+OpenAI API。使用者完成 chatbot handoff 後，應在 local Runtime 以同一 request 與
+response 執行 Stage B；只有 Stage B 四件套全部驗證通過才可進入 publication。
 
-每日 workflow 不再對更新過的 default branch 執行 `pull --rebase`。它在 push 前
-比較 remote SHA 與啟動時 `GITHUB_SHA`；任何 Work／maintainer／另一 lane 的新
-commit 都會讓 stale bundle 停止發布。第一次 CAS conflict 會先保留唯一 run-id
-recovery artifact，使用相同 publisher budget 排一次 `workflow_dispatch` retry，
-然後把本次 run 標記為 failed；retry 從最新 canonical State 重新搜尋與驗證。
-retry 若再次 conflict，`cas_retry=true` 會禁止遞迴 dispatch，並要求人工 rerun。
-Recovery artifact 是 Actions upload，不是 GitHub publication；它絕不會把舊 State
-rebase 後強推，也不會把衝突 run 誤標成已發布。
+Stage B 產物要公開時，維護者須以一般受審閱的 repository 流程提交四件套與
+canonical State，再明確啟動 `public-release.yml` 與 `pages.yml`。Daily Stage A
+本身不 push、不 dispatch publication，也不把 TranslationRequest 誤當成 recovery
+bundle 或公開報告。
 
 每輪 Run 的 `source_coverage` 與 Evidence 的 `coverage` 都會逐一列出每個
 configured source 的 CHECK summary。欄位 `requested`、`checked`、`searched`、

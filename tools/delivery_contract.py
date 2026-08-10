@@ -31,12 +31,15 @@ SHARED_CONTRACT_PATHS = (
     "schemas/evidence-radar-evidence.schema.json",
     "schemas/evidence-radar-run.schema.json",
     "schemas/evidence-radar-state.schema.json",
+    "schemas/evidence-radar-translation-request.schema.json",
+    "schemas/evidence-radar-translation-response.schema.json",
     "docs/SEMANTIC_CONTRACT_V3.md",
 )
 
 GITHUB_PRODUCER_PATHS = SHARED_CONTRACT_PATHS + (
     "tools/delivery_contract.py",
     "tools/run_github_radar.py",
+    "tools/translation_handoff.py",
     "tools/validate_delivery_bundle.py",
 )
 
@@ -50,6 +53,7 @@ WORK_PRODUCER_PATHS = SHARED_CONTRACT_PATHS + (
     "tools/package_work_delivery.py",
     "tools/render_report_from_artifacts.py",
     "tools/run_github_radar.py",
+    "tools/translation_handoff.py",
     "tools/validate_delivery_bundle.py",
     "tools/validate_gpt_work_artifacts.py",
 )

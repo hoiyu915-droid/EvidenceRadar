@@ -117,6 +117,8 @@ def build_runner_command(
     run_id: str | None,
     publisher_target_min: int | None,
     publisher_hard_max: int | None,
+    translation_request: Path | None = None,
+    translation_response: Path | None = None,
 ) -> list[str]:
     command = [
         sys.executable,
@@ -142,6 +144,10 @@ def build_runner_command(
         command.extend(["--publisher-target-min", str(publisher_target_min)])
     if publisher_hard_max is not None:
         command.extend(["--publisher-hard-max", str(publisher_hard_max)])
+    if translation_request is not None:
+        command.extend(["--translation-request", str(translation_request)])
+    if translation_response is not None:
+        command.extend(["--translation-response", str(translation_response)])
     return command
 
 
@@ -215,6 +221,16 @@ def execute_local_runtime(args: argparse.Namespace) -> dict[str, Any]:
         args.receipt or (output_dir.parent / RECEIPT_NAME),
         label="Runtime receipt path",
     )
+    translation_request = _outside_runtime(
+        args.translation_request
+        or (output_dir.parent / "EvidenceRadar_TranslationRequest.json"),
+        label="translation request path",
+    )
+    translation_response = (
+        _outside_runtime(args.translation_response, label="translation response path")
+        if args.translation_response
+        else None
+    )
     if not state.is_file():
         raise LocalRuntimeError(
             "State file does not exist; provide the latest canonical EvidenceRadar_State.json"
@@ -225,6 +241,10 @@ def execute_local_runtime(args: argparse.Namespace) -> dict[str, Any]:
         raise LocalRuntimeError("output directory must not contain the mutable State input path")
     if runs_dir is not None and runs_dir == output_dir:
         raise LocalRuntimeError("runs directory must be separate from the current output directory")
+    if translation_response is not None and not translation_request.is_file():
+        raise LocalRuntimeError(
+            "Stage B requires the exact existing EvidenceRadar_TranslationRequest.json"
+        )
 
     manifest = verify_runtime_tree()
     _check_environment(manifest)
@@ -235,6 +255,7 @@ def execute_local_runtime(args: argparse.Namespace) -> dict[str, Any]:
     output_dir.mkdir(parents=True, exist_ok=True)
     if runs_dir is not None:
         runs_dir.mkdir(parents=True, exist_ok=True)
+    state_before = _sha256(state.read_bytes())
     runner_output = _run_checked(
         build_runner_command(
             state=state,
@@ -245,9 +266,28 @@ def execute_local_runtime(args: argparse.Namespace) -> dict[str, Any]:
             run_id=args.run_id,
             publisher_target_min=args.publisher_target_min,
             publisher_hard_max=args.publisher_hard_max,
+            translation_request=translation_request,
+            translation_response=translation_response,
         ),
         label="EvidenceRadar canonical producer",
     )
+    try:
+        producer_summary = json.loads(runner_output.strip().splitlines()[-1])
+    except (IndexError, json.JSONDecodeError) as exc:
+        raise LocalRuntimeError("canonical producer did not return a JSON status") from exc
+    if producer_summary.get("run_status") == "TRANSLATION_REQUIRED":
+        if _sha256(state.read_bytes()) != state_before:
+            raise LocalRuntimeError("Stage A advanced State before translation validation")
+        if not translation_request.is_file():
+            raise LocalRuntimeError("Stage A did not create the translation request")
+        verify_runtime_tree()
+        return {
+            "runtime_version": manifest.get("runtime_version"),
+            "source_commit": protocol_commit,
+            "execution_lane": "github_actions",
+            "execution_host": "local_runtime",
+            **producer_summary,
+        }
     _validate_bundle(state=state, output_dir=output_dir, protocol_commit=protocol_commit)
     verify_runtime_tree()
     receipt_value = _write_receipt(
@@ -278,6 +318,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--run-id", help="optional explicit run ID")
     parser.add_argument("--publisher-target-min", type=int)
     parser.add_argument("--publisher-hard-max", type=int)
+    parser.add_argument(
+        "--translation-request",
+        type=Path,
+        help="external Stage A request path; defaults beside --output-dir",
+    )
+    parser.add_argument(
+        "--translation-response",
+        type=Path,
+        help="external ordinary-chatbot response used to resume Stage B",
+    )
     return parser.parse_args(argv)
 
 

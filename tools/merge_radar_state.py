@@ -493,6 +493,9 @@ def _merge_work(records: Sequence[Mapping[str, Any]], tokens: Sequence[Mapping[s
     category = _latest_value(records, "category")
     if category is not None:
         merged["category"] = category
+    title_zh_tw = _latest_value(records, "title_zh_tw")
+    if title_zh_tw is not None:
+        merged["title_zh_tw"] = title_zh_tw
     for field in ("open_access", "is_preprint"):
         values = [record[field] for record in records if isinstance(record.get(field), bool)]
         if values:

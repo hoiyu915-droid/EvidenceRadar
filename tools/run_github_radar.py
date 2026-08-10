@@ -25,7 +25,7 @@ import time
 import unicodedata
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field, fields
 from datetime import date, datetime, time as datetime_time, timedelta, timezone as datetime_timezone
 from email.utils import parsedate_to_datetime
 from pathlib import Path
@@ -38,6 +38,16 @@ import yaml
 
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from tools.translation_handoff import (
+    TranslationHandoffError,
+    load_and_validate_translation_response,
+    load_translation_request,
+    request_sha256,
+    write_translation_request,
+)
 PUBMED_BASE = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
 EUROPE_PMC_SEARCH = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
 OPENALEX_WORKS = "https://api.openalex.org/works"
@@ -3241,6 +3251,175 @@ def translate_candidate_summaries_zh_tw(
     return summaries, warnings
 
 
+def _candidate_payload(candidate: Candidate) -> dict[str, Any]:
+    """Return the complete JSON-safe in-memory candidate needed for resume."""
+
+    return asdict(candidate)
+
+
+def _candidate_from_payload(value: Any) -> Candidate:
+    if not isinstance(value, dict):
+        raise RadarRuntimeError("translation request resume candidate must be an object")
+    allowed = {item.name for item in fields(Candidate)}
+    unknown = sorted(set(value) - allowed)
+    if unknown:
+        raise RadarRuntimeError(
+            "translation request resume candidate contains unknown field(s): "
+            + ", ".join(unknown)
+        )
+    try:
+        return Candidate(**{key: copy.deepcopy(item) for key, item in value.items()})
+    except (TypeError, ValueError) as exc:
+        raise RadarRuntimeError(f"cannot restore translation request candidate: {exc}") from exc
+
+
+def _translation_request_items(
+    candidates: list[Candidate], *, max_chars: int
+) -> list[dict[str, Any]]:
+    return [
+        {
+            "immutable_candidate_id": candidate.work_id,
+            "title_en": candidate.title,
+            "source_excerpt": candidate_source_excerpt(candidate, max_chars=max_chars * 2),
+            "metadata": {
+                "category": candidate.category,
+                "publication_date": candidate.publication_date,
+                "authors": list(candidate.authors),
+                "venue": candidate.venue,
+                "identifiers": candidate.identifiers,
+            },
+        }
+        for candidate in sorted(candidates, key=lambda item: item.work_id)
+    ]
+
+
+def _build_translation_request(
+    *,
+    run_id: str,
+    created_at: datetime,
+    start: datetime,
+    window_hours: int,
+    execution_lane: str,
+    protocol_commit: str,
+    base_state_sha256: str,
+    candidates: list[Candidate],
+    resume_context: dict[str, Any],
+    max_chars: int,
+) -> dict[str, Any]:
+    request: dict[str, Any] = {
+        "schema_version": "1.0",
+        "artifact_type": "EvidenceRadar_TranslationRequest",
+        "run_id": run_id,
+        "created_at": created_at.isoformat(),
+        "execution_lane": execution_lane,
+        "protocol_commit": protocol_commit,
+        "base_state_sha256": base_state_sha256,
+        "window": {
+            "start": start.isoformat(),
+            "end": created_at.isoformat(),
+            "hours": window_hours,
+        },
+        "instructions": [
+            "Return one EvidenceRadar_TranslationResponse JSON object and no prose.",
+            "Keep immutable_candidate_id unchanged and return exactly one item for every request item.",
+            "Translate title_en faithfully into Taiwan Traditional Chinese as title_zh_tw.",
+            "When source_excerpt is non-empty, translate/summarize only its purpose, population, and method; do not invent results.",
+            "When source_excerpt is empty, summary_zh_tw must be an empty string.",
+            "Preserve every number, year, abbreviation, uncertainty, and study-design qualifier.",
+        ],
+        "candidates": _translation_request_items(candidates, max_chars=max_chars),
+        "resume_context": resume_context,
+    }
+    request["request_sha256"] = request_sha256(request)
+    return request
+
+
+def _verify_request_candidate_binding(
+    request: dict[str, Any], candidates: list[Candidate], *, max_chars: int
+) -> None:
+    expected = _translation_request_items(candidates, max_chars=max_chars)
+    if request.get("candidates") != expected:
+        raise RadarRuntimeError(
+            "translation request candidate/title/excerpt binding does not match its frozen resume context"
+        )
+
+
+def _manual_translation_overrides(
+    translations: dict[str, dict[str, str]],
+) -> dict[str, dict[str, str]]:
+    return {
+        work_id: {
+            "title_zh_tw": str(value["title_zh_tw"]).strip(),
+            "content_summary": str(value.get("summary_zh_tw") or value["title_zh_tw"]).strip(),
+            "summary_basis": (
+                "CHATBOT_TITLE_AND_ABSTRACT_ZH_TW"
+                if str(value.get("summary_zh_tw") or "").strip()
+                else "CHATBOT_TITLE_ZH_TW"
+            ),
+        }
+        for work_id, value in translations.items()
+    }
+
+
+def _freeze_resume_context(
+    *,
+    discovery: DiscoveryResult,
+    publisher_access: list[dict[str, Any]],
+    publisher_warnings: list[str],
+) -> dict[str, Any]:
+    return {
+        "all_candidates": [_candidate_payload(candidate) for candidate in discovery.all_candidates],
+        "priority_candidate_ids": [candidate.work_id for candidate in discovery.priority_candidates],
+        "raw_candidate_count": discovery.raw_candidate_count,
+        "queries": copy.deepcopy(discovery.queries),
+        "source_access_before_publisher": copy.deepcopy(discovery.source_access),
+        "checked_sources": sorted(discovery.checked_sources),
+        "searched_sources": sorted(discovery.searched_sources),
+        "unavailable_sources": sorted(discovery.unavailable_sources),
+        "publisher_access": copy.deepcopy(publisher_access),
+        "publisher_warnings": list(publisher_warnings),
+    }
+
+
+def _restore_resume_context(
+    value: Any,
+) -> tuple[DiscoveryResult, list[dict[str, Any]], list[str]]:
+    if not isinstance(value, dict):
+        raise RadarRuntimeError("translation request resume_context must be an object")
+    all_candidates = [
+        _candidate_from_payload(item) for item in value.get("all_candidates", [])
+    ]
+    by_id = {candidate.work_id: candidate for candidate in all_candidates}
+    if len(by_id) != len(all_candidates):
+        raise RadarRuntimeError("translation request resume_context has duplicate candidate IDs")
+    priority_ids = value.get("priority_candidate_ids")
+    if not isinstance(priority_ids, list) or any(not isinstance(item, str) for item in priority_ids):
+        raise RadarRuntimeError("translation request priority_candidate_ids must be an array of strings")
+    missing = sorted(set(priority_ids) - set(by_id))
+    if missing:
+        raise RadarRuntimeError(
+            "translation request priority candidate is absent from frozen candidate pool: "
+            + ", ".join(missing[:5])
+        )
+    discovery = DiscoveryResult(
+        all_candidates=all_candidates,
+        priority_candidates=[by_id[item] for item in priority_ids],
+        raw_candidate_count=int(value.get("raw_candidate_count") or 0),
+        queries=copy.deepcopy(value.get("queries") or []),
+        source_access=copy.deepcopy(value.get("source_access_before_publisher") or []),
+        checked_sources=set(value.get("checked_sources") or []),
+        searched_sources=set(value.get("searched_sources") or []),
+        unavailable_sources=set(value.get("unavailable_sources") or []),
+    )
+    publisher_access = copy.deepcopy(value.get("publisher_access") or [])
+    publisher_warnings = [str(item) for item in value.get("publisher_warnings") or []]
+    if not isinstance(publisher_access, list) or any(
+        not isinstance(item, dict) for item in publisher_access
+    ):
+        raise RadarRuntimeError("translation request publisher_access must be an array of objects")
+    return discovery, publisher_access, publisher_warnings
+
+
 def build_candidate_ledger(
     candidates: list[Candidate],
     *,
@@ -3252,6 +3431,7 @@ def build_candidate_ledger(
     displayed_work_ids: set[str],
     summary_max_chars: int = 320,
     summary_overrides: dict[str, tuple[str, str]] | None = None,
+    manual_translation_overrides: dict[str, dict[str, str]] | None = None,
 ) -> list[dict[str, Any]]:
     access_by_work = {
         str(item.get("work_id")): item
@@ -3260,10 +3440,17 @@ def build_candidate_ledger(
     }
     records: list[dict[str, Any]] = []
     for candidate in candidates:
-        content_summary, summary_basis = (summary_overrides or {}).get(
-            candidate.work_id,
-            candidate_content_summary(candidate, max_chars=summary_max_chars),
-        )
+        manual_translation = (manual_translation_overrides or {}).get(candidate.work_id)
+        if manual_translation is not None:
+            content_summary = str(manual_translation["content_summary"])
+            summary_basis = str(manual_translation["summary_basis"])
+            title_zh_tw = str(manual_translation["title_zh_tw"])
+        else:
+            content_summary, summary_basis = (summary_overrides or {}).get(
+                candidate.work_id,
+                candidate_content_summary(candidate, max_chars=summary_max_chars),
+            )
+            title_zh_tw = ""
         event = qualifying_event(candidate, start, end, timezone)
         event_id = _event_id(candidate.work_id, event) if event is not None else ""
         if event is None:
@@ -3343,6 +3530,7 @@ def build_candidate_ledger(
             "work_id": candidate.work_id,
             "identity_status": "RESOLVED" if candidate.identifiers else "UNRESOLVED",
             "title": candidate.title,
+            **({"title_zh_tw": title_zh_tw} if title_zh_tw else {}),
             "category": candidate.category,
             "streams": sorted(set(candidate.observed_streams or [candidate.stream])),
             "discovery_sources": sorted(
@@ -4628,6 +4816,8 @@ def render_report(
         "protocol": "Protocol",
     }
     summary_labels = {
+        "CHATBOT_TITLE_AND_ABSTRACT_ZH_TW": "ChatGPT 題名＋來源摘要翻譯",
+        "CHATBOT_TITLE_ZH_TW": "ChatGPT 題名翻譯",
         "TRANSLATED_TITLE_AND_ABSTRACT_ZH_TW_OPENAI": "中文題名＋摘要簡述",
         "TRANSLATED_TITLE_ZH_TW_OPENAI": "中文題名翻譯",
         "TRANSLATED_TITLE_AND_ABSTRACT_ZH_TW_COPILOT": "中文題名＋摘要簡述",
@@ -4672,7 +4862,9 @@ def render_report(
             event = item.get("qualifying_event") or {}
             source_urls = [str(value) for value in item.get("source_urls", [])]
             primary_url = source_urls[0] if source_urls else ""
-            title_text = html.escape(str(item["title"]))
+            original_title = str(item["title"])
+            translated_title = str(item.get("title_zh_tw") or original_title)
+            title_text = html.escape(translated_title)
             title_html = title_text
             if primary_url:
                 title_html = (
@@ -4775,7 +4967,8 @@ def render_report(
             triage_class = triage_status.casefold().replace("_", "-")
             search_value = " ".join(
                 [
-                    str(item["title"]),
+                    original_title,
+                    translated_title,
                     summary_text,
                     authors,
                     venue,
@@ -4813,6 +5006,12 @@ def render_report(
                 f'<span class="score">排序分數 {int(item["routing_score"])}</span>'
                 '</div>'
                 f'<h3>{title_html}</h3>'
+                + (
+                    f'<p class="original-title"><b>英文原題</b> {html.escape(original_title)}</p>'
+                    if translated_title != original_title
+                    else ''
+                )
+                +
                 '<div class="source-chips" aria-label="Discovery sources">'
                 f'{source_badges}</div>'
                 '<section class="content-preview" aria-label="內容簡述">'
@@ -4977,6 +5176,9 @@ def render_report(
         if item.get("summary_basis") in {
             "TRANSLATED_ABSTRACT_EXCERPT_ZH_TW",
             "PROVIDER_ABSTRACT_ZH_TW",
+            "TRANSLATED_TITLE_AND_ABSTRACT_ZH_TW_OPENAI",
+            "TRANSLATED_TITLE_AND_ABSTRACT_ZH_TW_COPILOT",
+            "CHATBOT_TITLE_AND_ABSTRACT_ZH_TW",
         }
     ])
     oa_yes_total = sum(1 for item in displayed if item.get("oa_status") == "YES")
@@ -5360,12 +5562,14 @@ def execute(
     output_dir: Path,
     state_path: Path,
     runs_dir: Path | None = None,
-    end_at: datetime,
-    run_id: str,
+    end_at: datetime | None,
+    run_id: str | None,
     execution_lane: str,
     publisher_target_min: int | None = None,
     publisher_hard_max: int | None = None,
     protocol_commit: str | None = None,
+    translation_request_path: Path | None = None,
+    translation_response_path: Path | None = None,
     session: requests.Session | None = None,
     discoverer: Callable[..., Any] = discover_candidates,
     publisher_probe: Callable[..., tuple[list[tuple[Candidate, dict[str, Any]]], list[dict[str, Any]], list[str]]] = probe_publisher_pages,
@@ -5376,6 +5580,35 @@ def execute(
     deployment = load_yaml(root / "config" / "deployment.yml")
     timezone_name = str(output.get("window", {}).get("timezone", DEFAULT_TIMEZONE))
     timezone = ZoneInfo(timezone_name)
+    commit = _protocol_commit(root, protocol_commit)
+    handoff_request: dict[str, Any] | None = None
+    validated_translations: dict[str, dict[str, str]] | None = None
+    if translation_response_path is not None:
+        if translation_request_path is None:
+            raise RadarRuntimeError(
+                "--translation-response requires --translation-request"
+            )
+        try:
+            handoff_request = load_translation_request(translation_request_path)
+            validated_translations = load_and_validate_translation_response(
+                handoff_request, translation_response_path
+            )
+        except TranslationHandoffError as exc:
+            raise RadarRuntimeError(str(exc)) from exc
+        if handoff_request.get("execution_lane") != execution_lane:
+            raise RadarRuntimeError("translation request execution lane mismatch")
+        if handoff_request.get("protocol_commit") != commit:
+            raise RadarRuntimeError("translation request producer commit mismatch")
+        request_window = handoff_request.get("window") or {}
+        try:
+            end_at = datetime.fromisoformat(str(request_window["end"]))
+        except (KeyError, TypeError, ValueError) as exc:
+            raise RadarRuntimeError("translation request window end is invalid") from exc
+        run_id = str(handoff_request.get("run_id") or "")
+    if end_at is None:
+        end_at = datetime.now(timezone)
+    if not run_id:
+        run_id = "github-actions-" + end_at.astimezone(timezone).strftime("%Y%m%dT%H%M%S%z")
     if end_at.tzinfo is None:
         end_at = end_at.replace(tzinfo=timezone)
     else:
@@ -5390,14 +5623,21 @@ def execute(
     publisher_min = int(publisher_config.get("target_min_per_run", 10))
     publisher_max = int(publisher_config.get("hard_max_per_run", 15))
     session = session or requests.Session()
-    discovery = _coerce_discovery_result(
-        discoverer(streams, scoring, start, end_at, session=session),
-        scoring,
-    )
+    if handoff_request is not None:
+        discovery, publisher_access, publisher_warnings = _restore_resume_context(
+            handoff_request.get("resume_context")
+        )
+    else:
+        discovery = _coerce_discovery_result(
+            discoverer(streams, scoring, start, end_at, session=session),
+            scoring,
+        )
+        publisher_access = []
+        publisher_warnings = []
     all_candidates = discovery.all_candidates
     discovered = discovery.priority_candidates
     queries = discovery.queries
-    source_access = discovery.source_access
+    source_access = copy.deepcopy(discovery.source_access)
     # Custom/legacy discoverers sometimes returned the query ledger without
     # its parallel source_access record.  Normalize the same executor facts
     # into the access ledger so coverage, receipts and gaps cannot disagree.
@@ -5445,10 +5685,15 @@ def execute(
         for stream in streams.get("streams", {}).values()
         for source in stream.get("sources", [])
     }
+    discovery.source_access = copy.deepcopy(source_access)
     prior_state, base_hash, base_file_fingerprint = load_prior_state_snapshot(
         state_path,
         schema_path=root / "schemas" / "evidence-radar-state.schema.json",
     )
+    if handoff_request is not None and handoff_request.get("base_state_sha256") != base_hash:
+        raise RadarRuntimeError(
+            "canonical State changed after TranslationRequest creation; stale response rejected"
+        )
     history_status = (
         str(prior_state.get("history_status"))
         if prior_state and prior_state.get("history_status") in {"COMPLETE", "STATE_HISTORY_INCOMPLETE"}
@@ -5472,12 +5717,13 @@ def execute(
             event_candidates.append((candidate, event))
     event_candidates.sort(key=lambda item: (-item[0].score, item[0].work_id))
     probe_input = [candidate for candidate, _event in event_candidates]
-    successes, publisher_access, publisher_warnings = publisher_probe(
-        probe_input,
-        publisher_config,
-        session=session,
-        accessed_at=end_at,
-    )
+    if handoff_request is None:
+        _successes, publisher_access, publisher_warnings = publisher_probe(
+            probe_input,
+            publisher_config,
+            session=session,
+            accessed_at=end_at,
+        )
     # Keep legacy/custom probes compatible with the current ledger contract:
     # older fixtures returned only a URL and status.  Enrich those records by
     # matching the attempted URL to the event candidate without changing the
@@ -5499,10 +5745,13 @@ def execute(
             access_record.setdefault("candidate_title", matched.title)
             access_record.setdefault("category", matched.category)
     event_by_work = {candidate.work_id: event for candidate, event in event_candidates}
+    candidate_by_id = {candidate.work_id: candidate for candidate in all_candidates}
     selected = [
-        (candidate, event_by_work[candidate.work_id], access)
-        for candidate, access in successes
-        if candidate.work_id in event_by_work
+        (candidate_by_id[str(access.get("work_id"))], event_by_work[str(access.get("work_id"))], access)
+        for access in publisher_access
+        if str(access.get("status") or "") == "SUCCESS"
+        and str(access.get("work_id") or "") in candidate_by_id
+        and str(access.get("work_id") or "") in event_by_work
     ]
     access_by_work = {
         str(access.get("work_id")): access
@@ -5583,11 +5832,56 @@ def execute(
     rendering_config = output.get("rendering", {})
     if not isinstance(rendering_config, dict):
         raise RadarRuntimeError("output rendering configuration must be a mapping")
-    summary_overrides, summary_warnings = translate_candidate_summaries_zh_tw(
-        all_candidates,
-        rendering=rendering_config,
-        session=session,
-    )
+    summary_max_chars = int(rendering_config.get("candidate_summary_max_chars", 320))
+    manual_overrides: dict[str, dict[str, str]] | None = None
+    if handoff_request is not None:
+        _verify_request_candidate_binding(
+            handoff_request, all_candidates, max_chars=summary_max_chars
+        )
+        manual_overrides = _manual_translation_overrides(validated_translations or {})
+        summary_overrides: dict[str, tuple[str, str]] = {}
+        summary_warnings: list[dict[str, str]] = []
+    elif translation_request_path is not None:
+        resume_context = _freeze_resume_context(
+            discovery=discovery,
+            publisher_access=publisher_access,
+            publisher_warnings=publisher_warnings,
+        )
+        request = _build_translation_request(
+            run_id=run_id,
+            created_at=end_at,
+            start=start,
+            window_hours=window_hours,
+            execution_lane=execution_lane,
+            protocol_commit=commit,
+            base_state_sha256=base_hash,
+            candidates=all_candidates,
+            resume_context=resume_context,
+            max_chars=summary_max_chars,
+        )
+        try:
+            write_translation_request(translation_request_path, request)
+        except TranslationHandoffError as exc:
+            raise RadarRuntimeError(str(exc)) from exc
+        return {
+            "run_id": run_id,
+            "run_status": "TRANSLATION_REQUIRED",
+            "translation_request": str(translation_request_path),
+            "translation_request_sha256": request["request_sha256"],
+            "candidate_ledger": len(all_candidates),
+            "displayed_candidates": len(display_candidates),
+            "state_advanced": False,
+        }
+    else:
+        if str(os.environ.get("EVIDENCERADAR_REQUIRE_ZH_TITLE_TRANSLATION") or "").strip() == "1":
+            raise RadarRuntimeError(
+                "ordinary ChatGPT chatbot handoff is required; provide --translation-request"
+            )
+        summary_overrides, summary_warnings = translate_candidate_summaries_zh_tw(
+            all_candidates,
+            rendering=rendering_config,
+            session=session,
+        )
     candidate_records = build_candidate_ledger(
         all_candidates,
         start=start,
@@ -5596,10 +5890,9 @@ def execute(
         notified_event_ids=notified_event_ids,
         publisher_access=publisher_access,
         displayed_work_ids={candidate.work_id for candidate in display_candidates},
-        summary_max_chars=int(
-            rendering_config.get("candidate_summary_max_chars", 320)
-        ),
+        summary_max_chars=summary_max_chars,
         summary_overrides=summary_overrides,
+        manual_translation_overrides=manual_overrides,
     )
     selection_config = output.get("selection", {})
     featured_config = selection_config.get("featured", {})
@@ -5771,6 +6064,17 @@ def execute(
         protocol_commit=commit,
         base_state_sha256=base_hash,
     )
+    translated_titles = {
+        str(item["work_id"]): str(item["title_zh_tw"])
+        for item in candidate_records
+        if item.get("title_zh_tw")
+    }
+    for work in state.get("works", []):
+        work_id = str(work.get("work_id") or "")
+        if work_id in translated_titles:
+            work["title_zh_tw"] = translated_titles[work_id]
+    if handoff_request is not None:
+        state.setdefault("notes", []).append("CHATBOT_TRANSLATION_HANDOFF_V1")
     state["source_registry"] = copy.deepcopy(source_registry)
     state["source_observations"] = copy.deepcopy(source_observations)
     state["gaps"] = copy.deepcopy(gaps)
@@ -5860,7 +6164,15 @@ def execute(
             "summaries_translated_zh_tw": len([
                 item
                 for item in candidate_records
-                if item["summary_basis"] == "TRANSLATED_ABSTRACT_EXCERPT_ZH_TW"
+                if item["summary_basis"] in {
+                    "TRANSLATED_ABSTRACT_EXCERPT_ZH_TW",
+                    "TRANSLATED_TITLE_ZH_TW_OPENAI",
+                    "TRANSLATED_TITLE_AND_ABSTRACT_ZH_TW_OPENAI",
+                    "TRANSLATED_TITLE_ZH_TW_COPILOT",
+                    "TRANSLATED_TITLE_AND_ABSTRACT_ZH_TW_COPILOT",
+                    "CHATBOT_TITLE_ZH_TW",
+                    "CHATBOT_TITLE_AND_ABSTRACT_ZH_TW",
+                }
             ]),
             "summaries_fallback_zh_tw": len([
                 item
@@ -5899,6 +6211,7 @@ def execute(
             "SEMANTIC_CONTRACT_V2",
             "SEMANTIC_CONTRACT_V3",
             "STUDY_CLASSIFICATION_V1",
+            *( ["CHATBOT_TRANSLATION_HANDOFF_V1"] if handoff_request is not None else [] ),
             "GitHub Actions retains every deduplicated candidate in the Run ledger; publisher access limits network probes, not candidate visibility or value.",
             "The automated lane does not promote unreviewed scientific claims."
         ],
@@ -5983,6 +6296,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--publisher-target-min", type=int)
     parser.add_argument("--publisher-hard-max", type=int)
     parser.add_argument("--protocol-commit")
+    parser.add_argument(
+        "--translation-request",
+        type=Path,
+        help="Stage A output, or the immutable request paired with --translation-response",
+    )
+    parser.add_argument(
+        "--translation-response",
+        type=Path,
+        help="Stage B ordinary-chatbot response bound to --translation-request",
+    )
     return parser.parse_args(argv)
 
 
@@ -6007,6 +6330,12 @@ def main(argv: list[str] | None = None) -> int:
             publisher_target_min=args.publisher_target_min,
             publisher_hard_max=args.publisher_hard_max,
             protocol_commit=args.protocol_commit,
+            translation_request_path=(
+                args.translation_request.resolve() if args.translation_request else None
+            ),
+            translation_response_path=(
+                args.translation_response.resolve() if args.translation_response else None
+            ),
         )
     except (RadarRuntimeError, OSError, ValueError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
