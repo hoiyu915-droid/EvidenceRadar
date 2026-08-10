@@ -1,10 +1,11 @@
 {
   "artifact_type": "EvidenceRadar_TranslationCheckpoint",
   "batch_plan_sha256": "fd40f5d7b8d85f05fa4258d310dad803511138305fd36b0fa0a2bfcda8e70d35",
-  "checkpoint_sha256": "9f060a1d0fda7ff76d18addd7314803e180292f90da6c058fdd76af66640272b",
+  "checkpoint_sha256": "7e1b30a49d0254adfd93203799313555e4d486f61fa15c5eb3efbedfaba4fa02",
   "completed_batch_ids": [
     "a5632fef21cd9833af10358311c8f231124809748553a80ad39a94ca0e6894e0",
-    "7f96e31acd5eac68c6f3460c85f1c6183af7ed8e719341c84aaaf4c77a305040"
+    "7f96e31acd5eac68c6f3460c85f1c6183af7ed8e719341c84aaaf4c77a305040",
+    "63a473bd7b977752415512702da7e984c8346b6954edb6a265b6b8b3576bf45e"
   ],
   "items": [
     {
@@ -246,6 +247,126 @@
       "immutable_candidate_id": "arxiv_id:2608.07006",
       "summary_zh_tw": "研究檢視擴散語言模型（DLM）在視覺檢索增強生成中，增加檢索頁面與把全部頁面無條件交給生成器之差異，並以潛在來源分析探討平行去噪中的來源一致性損失及語意衝突。",
       "title_zh_tw": "檢索更多證據，是否有助於使用擴散語言模型的視覺檢索增強生成？"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.07009",
+      "summary_zh_tw": "研究提出 HiSparse，供稀疏注意力服務使用的精確、索引器無關階層式 KV 快取；完整 KV 歷史保留於主機記憶體，GPU 端採固定小型快取，融合 CUDA 核心在解碼圖內處理命中偵測、LRU 置換與主機至裝置擷取，並對跨層共享選擇的模型進行逐層預取。",
+      "title_zh_tw": "HiSparse：以階層式 KV 快取管理擴展稀疏注意力解碼"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.07014",
+      "summary_zh_tw": "研究以受控視覺預算下的回應軌跡表示每個凍結模型—項目配對，並在配對網格上建立設定互補性、有害轉換與文字覆寫的量測，以檢視整體穩定曲線可能掩蓋的項目層級相反變化。",
+      "title_zh_tw": "穩定曲線、不穩定項目：影片 LLMs 的項目層級縮放異質性"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.07019",
+      "summary_zh_tw": "研究提出 ReQuant，一種不需反向傳播的固定網格精煉程序；方法不依賴 PTQ 初始化器，以既有量化模型作為可行起點，在固定量化網格上反覆重訪離散權重配置。",
+      "title_zh_tw": "ReQuant：用於訓練後量化的固定網格離散精煉"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.07023",
+      "summary_zh_tw": "研究提出混合知識圖譜生成管線，將大型語言模型（LLM）落地於 Wikidata 多語知識圖譜（KG），並以代理式反思模式合成新興概念與中繼資料；已辨識概念連結至穩定 KG 實體，未辨識技能則動態建立節點與關係中繼資料。",
+      "title_zh_tw": "知識圖譜生成的代理式混合由上而下與由下而上方法"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.07036",
+      "summary_zh_tw": "研究提出 CAS2UML 公開資料集，含 557 張手繪 UML 圖，其中 271 張為類別圖、286 張為活動圖，皆配有人工驗證的 PlantUML 程式碼；另提供 PlantUML 驗證工具與可重用腳本，檢查生成 UML 產物的語法正確性及可渲染性。",
+      "title_zh_tw": "CAS2UML：用於類別圖與活動圖的手寫草圖至 PlantUML 資料集"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.07038",
+      "summary_zh_tw": "研究首次系統性檢視 LLM-as-a-Judge 在 HOBRE 的應用，涵蓋函式名稱復原、二進位程式碼摘要與反編譯最佳化三項代表性任務；並提出由專家標註、無參照且以多維人類判斷為基礎的 BinJudgeBench 評估基準。",
+      "title_zh_tw": "超越文字比對：邁向以人為本二進位逆向工程的無參照評估"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.07040",
+      "summary_zh_tw": "研究主張把複雜領域強制轉成線性限制，可能帶來過高建模複雜度並限制求解器彈性；因此提出 OptiDSL，把重心從僵化的 MILP 公式移至領域特定語言（DSL）表示。",
+      "title_zh_tw": "並非所有問題都最適合建模為 MILP：用於彈性且精確最佳化建模的 DSL-中心框架"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.07050",
+      "summary_zh_tw": "研究在二階算術中分析 Lévy-Montague 反射綱要 $\\mathsf{Rfn}$：對每個公式，要求每個集合都屬於一個可數編碼的 $ω$-模型，且公式在模型參數下於模型與宇宙間保持絕對性；並建構把可數 $\\mathsf{RCA}_0$ 模型擴張為含完整 $\\mathsf{Rfn}$ 的 $\\mathsf{WKL}_0$ 模型之方法。",
+      "title_zh_tw": "Lévy-Montague 反射在 $Π^1_1$ 上相對於 $\\mathsf{WKL}_0$ 是保守的"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.07076",
+      "summary_zh_tw": "研究評估解釋引導變形測試相較啟發式突變策略，是否能增進專用語言模型穩健性測試的效度；大型實證研究涵蓋三個資料集、四種模型架構，以及由歸因方法與突變策略組合出的 20 種測試設定。",
+      "title_zh_tw": "專用語言模型的解釋引導變形測試：一項實證研究"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.07088",
+      "summary_zh_tw": "研究提出免訓練的 RoRA，把視覺 token 剪枝表述為角色導向的區域證據配置；在固定預算下，將 token 分為受保護語意核心、互補情境與細緻細節。",
+      "title_zh_tw": "RoRA：MLLMs 視覺 token 剪枝的角色導向區域配置"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.07091",
+      "summary_zh_tw": "研究把 TinyML 部署的 XAI 方法選擇建模為人本多目標設計問題，同時納入利害關係人質性偏好、解釋品質與代理部署成本；框架以 LLM 引導介面把偏好映射至候選 XAI 方法，再進行確定性可行性篩選與 Pareto 最佳化。",
+      "title_zh_tw": "TinyML 邊緣裝置的人本可解釋 AI：具 LLM-引導設計的 Pareto 選擇框架"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.07093",
+      "summary_zh_tw": "研究提出 UncertaintyVis，在自動圖表生成時保留語言不確定性；形成性語料分析涵蓋 12 份文件、8 個領域的 211 個不確定性表達，建立表層形式正規化、精確度邊界、推論推導與不可推論缺口四類分類。",
+      "title_zh_tw": "UncertaintyVis：在自動文字轉圖表生成中保留語言不確定性"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.07117",
+      "summary_zh_tw": "研究以腰椎 MRI 診斷正確性為核心評測先進 VLM，並提出不依賴架構的框架：以半監督 U-Net++ 產生具空間定位、椎間盤層級的異常熱圖，加入 VLM 輸入，用以處理詞彙與語意指標未能充分反映臨床正確性的問題。",
+      "title_zh_tw": "超越流暢度：脊椎 MRI 報告生成的臨床基準與異常增強基線"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.07126",
+      "summary_zh_tw": "研究提出 PHOENIX（Predictive Health On-orbit Edge Neural Intelligence eXtension），在 CubeSat 的 Aethero NxN-ECM 電腦部署可於嵌入式硬體運行的微調小型語言模型（SLM），持續監測感測器讀值，並用儲存既往修復的記憶系統處理重複故障。",
+      "title_zh_tw": "PHOENIX：以微調 SLM-驅動的預測式自我修復與多代理 AI 復原，自主延長衛星壽命"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.07138",
+      "summary_zh_tw": "研究以模擬試運轉已成為降低現代光源設計與試運轉風險的重要方法為背景，聚焦目前程序完全由人類專家設計、晶格變更後需高勞力重建，因而難以重複並限制早期設計迭代使用的問題。",
+      "title_zh_tw": "加速器試運轉演算法的自主探索"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.07141",
+      "summary_zh_tw": "研究利用桌遊 Hues and Cues 的遊戲化離散色彩空間建立評估框架，把棋盤 480 個色格映射至 CIE xy 色度圖，並對涵蓋七個語意類別、經審慎挑選的 100 詞詞彙計算實證感知距離。",
+      "title_zh_tw": "透過遊玩 Hues and Cues 研究人類—AI 感知對齊"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.07148",
+      "summary_zh_tw": "研究以 MARL 為核心，探討大型語言模型（LLM）應在何處增強、介接、訓練或取代協調核心；分類架構依策略、獎勵設計、代理間通訊與階層式規劃四個 LLM 附著點整理文獻。",
+      "title_zh_tw": "智慧製造中大型語言模型增強的 MARL 中心參照架構"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.07167",
+      "summary_zh_tw": "研究提出 Niyam-AI，提供可密碼學驗證的安全執行機制；每次工作階段開始時，允許的工具與限制會鎖定於以 SHA-256 提交的 Intent Contract。",
+      "title_zh_tw": "NiyamAI——使用零知識證明、具密碼學可驗證護欄的意圖綁定 AI 代理"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.07169",
+      "summary_zh_tw": "研究提出免訓練的代理記憶蒸餾（AMD），透過階層式記憶把大型教師代理的結構化知識轉移至小型學生代理；從成功教師軌跡建立工作流程、子任務與函式三種互補記憶，分別編碼任務策略、行為範例及函式呼叫慣例與常見陷阱。",
+      "title_zh_tw": "代理記憶蒸餾：以階層式教師記憶賦能小型 LLM 代理"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.07193",
+      "summary_zh_tw": "研究旨在建立視覺 token 剪枝的 AI4AI 框架，檢視大型語言模型能否自動設計有效的視覺 token 縮減演算法，並處理 LLM 的通用演算法知識與推理能力難以直接轉化為專門任務解法的問題。",
+      "title_zh_tw": "視覺 token 剪枝的 AI4AI 框架"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.07196",
+      "summary_zh_tw": "研究提出 EMAS（Evolving Multi-Agent System），在不更新 LLM 參數下，利用經驗修訂 MAS 拓撲與提示詞；方法把軌跡轉為結構化診斷，明確指定修訂操作與目標，以支援準確度或成本導向的調整。",
+      "title_zh_tw": "EMAS：以證據引導修訂穩定多代理系統演化"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.07208",
+      "summary_zh_tw": "研究探討凍結、開箱即用 LLM 的活化所承載的內部知識，能否取代任務特定微調以量測概念內容，並比較擷取方法；方法使用 Recursive Feature Machine（RFM）與線性探測，對照嵌入基線、表層基線及模型自身回答。",
+      "title_zh_tw": "從 LLM 活化量測文字中的概念內容：來自概念向量與線性探針的 ESG 證據"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.07214",
+      "summary_zh_tw": "研究把現代 AI 視為由傳統 ML 預測器、深度與多模態模型、大型語言模型及代理構成的生態系；各元件依不同資料來源訓練調整並相互提供大規模輸出，因此其運作被界定為需持續協調異質、獨立治理且分散知識來源的資料整合問題。",
+      "title_zh_tw": "邁向支援決策與代理式 AI 的因果資料管理生態系"
+    },
+    {
+      "immutable_candidate_id": "arxiv_id:2608.07222",
+      "summary_zh_tw": "研究提出 Skaling law，以單一交互作用指數耦合模型容量與資料，作為廣義函數形式，用於同時表達兩者對縮放關係的影響。",
+      "title_zh_tw": "Skaling：Chinchilla 的指數遇上 Kaplan 的耦合"
     }
   ],
   "request_sha256": "6b9a558e0472a5adba4154ee83acd93789cbbca816ab51017726fd8c694b2d92",
