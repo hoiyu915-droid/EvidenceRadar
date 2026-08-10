@@ -1,1 +1,1 @@
-Inspect latest main workflow run status after Runtime v1.0.1 merge.
+Inspect latest main workflow run status after zh-TW publication-mode scoping fix and independently verify Runtime v1.0.1 release assets. Sequence: 2.
