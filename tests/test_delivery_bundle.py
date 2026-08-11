@@ -87,6 +87,9 @@ def create_bundle(
                 "accessed_at": end_at.isoformat(),
                 "status": "SUCCESS" if source == "pubmed" else "NO_RESULTS",
                 "result_count": 1 if source == "pubmed" else 0,
+                "http_requests_attempted": 1,
+                "http_responses_received": 1,
+                "cache_reused": False,
             }
             for source in sorted(discovery_sources)
         ]
@@ -123,6 +126,9 @@ def create_bundle(
             "candidate_title": item.title,
             "category": item.category,
             "http_status": 200,
+            "http_requests_attempted": 1,
+            "http_responses_received": 1,
+            "cache_reused": False,
         }
         return [(item, access)], [access], []
 
