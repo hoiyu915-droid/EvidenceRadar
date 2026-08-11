@@ -36,6 +36,30 @@
       "type": "string",
       "minLength": 1
     },
+    "profile_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "resolved_stream_ids": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "resolved_source_ids": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "master_control_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "runtime_request_sha256": {
+      "type": ["string", "null"],
+      "pattern": "^[0-9a-f]{64}$"
+    },
     "started_at": {
       "type": "string",
       "format": "date-time"
@@ -377,7 +401,7 @@
           "items": { "type": "string", "minLength": 1 }
         },
         "publisher_target_min": { "type": "integer", "minimum": 0, "maximum": 15 },
-        "publisher_hard_max": { "type": "integer", "minimum": 1, "maximum": 15 }
+        "publisher_hard_max": { "type": "integer", "minimum": 0, "maximum": 15 }
       }
     },
     "topic_alignment": {
@@ -434,6 +458,64 @@
         "result_count": {
           "type": "integer",
           "minimum": 0
+        },
+        "retrieval_complete": {
+          "type": "boolean"
+        },
+        "retrieval_backend": {
+          "type": "string",
+          "minLength": 1
+        },
+        "feed_entry_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "registry_record_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unusable_record_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "window_record_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "inventory_url": {
+          "type": "string",
+          "pattern": "^https?://\\S+$"
+        },
+        "inventory_pages_requested": {
+          "description": "Provider inventory HTTP pages requested once per cached feed/registry snapshot.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "inventory_pages_received": {
+          "description": "Provider inventory HTTP pages received once per cached feed/registry snapshot.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "http_requests_attempted": {
+          "description": "Actual HTTP requests attempted by this executor operation, including retries and pagination.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "http_responses_received": {
+          "description": "Actual HTTP responses returned to this executor operation.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "cache_reused": {
+          "description": "True only when this operation evaluated an inventory fetched earlier in the same run without new HTTP I/O.",
+          "type": "boolean"
+        },
+        "observation_errors": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
         },
         "work_id": {
           "type": "string",

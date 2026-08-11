@@ -39,6 +39,19 @@ class TranslationPublicationScopeTests(unittest.TestCase):
         self.assertNotIn("EVIDENCERADAR_REQUIRE_ZH_TITLE_TRANSLATION", validation_block)
         self.assertNotIn("GITHUB_TOKEN:", validation_block)
 
+    def test_formal_stage_a_validates_but_never_rewrites_runtime_inputs(self) -> None:
+        master_commands = [
+            line.strip()
+            for line in self.workflow.splitlines()
+            if line.strip().startswith("python tools/apply_master_")
+        ]
+        self.assertEqual(2, len(master_commands))
+        for command in master_commands:
+            self.assertIn("--check", command)
+        self.assertGreaterEqual(
+            self.workflow.count("git diff --exit-code -- tools config"), 2
+        )
+
 
 if __name__ == "__main__":  # pragma: no cover
     unittest.main()

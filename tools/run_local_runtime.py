@@ -113,6 +113,7 @@ def build_runner_command(
     output_dir: Path,
     runs_dir: Path | None,
     protocol_commit: str,
+    profile: str,
     end_at: str | None,
     run_id: str | None,
     publisher_target_min: int | None,
@@ -133,6 +134,8 @@ def build_runner_command(
         "github_actions",
         "--protocol-commit",
         protocol_commit,
+        "--profile",
+        profile,
     ]
     if runs_dir is not None:
         command.extend(["--runs-dir", str(runs_dir)])
@@ -262,6 +265,7 @@ def execute_local_runtime(args: argparse.Namespace) -> dict[str, Any]:
             output_dir=output_dir,
             runs_dir=runs_dir,
             protocol_commit=protocol_commit,
+            profile=args.profile,
             end_at=args.end_at,
             run_id=args.run_id,
             publisher_target_min=args.publisher_target_min,
@@ -316,6 +320,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--receipt", type=Path, help="external Runtime execution receipt path")
     parser.add_argument("--end-at", help="optional ISO-8601 run-window end passed to the canonical producer")
     parser.add_argument("--run-id", help="optional explicit run ID")
+    parser.add_argument(
+        "--profile",
+        default="owner_daily",
+        help="master-control profile passed to the canonical producer",
+    )
     parser.add_argument("--publisher-target-min", type=int)
     parser.add_argument("--publisher-hard-max", type=int)
     parser.add_argument(

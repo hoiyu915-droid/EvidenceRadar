@@ -56,6 +56,27 @@ _IDENTIFIER_FIELDS = (
 )
 _DEFAULT_DEDUPE_PRIORITY = _IDENTIFIER_FIELDS + ("normalized_title",)
 _ALLOWED_LANES = {"github_actions", "chatgpt_work"}
+_MASTER_CONTROL_FIELDS = (
+    "profile_id",
+    "resolved_stream_ids",
+    "resolved_source_ids",
+    "master_control_sha256",
+    "runtime_request_sha256",
+)
+_FORMAL_DOCUMENT_TYPES = {
+    "journal_article",
+    "conference_paper",
+    "protocol",
+    "guideline",
+}
+_FORMAL_PROVIDER_TYPES = {
+    "journal article",
+    "conference paper",
+    "conference proceedings",
+    "proceedings article",
+    "protocol",
+    "guideline",
+}
 _STATE_REQUIRED = {
     "schema_version",
     "artifact_type",
@@ -296,16 +317,6 @@ class _UnionFind:
         self.parent[right_root] = left_root
 
 
-def _identities_match_on_title(left: Mapping[str, str], right: Mapping[str, str]) -> bool:
-    """Return whether title fallback is safe for a pair of records."""
-
-    for field in _IDENTIFIER_FIELDS:
-        left_value, right_value = left.get(field), right.get(field)
-        if left_value and right_value and left_value != right_value:
-            return False
-    return True
-
-
 def _group_work_indexes(
     works: Sequence[Mapping[str, Any]], priority: Sequence[str]
 ) -> tuple[_UnionFind, list[dict[str, str]]]:
@@ -344,6 +355,19 @@ def _group_work_indexes(
         component_values[merged_root] = merged_values
         component_values[discarded_root] = {}
 
+    # The same canonical work_id is safe to union and catches deterministic
+    # title-hash identities without treating the title itself as evidence.
+    by_work_id: dict[str, int] = {}
+    for index, work in enumerate(works):
+        work_id = str(work.get("work_id") or "").casefold().strip()
+        if not work_id:
+            continue
+        previous = by_work_id.get(work_id)
+        if previous is None:
+            by_work_id[work_id] = index
+        else:
+            union_checked(previous, index, matched_on="work_id")
+
     # Strong identifiers are safe to union directly.  The priority controls
     # lookup order and tie-breaking, while every declared identifier remains a
     # usable alias for an observed work.
@@ -362,29 +386,9 @@ def _group_work_indexes(
             else:
                 union_checked(previous, index, matched_on=field)
 
-    # Title fallback is only used when it cannot bridge two independently
-    # identified works.  This avoids merging two different DOI records merely
-    # because a short title happens to be identical, while still allowing a
-    # title-only stale record to join the one identified component it matches.
-    by_title: dict[str, list[int]] = defaultdict(list)
-    for index, item in enumerate(tokens):
-        title = item.get("normalized_title")
-        if title:
-            by_title[title].append(index)
-    for indexes in by_title.values():
-        components = {union.find(index) for index in indexes if any(tokens[index].get(f) for f in _IDENTIFIER_FIELDS)}
-        if len(components) > 1:
-            # Conflicting identifiers under one title are retained separately.
-            continue
-        if len(components) == 1:
-            anchor = next(iter(components))
-            for index in indexes:
-                if _identities_match_on_title(tokens[anchor], tokens[index]):
-                    union_checked(anchor, index, matched_on="normalized_title")
-        else:
-            anchor = indexes[0]
-            for index in indexes[1:]:
-                union_checked(anchor, index, matched_on="normalized_title")
+    # A title alone is never an identity edge.  State lacks sufficiently
+    # reliable author/date/venue evidence to distinguish generic headings, so
+    # differently keyed title-only records remain separate for review.
     return union, tokens
 
 
@@ -486,9 +490,13 @@ def _merge_work(records: Sequence[Mapping[str, Any]], tokens: Sequence[Mapping[s
         "provider_publication_types",
         "study_designs",
     )
+    always_present_list_fields = {
+        "provider_publication_types",
+        "study_designs",
+    }
     for field in list_fields:
         values = [value for record in records for value in (record.get(field) or [])]
-        if values:
+        if values or field in always_present_list_fields:
             merged[field] = _stable_unique(values, text=True)
     category = _latest_value(records, "category")
     if category is not None:
@@ -496,11 +504,58 @@ def _merge_work(records: Sequence[Mapping[str, Any]], tokens: Sequence[Mapping[s
     title_zh_tw = _latest_value(records, "title_zh_tw")
     if title_zh_tw is not None:
         merged["title_zh_tw"] = title_zh_tw
-    for field in ("open_access", "is_preprint"):
-        values = [record[field] for record in records if isinstance(record.get(field), bool)]
-        if values:
-            merged[field] = any(values)
-    for field in ("document_type", "document_type_basis", "study_design_basis"):
+    open_access_values = [
+        record["open_access"]
+        for record in records
+        if isinstance(record.get("open_access"), bool)
+    ]
+    if open_access_values:
+        merged["open_access"] = any(open_access_values)
+    formal_records = [
+        record
+        for record in records
+        if str(record.get("document_type") or "") in _FORMAL_DOCUMENT_TYPES
+        or any(
+            str(value).casefold() in _FORMAL_PROVIDER_TYPES
+            for value in (record.get("provider_publication_types") or [])
+        )
+    ]
+    preprint_values = [
+        record["is_preprint"]
+        for record in records
+        if isinstance(record.get("is_preprint"), bool)
+    ]
+    if preprint_values or formal_records:
+        merged["is_preprint"] = False if formal_records else any(preprint_values)
+    for field in ("document_type", "document_type_basis"):
+        classification_records = formal_records or records
+        informative = [
+            record
+            for record in classification_records
+            if record.get(field) not in (None, "", "unknown", "UNKNOWN")
+        ]
+        value = _latest_value(informative or classification_records, field)
+        if value is not None:
+            merged[field] = value
+    if formal_records and merged.get("document_type") not in _FORMAL_DOCUMENT_TYPES:
+        formal_types = {
+            str(value).casefold()
+            for value in merged.get("provider_publication_types", [])
+        }
+        if formal_types & {"protocol"}:
+            merged["document_type"] = "protocol"
+        elif formal_types & {"guideline"}:
+            merged["document_type"] = "guideline"
+        elif formal_types & {
+            "conference paper",
+            "conference proceedings",
+            "proceedings article",
+        }:
+            merged["document_type"] = "conference_paper"
+        else:
+            merged["document_type"] = "journal_article"
+        merged["document_type_basis"] = "PROVIDER_METADATA"
+    for field in ("study_design_basis",):
         informative = [
             record
             for record in records
@@ -509,6 +564,9 @@ def _merge_work(records: Sequence[Mapping[str, Any]], tokens: Sequence[Mapping[s
         value = _latest_value(informative or records, field)
         if value is not None:
             merged[field] = value
+    event_class = _latest_value(records, "event_class")
+    if event_class is not None:
+        merged["event_class"] = event_class
 
     # OA is a publication/repository property and must never be inferred from
     # whether this particular run could open the full text.  Preserve a
@@ -1044,6 +1102,8 @@ def _merge_provenance(
     execution_lane: str | None,
     protocol_commit: str | None,
     parent_run_ids: Iterable[str],
+    result_run_id: str | None,
+    result_state: Mapping[str, Any],
 ) -> JsonObject:
     # The public artifact contract keeps provenance fields at the top level so
     # a Work author can inspect them without dereferencing a second object.
@@ -1051,12 +1111,17 @@ def _merge_provenance(
     # participate in a merge while it is being upgraded.
     base_provenance = base.get("provenance") if isinstance(base.get("provenance"), Mapping) else base
     incoming_provenance = incoming.get("provenance") if isinstance(incoming.get("provenance"), Mapping) else incoming
+    result_provenance = (
+        result_state.get("provenance")
+        if isinstance(result_state.get("provenance"), Mapping)
+        else result_state
+    )
     supplied = provenance if isinstance(provenance, Mapping) else {}
 
-    lane = execution_lane or supplied.get("execution_lane") or incoming_provenance.get("execution_lane") or base_provenance.get("execution_lane") or "chatgpt_work"
+    lane = execution_lane or supplied.get("execution_lane") or result_provenance.get("execution_lane") or "chatgpt_work"
     if lane not in _ALLOWED_LANES:
         raise StateMergeError(f"execution_lane must be one of {sorted(_ALLOWED_LANES)!r}")
-    commit = protocol_commit or supplied.get("protocol_commit") or incoming_provenance.get("protocol_commit") or base_provenance.get("protocol_commit") or "unknown"
+    commit = protocol_commit or supplied.get("protocol_commit") or result_provenance.get("protocol_commit") or "unknown"
     if not isinstance(commit, str) or not commit.strip():
         raise StateMergeError("protocol_commit must be a non-empty string")
 
@@ -1070,12 +1135,55 @@ def _merge_provenance(
         if isinstance(run_id, str) and run_id.strip():
             parents.append(run_id)
     parents.extend(str(item) for item in parent_run_ids if str(item).strip())
-    return {
+    merged: JsonObject = {
         "execution_lane": lane,
         "protocol_commit": commit,
         "base_state_sha256": state_sha256(base),
-        "parent_run_ids": _stable_unique(parents, text=True),
+        "parent_run_ids": [
+            run_id
+            for run_id in _stable_unique(parents, text=True)
+            if run_id != result_run_id
+        ],
     }
+
+    supplied_master_fields = {
+        field for field in _MASTER_CONTROL_FIELDS if field in supplied
+    }
+    if supplied_master_fields:
+        missing = sorted(set(_MASTER_CONTROL_FIELDS) - supplied_master_fields)
+        if missing:
+            raise StateMergeError(
+                "supplied provenance has incomplete master-control bindings: "
+                + ", ".join(missing)
+            )
+        master_source: Mapping[str, Any] | None = supplied
+    else:
+        for state in (base, incoming):
+            present = {field for field in _MASTER_CONTROL_FIELDS if field in state}
+            if present and present != set(_MASTER_CONTROL_FIELDS):
+                missing = sorted(set(_MASTER_CONTROL_FIELDS) - present)
+                raise StateMergeError(
+                    "state has incomplete master-control bindings: "
+                    + ", ".join(missing)
+                )
+        result_master_fields = {
+            field for field in _MASTER_CONTROL_FIELDS if field in result_state
+        }
+        if result_master_fields and result_master_fields != set(_MASTER_CONTROL_FIELDS):
+            missing = sorted(set(_MASTER_CONTROL_FIELDS) - result_master_fields)
+            raise StateMergeError(
+                "result state has incomplete master-control bindings: "
+                + ", ".join(missing)
+            )
+        # Top-level provenance is one snapshot.  Never combine a newer legacy
+        # run_id/lane/commit with master or translation bindings copied from an
+        # older state; an explicit complete provenance object is required to
+        # establish new bindings during promotion.
+        master_source = result_state if result_master_fields else None
+    if master_source is not None:
+        for field in _MASTER_CONTROL_FIELDS:
+            merged[field] = copy.deepcopy(master_source[field])
+    return merged
 
 
 def merge_states(
@@ -1193,6 +1301,8 @@ def merge_states(
             execution_lane=execution_lane,
             protocol_commit=protocol_commit,
             parent_run_ids=parent_run_ids,
+            result_run_id=str(last_run_id) if last_run_id else None,
+            result_state=generated,
         ))
     if history_notes:
         result["history_note"] = " | ".join(str(note) for note in history_notes)

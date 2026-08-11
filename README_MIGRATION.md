@@ -6,7 +6,7 @@ EvidenceRadar now separates the global source catalog from the sources selected 
 
 `config/radar_master.json` owns source identities and capabilities, reusable source groups, the scholarly taxonomy, routing categories, stream-to-source routing, profiles and runtime limits. Existing query text and non-category scoring policy remain compatibility inputs during this migration. Adapter implementation remains code; JSON selects which implemented adapter a source uses.
 
-`tools/radar_control.py` validates and compiles source/profile routing into the runtime source-check contract, stream set, scoring categories, category thresholds, source endpoints and adapter mapping. `tools/apply_master_runtime_config.py` separately validates and projects the selected profile's effective limits into the disposable compatibility configs. `tools/generate_legacy_config.py` can still project `streams.yml` and `scoring.yml` while downstream consumers migrate.
+`tools/radar_control.py` validates and compiles source/profile routing into the runtime source-check contract, stream set, scoring categories, category thresholds, source endpoints, adapter mapping and effective limits. The canonical runner consumes that compiled result in memory. `tools/apply_master_runtime_config.py` remains only as a legacy inspection/projection utility; formal execution never mutates producer or config bytes.
 
 ## OA-biased source catalog
 
@@ -40,11 +40,11 @@ Featured selection has a separate ranking pool (default 30 candidates per catego
 
 Publisher verification remains an independent network budget: target/hard/per-domain 10/15/2 by default. The old `streams.yml` `hard_max_per_category` value is not projected into runtime configuration.
 
-`tools/apply_master_runtime_config.py` materializes profile-derived discovery, ranking, featured and publisher limits into a disposable runtime checkout. Scheduled production resolves `owner_daily`; explicit workflow-dispatch publisher limits remain manual run overrides.
+The runner projects profile-derived discovery, ranking, featured and publisher limits in memory. Scheduled production resolves `owner_daily`; explicit workflow-dispatch publisher limits remain manual run overrides.
 
 ## Runtime migration bridge
 
-`tools/apply_master_control_runtime.py` remains the fail-closed, versioned bridge for the existing monolithic runner. The daily workflow first materializes profile limits, then applies the source-routing bridge before Stage A. Exact replacement-point drift aborts instead of silently falling back to legacy hard-coded behavior.
+Master-control support is checked into the monolithic runner, so Stage A, Stage B, Work Pack and Runtime execute identical producer bytes. `tools/apply_master_control_runtime.py --check` is a validator-only, fail-closed integration guard; its historical write/upgrade mode is retired because it could create a partially integrated producer. Missing `radar_master.json` aborts; there is no implicit legacy nine-source fallback.
 
 ## Delivery naming
 

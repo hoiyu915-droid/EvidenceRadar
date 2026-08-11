@@ -6,7 +6,7 @@ import xml.etree.ElementTree as ET
 from datetime import date, datetime
 from email.utils import parsedate_to_datetime
 from typing import Any
-from urllib.parse import urljoin
+from urllib.parse import quote, urljoin
 
 
 ATOM = "{http://www.w3.org/2005/Atom}"
@@ -14,10 +14,30 @@ DC = "{http://purl.org/dc/elements/1.1/}"
 PRISM_1 = "{http://prismstandard.org/namespaces/1.2/basic/}"
 PRISM_2 = "{http://prismstandard.org/namespaces/basic/2.0/}"
 QUERY_STOPWORDS = {"and", "or", "not", "the", "a", "an", "of", "to", "for", "in", "on"}
+CROSSREF_JOURNAL_WORKS = "https://api.crossref.org/journals/{issn}/works"
+CROSSREF_ROWS = 1000
+CROSSREF_MAX_PAGES = 25
 
 
 class PublisherFeedError(RuntimeError):
-    pass
+    """Bounded publisher-inventory failure with auditable progress metadata."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        inventory_url: str = "",
+        pages_requested: int = 0,
+        pages_received: int = 0,
+        partial_records: list[dict[str, Any]] | None = None,
+        unusable_record_count: int = 0,
+    ) -> None:
+        super().__init__(message)
+        self.inventory_url = inventory_url
+        self.pages_requested = pages_requested
+        self.pages_received = pages_received
+        self.partial_records = list(partial_records or [])
+        self.unusable_record_count = unusable_record_count
 
 
 def _text(node: ET.Element | None) -> str:
@@ -62,13 +82,29 @@ def _matches_query(text: str, query: str) -> bool:
         return True
     haystack = _strip_markup(text).casefold()
     quoted = [part.casefold().strip() for part in re.findall(r'"([^\"]{2,})"', query)]
-    if quoted and any(part in haystack for part in quoted):
+    if quoted and any(_contains_term(haystack, part) for part in quoted):
         return True
     tokens = [
         token for token in re.findall(r"[a-z0-9][a-z0-9_-]{1,}", query.casefold())
         if token not in QUERY_STOPWORDS
     ]
-    return not tokens or any(token.rstrip("*") in haystack for token in tokens)
+    return not tokens or any(_contains_term(haystack, token) for token in tokens)
+
+
+def _contains_term(haystack: str, raw_term: str) -> bool:
+    """Match a token/phrase on alphanumeric boundaries, with optional suffix wildcard."""
+
+    term = re.sub(r"\s+", " ", str(raw_term or "").casefold()).strip()
+    if not term:
+        return False
+    wildcard = term.endswith("*")
+    term = term.rstrip("*")
+    pieces = [re.escape(piece) for piece in term.split() if piece]
+    if not pieces:
+        return False
+    body = r"\s+".join(pieces)
+    suffix = "" if wildcard else r"(?![a-z0-9])"
+    return re.search(rf"(?<![a-z0-9]){body}{suffix}", haystack) is not None
 
 
 def _first_text(parent: ET.Element, paths: list[str]) -> str:
@@ -96,7 +132,13 @@ def _doi(parent: ET.Element) -> str:
     return match.group(0).rstrip(" .") if match else ""
 
 
-def parse_feed(text: str, *, feed_url: str, source_id: str) -> list[dict[str, Any]]:
+def parse_feed(
+    text: str,
+    *,
+    feed_url: str,
+    source_id: str,
+    observation: dict[str, int] | None = None,
+) -> list[dict[str, Any]]:
     try:
         root = ET.fromstring(text)
     except ET.ParseError as exc:
@@ -105,26 +147,35 @@ def parse_feed(text: str, *, feed_url: str, source_id: str) -> list[dict[str, An
     records: list[dict[str, Any]] = []
     root_name = root.tag.rsplit("}", 1)[-1].casefold()
     if root_name == "feed":
-        for entry in root.findall(f"{ATOM}entry"):
+        entries = root.findall(f"{ATOM}entry")
+        if observation is not None:
+            observation["raw_entry_count"] = len(entries)
+        for entry in entries:
             title = _text(entry.find(f"{ATOM}title"))
             if not title:
+                if observation is not None:
+                    observation["normalization_failures"] = (
+                        observation.get("normalization_failures", 0) + 1
+                    )
                 continue
             link = ""
             for node in entry.findall(f"{ATOM}link"):
                 if (node.attrib.get("rel") or "alternate") == "alternate" and node.attrib.get("href"):
                     link = str(node.attrib["href"])
                     break
-            published_raw = _first_text(entry, [f"{ATOM}published", f"{ATOM}updated"])
+            published_raw = _text(entry.find(f"{ATOM}published"))
+            updated_raw = _text(entry.find(f"{ATOM}updated"))
             records.append({
                 "title": title,
                 "landing_url": urljoin(feed_url, link),
                 "publication_date": _normalized_date(published_raw),
                 "published_raw": published_raw,
+                "updated_raw": updated_raw,
                 "summary": _strip_markup(_first_text(entry, [f"{ATOM}summary", f"{ATOM}content"])),
                 "authors": [_text(node.find(f"{ATOM}name")) for node in entry.findall(f"{ATOM}author") if _text(node.find(f"{ATOM}name"))],
                 "venue": "",
                 "doi": _doi(entry),
-                "source_field": "atom:published" if entry.find(f"{ATOM}published") is not None else "atom:updated",
+                "source_field": "atom:published" if published_raw else "",
                 "feed_url": feed_url,
                 "source_id": source_id,
             })
@@ -134,9 +185,15 @@ def parse_feed(text: str, *, feed_url: str, source_id: str) -> list[dict[str, An
     items = [node for node in root.iter() if node.tag.rsplit("}", 1)[-1].casefold() == "item"]
     if not items:
         raise PublisherFeedError(f"feed {source_id} contains no recognizable entries")
+    if observation is not None:
+        observation["raw_entry_count"] = len(items)
     for item in items:
         title = _first_text(item, [f"{DC}title"]) or _first_local(item, ["title"])
         if not title:
+            if observation is not None:
+                observation["normalization_failures"] = (
+                    observation.get("normalization_failures", 0) + 1
+                )
             continue
         link = _first_local(item, ["link"]) or _first_text(item, [f"{DC}identifier"])
         published_raw = _first_text(item, [f"{DC}date", f"{PRISM_2}publicationDate", f"{PRISM_1}publicationDate"]) or _first_local(item, ["pubDate", "date", "publicationDate"])
@@ -156,6 +213,316 @@ def parse_feed(text: str, *, feed_url: str, source_id: str) -> list[dict[str, An
     return records
 
 
+def _crossref_date(item: dict[str, Any]) -> tuple[str, str]:
+    for field in ("published-online", "published", "published-print", "issued"):
+        block = item.get(field)
+        if not isinstance(block, dict):
+            continue
+        parts = block.get("date-parts")
+        if not isinstance(parts, list) or not parts or not isinstance(parts[0], list):
+            continue
+        values = parts[0]
+        try:
+            year = int(values[0])
+            month = int(values[1]) if len(values) > 1 else 1
+            day = int(values[2]) if len(values) > 2 else 1
+            return date(year, month, day).isoformat(), f"crossref:{field}"
+        except (TypeError, ValueError, IndexError):
+            continue
+    return "", ""
+
+
+def _crossref_record(item: Any, *, source_id: str, issn: str) -> dict[str, Any] | None:
+    if not isinstance(item, dict):
+        return None
+    title_values = item.get("title")
+    title = (
+        _strip_markup(str(title_values[0]))
+        if isinstance(title_values, list) and title_values
+        else ""
+    )
+    if not title:
+        return None
+    publication_date, source_field = _crossref_date(item)
+    doi = str(item.get("DOI") or "").strip()
+    landing_url = str(item.get("URL") or "").strip()
+    if not landing_url and doi:
+        landing_url = f"https://doi.org/{quote(doi, safe='/')}"
+    authors: list[str] = []
+    for author in item.get("author", []):
+        if not isinstance(author, dict):
+            continue
+        name = " ".join(
+            part for part in (str(author.get("given") or "").strip(), str(author.get("family") or "").strip())
+            if part
+        )
+        if name:
+            authors.append(name)
+    container = item.get("container-title")
+    venue = str(container[0]).strip() if isinstance(container, list) and container else ""
+    return {
+        "title": title,
+        "landing_url": landing_url,
+        "publication_date": publication_date,
+        "published_raw": publication_date,
+        "summary": _strip_markup(str(item.get("abstract") or "")),
+        "authors": authors,
+        "venue": venue,
+        "doi": doi,
+        "source_field": source_field,
+        "feed_url": CROSSREF_JOURNAL_WORKS.format(issn=quote(issn, safe="")),
+        "source_id": source_id,
+        # Crossref is a publisher-deposited registry, not the publisher's
+        # first-party feed.  Keep this distinction schema-compatible all the
+        # way into notified-event provenance.
+        "event_confidence": "publisher_supplied_citation",
+    }
+
+
+def _record_title_key(value: Any) -> str:
+    return re.sub(r"[^a-z0-9]+", "", _strip_markup(str(value or "")).casefold())
+
+
+def _record_aliases(record: dict[str, Any]) -> list[tuple[str, str]]:
+    """Return strong provider-record identities.
+
+    Titles are deliberately excluded.  Journal feeds commonly reuse headings
+    such as ``Editorial`` or ``Introduction`` and a title collision must not
+    collapse two real publications before the runtime's candidate deduper can
+    inspect richer metadata.
+    """
+
+    aliases: list[tuple[str, str]] = []
+    doi = str(record.get("doi") or "").casefold().strip()
+    landing_url = str(record.get("landing_url") or "").casefold().rstrip("/")
+    if doi:
+        aliases.append(("doi", doi))
+    if landing_url:
+        aliases.append(("url", landing_url))
+    return aliases
+
+
+_GENERIC_RECORD_TITLES = {
+    "abstract",
+    "announcement",
+    "contents",
+    "correction",
+    "editorial",
+    "erratum",
+    "foreword",
+    "introduction",
+    "news",
+    "preface",
+}
+
+
+def _record_title_is_informative(record: dict[str, Any]) -> bool:
+    raw_title = _strip_markup(str(record.get("title") or "")).strip()
+    words = re.findall(r"[a-z0-9]+", raw_title.casefold())
+    return (
+        _record_title_key(raw_title) not in _GENERIC_RECORD_TITLES
+        and len(words) >= 3
+        and len(_record_title_key(raw_title)) >= 12
+    )
+
+
+def _records_share_supported_title_identity(
+    current: dict[str, Any], incoming: dict[str, Any]
+) -> bool:
+    """Permit title bridging only with date and bibliographic corroboration."""
+
+    if (
+        not _record_title_is_informative(current)
+        or not _record_title_is_informative(incoming)
+        or _record_title_key(current.get("title"))
+        != _record_title_key(incoming.get("title"))
+    ):
+        return False
+    current_date = str(current.get("publication_date") or "")[:10]
+    incoming_date = str(incoming.get("publication_date") or "")[:10]
+    if not current_date or current_date != incoming_date:
+        return False
+    current_authors = {
+        _record_title_key(value) for value in current.get("authors", []) if value
+    }
+    incoming_authors = {
+        _record_title_key(value) for value in incoming.get("authors", []) if value
+    }
+    author_match = bool(current_authors & incoming_authors)
+    current_venue = _record_title_key(current.get("venue"))
+    incoming_venue = _record_title_key(incoming.get("venue"))
+    venue_match = bool(current_venue and current_venue == incoming_venue)
+    return author_match or venue_match
+
+
+def _merge_feed_and_registry_records(
+    feed_records: list[dict[str, Any]],
+    registry_records: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Merge one provider inventory while preserving first-party RSS values."""
+
+    merged: list[dict[str, Any]] = []
+    alias_index: dict[tuple[str, str], int] = {}
+    title_index: dict[str, list[int]] = {}
+    for raw_record in [*feed_records, *registry_records]:
+        record = dict(raw_record)
+        aliases = _record_aliases(record)
+        matched_indexes = {
+            alias_index[alias] for alias in aliases if alias in alias_index
+        }
+        target_index = min(matched_indexes) if matched_indexes else None
+        if target_index is None:
+            title_key = _record_title_key(record.get("title"))
+            target_index = next(
+                (
+                    index
+                    for index in title_index.get(title_key, [])
+                    if _records_share_supported_title_identity(merged[index], record)
+                ),
+                None,
+            )
+        if target_index is not None:
+            current = merged[target_index]
+            current_doi = str(current.get("doi") or "").casefold().strip()
+            incoming_doi = str(record.get("doi") or "").casefold().strip()
+            # A generic/shared title is not sufficient to merge conflicting
+            # strong identifiers.
+            if current_doi and incoming_doi and current_doi != incoming_doi:
+                target_index = None
+        if target_index is None:
+            target_index = len(merged)
+            merged.append(record)
+            for alias in aliases:
+                alias_index.setdefault(alias, target_index)
+            title_key = _record_title_key(record.get("title"))
+            if title_key:
+                title_index.setdefault(title_key, []).append(target_index)
+            continue
+        current = merged[target_index]
+        for field, value in record.items():
+            if not current.get(field) and value:
+                current[field] = value
+        for alias in _record_aliases(current):
+            alias_index.setdefault(alias, target_index)
+    return merged
+
+
+def _fetch_crossref_inventory(
+    session: Any,
+    *,
+    source_id: str,
+    issn: str,
+    start_date: date,
+    end_date: date,
+    user_agent: str,
+    timeout: int,
+) -> tuple[list[dict[str, Any]], str, int, int, int]:
+    endpoint = CROSSREF_JOURNAL_WORKS.format(issn=quote(issn, safe=""))
+    cursor = "*"
+    records: list[dict[str, Any]] = []
+    inventory_url = endpoint
+    seen_cursors: set[str] = set()
+    total_results: int | None = None
+    retrieved_items = 0
+    pages_requested = 0
+    pages_received = 0
+    normalization_failures = 0
+
+    def failure(message: str) -> PublisherFeedError:
+        return PublisherFeedError(
+            message,
+            inventory_url=inventory_url,
+            pages_requested=pages_requested,
+            pages_received=pages_received,
+            partial_records=records,
+            unusable_record_count=normalization_failures,
+        )
+
+    for _page in range(CROSSREF_MAX_PAGES):
+        pages_requested += 1
+        response_counted = False
+        try:
+            response = session.get(
+                endpoint,
+                params={
+                    "filter": (
+                        f"from-online-pub-date:{start_date.isoformat()},"
+                        f"until-online-pub-date:{end_date.isoformat()}"
+                    ),
+                    "rows": CROSSREF_ROWS,
+                    "cursor": cursor,
+                },
+                headers={"User-Agent": user_agent, "Accept": "application/json"},
+                timeout=timeout,
+            )
+            inventory_url = str(getattr(response, "url", "") or endpoint)
+            pages_received += 1
+            response_counted = True
+            response.raise_for_status()
+            payload = response.json()
+        except Exception as exc:
+            if not response_counted:
+                failed_response = getattr(exc, "response", None)
+                if failed_response is not None:
+                    pages_received += 1
+            raise failure(
+                f"Crossref journal inventory failed for {source_id}: {exc}"
+            ) from exc
+        message = payload.get("message") if isinstance(payload, dict) else None
+        if not isinstance(message, dict) or not isinstance(message.get("items"), list):
+            raise failure(
+                f"Crossref journal inventory returned an invalid payload for {source_id}"
+            )
+        items = message["items"]
+        retrieved_items += len(items)
+        if total_results is None:
+            try:
+                total_results = int(message.get("total-results"))
+            except (TypeError, ValueError):
+                total_results = None
+        for item in items:
+            record = _crossref_record(item, source_id=source_id, issn=issn)
+            if record is not None:
+                records.append(record)
+            else:
+                normalization_failures += 1
+        # Crossref's total counts raw registry items.  Some malformed items
+        # may be unusable as candidates, so pagination must not depend on the
+        # smaller number of successfully normalized records.
+        if total_results is not None:
+            if retrieved_items >= total_results:
+                return (
+                    records,
+                    inventory_url,
+                    pages_requested,
+                    pages_received,
+                    normalization_failures,
+                )
+            if not items:
+                raise failure(
+                    "Crossref journal inventory ended before total-results "
+                    f"for {source_id}: received {retrieved_items} of {total_results}"
+                )
+        elif not items or len(items) < CROSSREF_ROWS:
+            return (
+                records,
+                inventory_url,
+                pages_requested,
+                pages_received,
+                normalization_failures,
+            )
+        next_cursor = str(message.get("next-cursor") or "").strip()
+        if not next_cursor or next_cursor == cursor or next_cursor in seen_cursors:
+            raise failure(
+                f"Crossref journal inventory pagination stalled for {source_id}"
+            )
+        seen_cursors.add(cursor)
+        cursor = next_cursor
+    raise failure(
+        f"Crossref journal inventory exceeded {CROSSREF_MAX_PAGES} pages for {source_id}"
+    )
+
+
 def fetch_feed_records(
     session: Any,
     *,
@@ -170,34 +537,165 @@ def fetch_feed_records(
     timeout: int = 30,
 ) -> list[dict[str, Any]]:
     feeds = [str(value) for value in source_config.get("feeds", []) if str(value).startswith(("http://", "https://"))]
-    if not feeds:
-        raise PublisherFeedError(f"source {source_id} has no feed URLs")
+    crossref_issn = str(source_config.get("crossref_issn") or "").strip()
+    if not feeds and not crossref_issn:
+        raise PublisherFeedError(f"source {source_id} has no feed URLs or Crossref ISSN")
     cache = cache if cache is not None else {}
     cache_key = f"publisher_feed:{source_id}"
     if cache_key not in cache:
-        all_records: list[dict[str, Any]] = []
+        feed_records: list[dict[str, Any]] = []
+        registry_records: list[dict[str, Any]] = []
+        errors: list[str] = []
+        inventory_url = feeds[0] if feeds else CROSSREF_JOURNAL_WORKS.format(
+            issn=quote(crossref_issn, safe="")
+        )
+        pages_requested = 0
+        pages_received = 0
+        normalization_failures = 0
+
         for feed_url in feeds:
+            pages_requested += 1
+            response_counted = False
             try:
                 response = session.get(
                     feed_url,
                     headers={"User-Agent": user_agent, "Accept": "application/atom+xml, application/rss+xml, application/xml, text/xml"},
                     timeout=timeout,
                 )
+                pages_received += 1
+                response_counted = True
                 response.raise_for_status()
+                feed_observation: dict[str, int] = {}
+                parsed = parse_feed(
+                    response.text,
+                    feed_url=feed_url,
+                    source_id=source_id,
+                    observation=feed_observation,
+                )
             except Exception as exc:  # requests is intentionally not a dependency of this parser module.
-                raise PublisherFeedError(f"feed request failed for {source_id}: {exc}") from exc
-            all_records.extend(parse_feed(response.text, feed_url=feed_url, source_id=source_id))
+                if not response_counted:
+                    failed_response = getattr(exc, "response", None)
+                    if failed_response is not None:
+                        pages_received += 1
+                errors.append(f"feed request failed for {source_id}: {exc}")
+                continue
+            normalization_failures += feed_observation.get(
+                "normalization_failures", 0
+            )
+            for record in parsed:
+                item = dict(record)
+                item.setdefault("event_confidence", "publisher_verified")
+                feed_records.append(item)
+
+        registry_error: PublisherFeedError | None = None
+        if crossref_issn:
+            try:
+                (
+                    registry_records,
+                    inventory_url,
+                    registry_pages_requested,
+                    registry_pages_received,
+                    registry_normalization_failures,
+                ) = _fetch_crossref_inventory(
+                    session,
+                    source_id=source_id,
+                    issn=crossref_issn,
+                    start_date=start_date,
+                    end_date=end_date,
+                    user_agent=user_agent,
+                    timeout=timeout,
+                )
+            except PublisherFeedError as exc:
+                registry_error = exc
+                registry_records = list(exc.partial_records)
+                registry_pages_requested = exc.pages_requested
+                registry_pages_received = exc.pages_received
+                registry_normalization_failures = exc.unusable_record_count
+                inventory_url = exc.inventory_url or inventory_url
+                errors.append(str(exc))
+            pages_requested += registry_pages_requested
+            pages_received += registry_pages_received
+            normalization_failures += registry_normalization_failures
+
+        all_records = _merge_feed_and_registry_records(
+            feed_records, registry_records
+        )
+        unusable_record_count = normalization_failures + sum(
+            1
+            for record in all_records
+            if not str(record.get("publication_date") or "")
+        )
+        if unusable_record_count:
+            errors.append(
+                f"{source_id} returned {unusable_record_count} record(s) without "
+                "a trustworthy publication date"
+            )
+        retrieval_backend = (
+            "rss_atom+crossref_journal_window"
+            if feeds and crossref_issn
+            else "crossref_journal_window"
+            if crossref_issn
+            else "rss_atom"
+        )
         cache[cache_key] = all_records
+        cache[f"source_observation:{source_id}"] = {
+            "retrieval_complete": not errors,
+            "retrieval_backend": retrieval_backend,
+            "feed_entry_count": len(feed_records),
+            "registry_record_count": len(registry_records),
+            "unusable_record_count": unusable_record_count,
+            "window_record_count": sum(
+                1
+                for record in all_records
+                if str(record.get("publication_date") or "")
+                and _in_window(
+                    str(record.get("publication_date") or ""),
+                    start_date,
+                    end_date,
+                )
+            ),
+            "inventory_url": inventory_url,
+            "inventory_pages_requested": pages_requested,
+            "inventory_pages_received": pages_received,
+            "errors": errors,
+        }
+        # A Crossref-only source cannot safely consume a known-partial cursor
+        # inventory.  Hybrid sources may retain first-party feed observations,
+        # while the caller marks the provider FAILED from retrieval_complete.
+        if registry_error is not None and not feeds:
+            raise registry_error
+        if errors and not all_records:
+            raise PublisherFeedError(
+                "; ".join(errors),
+                inventory_url=inventory_url,
+                pages_requested=pages_requested,
+                pages_received=pages_received,
+            )
 
     selected: list[dict[str, Any]] = []
     seen: set[tuple[str, str]] = set()
-    for record in cache[cache_key]:
+    def selection_key(record: dict[str, Any]) -> tuple[Any, ...]:
+        try:
+            publication_rank = -date.fromisoformat(
+                str(record.get("publication_date") or "")[:10]
+            ).toordinal()
+        except ValueError:
+            publication_rank = 0
+        return (
+            publication_rank,
+            str(record.get("doi") or "").casefold(),
+            str(record.get("title") or "").casefold(),
+            str(record.get("landing_url") or ""),
+        )
+
+    for record in sorted(cache[cache_key], key=selection_key):
         publication_date = str(record.get("publication_date") or "")
         if not publication_date or not _in_window(publication_date, start_date, end_date):
             continue
         if not _matches_query(f"{record.get('title','')} {record.get('summary','')}", query):
             continue
-        identity = (str(record.get("doi") or "").casefold(), str(record.get("title") or "").casefold())
+        aliases = _record_aliases(record)
+        identity = aliases[0] if aliases else ("record", str(len(selected)))
         if identity in seen:
             continue
         seen.add(identity)

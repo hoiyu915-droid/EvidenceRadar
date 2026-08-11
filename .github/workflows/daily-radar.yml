@@ -103,12 +103,10 @@ jobs:
         working-directory: legacy/python-runtime
         run: python -m pytest -q tests
 
-      - name: Materialize master-controlled runtime
+      - name: Validate immutable master-controlled runtime
         run: |
           python tools/apply_master_runtime_config.py --root "$RADAR_ROOT" --profile "$RADAR_PROFILE" --check
-          python tools/apply_master_runtime_config.py --root "$RADAR_ROOT" --profile "$RADAR_PROFILE"
           python tools/apply_master_control_runtime.py --runner tools/run_github_radar.py --check
-          python tools/apply_master_control_runtime.py --runner tools/run_github_radar.py
           python -m py_compile \
             tools/run_github_radar.py \
             tools/radar_control.py \
@@ -116,6 +114,7 @@ jobs:
             tools/apply_master_runtime_config.py \
             tools/package_work_delivery.py \
             tools/materialize_delivery_aliases.py
+          git diff --exit-code -- tools config
 
       - name: Run EvidenceRadar GitHub lane
         id: radar
@@ -144,6 +143,7 @@ jobs:
           echo "status=$status" >> "$GITHUB_OUTPUT"
           test "$status" = "TRANSLATION_REQUIRED"
           test -s "$RADAR_TRANSLATION_REQUEST"
+          git diff --exit-code -- tools config
 
       - name: Upload TranslationRequest for ChatGPT Work handoff
         id: upload_request

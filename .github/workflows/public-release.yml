@@ -30,6 +30,36 @@ jobs:
         run: python tools/validate_gpt_work_artifacts.py --root .
       - name: Run standard-library tests
         run: python -m unittest discover -s tests -v
+      - name: Detect canonical bundle changes in this revision
+        id: canonical_change
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || '' }}
+        run: |
+          set -euo pipefail
+          changed=false
+          if [ "$EVENT_NAME" != "workflow_dispatch" ]; then
+            base="$EVENT_BASE_SHA"
+            if [ -z "$base" ] || [[ "$base" =~ ^0+$ ]] || ! git cat-file -e "$base^{commit}"; then
+              base="$(git rev-list --max-parents=0 HEAD | tail -n 1)"
+            fi
+            if ! git diff --quiet "$base" HEAD -- artifacts/current state/current/EvidenceRadar_State.json; then
+              changed=true
+            fi
+          fi
+          echo "changed=$changed" >> "$GITHUB_OUTPUT"
+
+      - name: Require current producer when canonical bytes change
+        if: steps.canonical_change.outputs.changed == 'true'
+        run: |
+          PYTHONDONTWRITEBYTECODE=1 python tools/validate_delivery_bundle.py \
+            --root . \
+            --bundle artifacts/current \
+            --canonical-state state/current/EvidenceRadar_State.json \
+            --require-current-producer \
+            --require-semantic-contract-v3 \
+            --reject-dirty
       - name: Validate committed canonical bundle against its recorded producer
         shell: bash
         run: |

@@ -134,6 +134,37 @@ https://OWNER.github.io/REPOSITORY/
 - `report_url`：最新可直接閱讀的 HTML；
 - `latest.run_json`／`latest.evidence_json`／`latest.state_json`：最新 JSON；
 - `immutable_run.report_html`：該 run 不變的 HTML 路徑。
+- `immutable_archive.index_json`：本次完整部署所包含的核准 run inventory。
+
+Pages artifact 每次 deployment 都會完整取代前一版，不能依賴上一版 `_site/runs`
+仍留在伺服器。核准 inventory 位於 `runs/pages-history.json`；每筆只能指向
+`runs/<run_id>/` 的 canonical 四檔，或帶 `.sha256` 的 canonical WorkRun ZIP，並須
+記錄四檔 size／SHA-256、run ID 與 recorded producer commit。建站工具會拒絕 symlink、
+path／casefold collision、缺檔、額外檔案、hash 漂移、ZIP size／compression bomb、
+不存在的 producer、未通過 current delivery contract（只允許交由 recorded producer
+重驗的 renderer byte drift），以及未通過該 producer delivery validator 的 bundle。
+任一 manifest 核准項目失敗時整個 build 失敗，不會用少一筆歷史的站點覆蓋線上版本。
+
+未列入 manifest 的舊 `runs/` 內容視為 quarantine，不會發布；`public/reports/` 中只有
+HTML 的 gzip 沒有 State、Evidence、Run 或 artifact hash binding，也絕不能直接解壓
+overlay。每次 publication PR 除更新 current 四檔外，必須把相同 bytes 保存為新的
+run directory／WorkRun archive 並 append `runs/pages-history.json`。manifest 中的
+current run 與 `artifacts/current` 若同 ID 但 bytes 不同，建站會 fail closed。
+
+`pages.yml` 只在明確 baseline 到待部署 revision 間確實改動 `artifacts/current` 或
+canonical State bytes 時，額外要求 current bundle 由目前 checkout producer 產生。
+只 append archive inventory 的 rebuild 會略過
+這個 current-producer equality gate，避免
+舊 canonical report 因 renderer 演進而無法重新部署；建站工具仍只容許已知的 canonical
+renderer byte drift，current run 必須與 manifest inventory byte-identical，且仍須通過
+其 `protocol_commit` 的 exact recorded-producer validator。其他 validation error、缺少
+producer commit 或任何 inventory drift 一律 fail closed。
+
+Append-only 比對使用 push 的 `github.event.before`，不使用只能看見最後一個 commit
+的 `HEAD^`；builder 另會逐一核對 manifest 的 first-parent mainline 歷史。因此一次
+push 包含多個 commits、先前部署失敗後 main 已前進，或刻意選擇過舊 baseline，都不能
+移除或改寫任何既存 entry。Pages 不提供可指定任意 revision 的手動部署入口；失敗的
+部署應重跑原本綁定 exact main revision 的 workflow。
 
 Pages workflow 的 deployment 成功前，不應把推算網址宣稱為已可用。Work 若需要
 公開連結，先交付實際 HTML 檔，再經審閱的 GitHub publication 更新 bundle；部署
@@ -153,8 +184,12 @@ checkpoint SHA、batch ID 與 candidate ID parity 都是 fail-closed。Checkpoin
 
 Submission 合併後，`translation-stage-b.yml` 下載原始 Actions artifact，核對 queue
 issue 與 full request SHA，checkout request 記錄的 exact producer commit，並以目前
-canonical State resume Stage B；它不重跑 discovery。State 若已改變、artifact 過期、
-ID 不完整或翻譯違反數字／縮寫／結果宣稱規則，Stage B 在產物上傳前停止。
+canonical State resume Stage B；它不重跑 discovery。Workflow 會從 exact producer
+的 CLI capability 分流：支援 `--profile` 的 modern producer 必須收到 request 綁定的
+`profile_id`，且 State、Evidence、Run 三份輸出的 profile 必須一致；不支援該參數的
+legacy producer 只接受沒有 profile binding 的舊 request，也不會被傳入 `--profile`。
+State 若已改變、artifact 過期、ID 不完整或翻譯違反數字／縮寫／結果宣稱規則，Stage B
+在產物上傳前停止。
 
 Stage B 通過三層 validator 後只上傳 immutable publication candidate，並把 issue
 改標 `evidenceradar-ready-to-publish`；workflow 本身沒有 `contents: write`、不 push

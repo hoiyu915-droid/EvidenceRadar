@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import tempfile
 import unittest
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
+from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
+import tools.run_github_radar as radar_runtime
 from tools.run_github_radar import Candidate, RadarRuntimeError, event_record, execute
 from tools.validate_gpt_work_artifacts import validate_document
 from tools.translation_handoff import (
@@ -222,6 +225,8 @@ class TranslationHandoffE2ETests(unittest.TestCase):
                 end_at=end_at,
                 run_id="handoff-e2e",
                 execution_lane="github_actions",
+                publisher_target_min=3,
+                publisher_hard_max=5,
                 protocol_commit="d" * 40,
                 discoverer=discoverer,
                 publisher_probe=publisher_probe,
@@ -232,7 +237,26 @@ class TranslationHandoffE2ETests(unittest.TestCase):
             self.assertFalse(output.exists())
 
             request = json.loads(request_path.read_text(encoding="utf-8"))
-            response_path.write_text(json.dumps({
+            self.assertEqual("owner_daily", request["resume_context"]["profile_id"])
+            self.assertEqual(
+                {"target_min": 3, "hard_max": 5},
+                request["resume_context"]["publisher_limits"],
+            )
+            self.assertEqual(
+                hashlib.sha256(
+                    (ROOT / "config" / "radar_master.json").read_bytes()
+                ).hexdigest(),
+                request["resume_context"]["master_control_sha256"],
+            )
+            self.assertEqual(
+                sorted(set(request["resume_context"]["resolved_stream_ids"])),
+                request["resume_context"]["resolved_stream_ids"],
+            )
+            self.assertEqual(
+                sorted(set(request["resume_context"]["resolved_source_ids"])),
+                request["resume_context"]["resolved_source_ids"],
+            )
+            response = {
                 "schema_version": "1.0",
                 "artifact_type": "EvidenceRadar_TranslationResponse",
                 "request_sha256": request["request_sha256"],
@@ -241,10 +265,150 @@ class TranslationHandoffE2ETests(unittest.TestCase):
                     "title_zh_tw": "針灸治療憂鬱症的療效與安全性：系統性回顧與統合分析",
                     "summary_zh_tw": "",
                 }],
-            }, ensure_ascii=False), encoding="utf-8")
+            }
+            response_path.write_text(
+                json.dumps(response, ensure_ascii=False), encoding="utf-8"
+            )
 
             def no_rediscovery(*_args, **_kwargs):
                 raise AssertionError("Stage B must not repeat discovery")
+
+            def write_tampered_request(label, mutate):
+                tampered_request = copy.deepcopy(request)
+                mutate(tampered_request)
+                tampered_request["request_sha256"] = request_sha256(
+                    tampered_request
+                )
+                tampered_response = copy.deepcopy(response)
+                tampered_response["request_sha256"] = tampered_request[
+                    "request_sha256"
+                ]
+                tampered_request_path = temporary / f"request-{label}.json"
+                tampered_response_path = temporary / f"response-{label}.json"
+                tampered_request_path.write_text(
+                    json.dumps(tampered_request, ensure_ascii=False),
+                    encoding="utf-8",
+                )
+                tampered_response_path.write_text(
+                    json.dumps(tampered_response, ensure_ascii=False),
+                    encoding="utf-8",
+                )
+                return tampered_request_path, tampered_response_path
+
+            tampered_cases = (
+                (
+                    "master-hash",
+                    lambda value: value["resume_context"].__setitem__(
+                        "master_control_sha256", "0" * 64
+                    ),
+                    "master control SHA-256 mismatch",
+                ),
+                (
+                    "resolved-streams",
+                    lambda value: value["resume_context"].__setitem__(
+                        "resolved_stream_ids",
+                        value["resume_context"]["resolved_stream_ids"][:-1],
+                    ),
+                    "resolved stream IDs mismatch",
+                ),
+                (
+                    "resolved-sources",
+                    lambda value: value["resume_context"].__setitem__(
+                        "resolved_source_ids",
+                        value["resume_context"]["resolved_source_ids"][:-1],
+                    ),
+                    "resolved source IDs mismatch",
+                ),
+                (
+                    "publisher-limit-type",
+                    lambda value: value["resume_context"]["publisher_limits"].__setitem__(
+                        "target_min", "3"
+                    ),
+                    "publisher limits are invalid",
+                ),
+                (
+                    "window-hours",
+                    lambda value: value["window"].__setitem__("hours", 71),
+                    "duration disagrees with hours",
+                ),
+                (
+                    "window-start",
+                    lambda value: value["window"].__setitem__(
+                        "start",
+                        (
+                            datetime.fromisoformat(value["window"]["start"])
+                            + timedelta(hours=1)
+                        ).isoformat(),
+                    ),
+                    "duration disagrees with hours",
+                ),
+                (
+                    "window-hours-zero",
+                    lambda value: value["window"].__setitem__("hours", 0),
+                    "hours must be a positive integer",
+                ),
+                (
+                    "window-naive-start",
+                    lambda value: value["window"].__setitem__(
+                        "start",
+                        datetime.fromisoformat(
+                            value["window"]["start"]
+                        ).replace(tzinfo=None).isoformat(),
+                    ),
+                    "start/end must be timezone-aware",
+                ),
+            )
+            for label, mutate, expected_error in tampered_cases:
+                tampered_request_path, tampered_response_path = (
+                    write_tampered_request(label, mutate)
+                )
+                with self.subTest(tamper=label), self.assertRaisesRegex(
+                    RadarRuntimeError, expected_error
+                ):
+                    execute(
+                        root=ROOT,
+                        output_dir=output,
+                        state_path=state,
+                        end_at=None,
+                        run_id=None,
+                        execution_lane="github_actions",
+                        protocol_commit="d" * 40,
+                        discoverer=no_rediscovery,
+                        publisher_probe=no_rediscovery,
+                        translation_request_path=tampered_request_path,
+                        translation_response_path=tampered_response_path,
+                    )
+
+            with self.assertRaisesRegex(RadarRuntimeError, "publisher target mismatch"):
+                execute(
+                    root=ROOT,
+                    output_dir=output,
+                    state_path=state,
+                    end_at=None,
+                    run_id=None,
+                    execution_lane="github_actions",
+                    publisher_target_min=4,
+                    protocol_commit="d" * 40,
+                    discoverer=no_rediscovery,
+                    publisher_probe=no_rediscovery,
+                    translation_request_path=request_path,
+                    translation_response_path=response_path,
+                )
+            with self.assertRaisesRegex(RadarRuntimeError, "profile mismatch"):
+                execute(
+                    root=ROOT,
+                    output_dir=output,
+                    state_path=state,
+                    end_at=None,
+                    run_id=None,
+                    execution_lane="github_actions",
+                    protocol_commit="d" * 40,
+                    profile_id="medicine_reader",
+                    discoverer=no_rediscovery,
+                    publisher_probe=no_rediscovery,
+                    translation_request_path=request_path,
+                    translation_response_path=response_path,
+                )
 
             state.parent.mkdir(parents=True)
             state.write_bytes((ROOT / "examples" / "EvidenceRadar_State.json").read_bytes())
@@ -264,25 +428,57 @@ class TranslationHandoffE2ETests(unittest.TestCase):
                 )
             state.unlink()
 
-            stage_b = execute(
-                root=ROOT,
-                output_dir=output,
-                state_path=state,
-                end_at=None,
-                run_id=None,
-                execution_lane="github_actions",
-                protocol_commit="d" * 40,
-                discoverer=no_rediscovery,
-                publisher_probe=no_rediscovery,
-                translation_request_path=request_path,
-                translation_response_path=response_path,
-            )
+            original_load_yaml = radar_runtime.load_yaml
+
+            def load_yaml_with_window_drift(path):
+                value = original_load_yaml(path)
+                if Path(path).name == "output.yml":
+                    value = copy.deepcopy(value)
+                    value.setdefault("window", {})["rolling_hours"] = 24
+                return value
+
+            with patch.object(
+                radar_runtime,
+                "load_yaml",
+                side_effect=load_yaml_with_window_drift,
+            ):
+                stage_b = execute(
+                    root=ROOT,
+                    output_dir=output,
+                    state_path=state,
+                    end_at=None,
+                    run_id=None,
+                    execution_lane="github_actions",
+                    protocol_commit="d" * 40,
+                    discoverer=no_rediscovery,
+                    publisher_probe=no_rediscovery,
+                    translation_request_path=request_path,
+                    translation_response_path=response_path,
+                )
             run = json.loads((output / "EvidenceRadar_Run.json").read_text(encoding="utf-8"))
+            final_state = json.loads(state.read_text(encoding="utf-8"))
             report = (output / "EvidenceRadar_Report.html").read_text(encoding="utf-8")
             self.assertEqual("handoff-e2e", stage_b["run_id"])
             self.assertEqual("針灸治療憂鬱症的療效與安全性：系統性回顧與統合分析", run["candidates"][0]["title_zh_tw"])
             self.assertEqual("CHATBOT_TITLE_ZH_TW", run["candidates"][0]["summary_basis"])
             self.assertIn("CHATBOT_TRANSLATION_HANDOFF_V1", run["notes"])
+            self.assertEqual(3, run["rendering"]["publisher_target_min"])
+            self.assertEqual(5, run["rendering"]["publisher_hard_max"])
+            self.assertEqual(request["window"], run["window"])
+            self.assertEqual("owner_daily", final_state["profile_id"])
+            self.assertEqual(
+                sorted(run["source_coverage"]["requested"]),
+                final_state["resolved_source_ids"],
+            )
+            self.assertEqual(
+                request["request_sha256"], final_state["runtime_request_sha256"]
+            )
+            self.assertEqual(
+                hashlib.sha256(
+                    (ROOT / "config" / "radar_master.json").read_bytes()
+                ).hexdigest(),
+                final_state["master_control_sha256"],
+            )
             self.assertIn("針灸治療憂鬱症的療效與安全性：系統性回顧與統合分析", report)
             self.assertIn("Efficacy and safety of acupuncture treatment for depression", report)
             self.assertTrue(state.is_file())

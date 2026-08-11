@@ -14,6 +14,7 @@ import argparse
 import hashlib
 import json
 import re
+import subprocess
 import sys
 from html.parser import HTMLParser
 from pathlib import Path, PurePosixPath, PureWindowsPath
@@ -47,6 +48,35 @@ SOURCE_COVERAGE_FIELDS = (
     "all_configured_sources_checked",
     "checks",
 )
+MASTER_CONTROL_FIELDS = (
+    "profile_id",
+    "resolved_stream_ids",
+    "resolved_source_ids",
+    "master_control_sha256",
+    "runtime_request_sha256",
+)
+MASTER_CONTROL_NOTE_PREFIXES = (
+    "RADAR_PROFILE:",
+    "RADAR_STREAMS_JSON:",
+    "RADAR_SOURCES_JSON:",
+)
+SOURCE_INVENTORY_FIELDS = (
+    "retrieval_complete",
+    "retrieval_backend",
+    "feed_entry_count",
+    "registry_record_count",
+    "window_record_count",
+    "inventory_url",
+)
+SOURCE_INVENTORY_PAGINATION_FIELDS = (
+    "inventory_pages_requested",
+    "inventory_pages_received",
+)
+SOURCE_HTTP_TELEMETRY_FIELDS = (
+    "http_requests_attempted",
+    "http_responses_received",
+    "cache_reused",
+)
 EXPECTED_ARTIFACT_MAP = {
     "report_html": "EvidenceRadar_Report.html",
     "state_json": "EvidenceRadar_State.json",
@@ -70,7 +100,14 @@ OA_STATUSES = {"YES", "NO", "UNKNOWN"}
 DOCUMENT_TYPES = {"journal_article", "preprint", "conference_paper", "protocol", "guideline", "other", "unknown"}
 STUDY_DESIGNS = {"randomized_controlled_trial", "clinical_trial", "systematic_review", "meta_analysis", "scoping_review", "review", "cohort_study", "case_control_study", "cross_sectional_study", "case_report", "qualitative_study", "observational_study", "animal_study", "in_vitro_study", "computational_study", "protocol"}
 CLASSIFICATION_BASES = {"PROVIDER_METADATA", "TITLE_EXPLICIT", "PROVIDER_METADATA_AND_TITLE", "SOURCE_CLASS", "UNKNOWN"}
-STUDY_CLASSIFICATION_PARITY_FIELDS = ("provider_publication_types", "document_type", "document_type_basis", "study_designs", "study_design_basis")
+STUDY_CLASSIFICATION_PARITY_FIELDS = (
+    "is_preprint",
+    "provider_publication_types",
+    "document_type",
+    "document_type_basis",
+    "study_designs",
+    "study_design_basis",
+)
 TRANSLATED_SUMMARY_BASES = {
     "TRANSLATED_ABSTRACT_EXCERPT_ZH_TW",
     "TRANSLATED_TITLE_ZH_TW_OPENAI",
@@ -178,13 +215,333 @@ def _study_classification_contract(run: Mapping[str, Any]) -> bool:
     return _contract_marker(run, "STUDY_CLASSIFICATION_V1")
 
 
+def _declared_producer_runner(
+    root: Path, run: Mapping[str, Any]
+) -> bytes | None:
+    """Load the runner bytes from an independently declared Git producer.
+
+    Legacy admission cannot be selected solely by deleting self-declared
+    fields from a modern bundle.  A resolvable producer commit is therefore an
+    independent capability signal; old/unavailable historical commits remain
+    eligible for the explicit legacy validator path.
+    """
+
+    protocol_commit = str(run.get("protocol_commit") or "")
+    if not protocol_commit or protocol_commit.endswith("-dirty"):
+        return None
+    root = Path(root).resolve()
+    owns_repository = False
+    try:
+        git_root = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            cwd=root,
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        ).stdout.strip()
+        owns_repository = Path(git_root).resolve() == root
+    except (OSError, subprocess.CalledProcessError):
+        owns_repository = False
+    if owns_repository:
+        try:
+            return subprocess.run(
+                [
+                    "git",
+                    "show",
+                    f"{protocol_commit}^{{commit}}:tools/run_github_radar.py",
+                ],
+                cwd=root,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            ).stdout
+        except (OSError, subprocess.CalledProcessError):
+            # A real checkout may intentionally validate a historical legacy
+            # producer.  Do not infer current capabilities for a missing old
+            # commit; exact-producer admission handles that separately.
+            return None
+
+    # Extracted Runtime and Work Pack roots deliberately have no .git.  Their
+    # archive verifier/manifest binds these local bytes to source_commit, so
+    # the packaged runner is the independent capability signal.  Treating a
+    # gitless root as legacy would let consumers strip every modern binding.
+    local_runner = root / "tools" / "run_github_radar.py"
+    try:
+        return local_runner.read_bytes()
+    except OSError:
+        return None
+
+
+def _producer_requires_master_control(
+    root: Path, run: Mapping[str, Any]
+) -> bool:
+    """Return whether the declared Git producer is master-control capable."""
+
+    runner = _declared_producer_runner(root, run)
+    return runner is not None and all(
+        marker in runner
+        for marker in (
+            b"load_master_runtime",
+            b"RADAR_STREAMS_JSON:",
+            b"RADAR_SOURCES_JSON:",
+        )
+    )
+
+
+def _producer_requires_http_telemetry(
+    root: Path, run: Mapping[str, Any]
+) -> bool:
+    """Return whether the producer emits the executor HTTP telemetry contract."""
+
+    runner = _declared_producer_runner(root, run)
+    return runner is not None and all(
+        marker in runner
+        for marker in (
+            b"EXECUTOR_HTTP_TELEMETRY_V1",
+            b"http_requests_attempted",
+            b"inventory_pages_requested",
+            b"unusable_record_count",
+        )
+    )
+
+
+def _configured_streams_for_run(
+    root: Path,
+    run: Mapping[str, Any],
+    state: Mapping[str, Any],
+    evidence: Mapping[str, Any],
+) -> tuple[Mapping[str, Any] | None, list[str]]:
+    """Resolve and validate the immutable source contract for ``run``.
+
+    Native master-control bundles bind the same five values in Run, State and
+    Evidence, and repeat the selected profile/stream/source IDs in Run.notes.
+    The notes are deliberately checked independently: otherwise a consumer
+    could silently validate one projection while displaying or resuming from
+    another.  Historical bundles with no master fields or markers remain tied
+    to the checked-in legacy catalog.
+    """
+
+    artifacts = (("Run", run), ("State", state), ("Evidence", evidence))
+    notes = [
+        item for item in run.get("notes", []) if isinstance(item, str)
+    ] if isinstance(run.get("notes"), list) else []
+    has_master_marker = any(
+        item.startswith(prefix)
+        for item in notes
+        for prefix in MASTER_CONTROL_NOTE_PREFIXES
+    )
+    has_master_field = any(
+        field in artifact
+        for _label, artifact in artifacts
+        for field in MASTER_CONTROL_FIELDS
+    )
+    if (
+        _producer_requires_master_control(root, run)
+        and not has_master_marker
+        and not has_master_field
+    ):
+        return None, [
+            "master-control-capable producer bundle cannot omit all master bindings and RADAR markers"
+        ]
+    if has_master_marker or has_master_field:
+        errors: list[str] = []
+        required_fields = set(MASTER_CONTROL_FIELDS)
+        for label, artifact in artifacts:
+            present = required_fields.intersection(artifact)
+            if present != required_fields:
+                errors.append(
+                    f"{label} has incomplete master-control bindings: "
+                    f"missing {sorted(required_fields - present)}"
+                )
+
+        marker_payloads: dict[str, str | None] = {}
+        for prefix in MASTER_CONTROL_NOTE_PREFIXES:
+            values = [item[len(prefix) :] for item in notes if item.startswith(prefix)]
+            marker_name = prefix[:-1]
+            if len(values) != 1 or not values[0]:
+                errors.append(
+                    f"Run.notes must bind exactly one non-empty {marker_name}"
+                )
+                marker_payloads[prefix] = None
+            else:
+                marker_payloads[prefix] = values[0]
+
+        handoff_marker_count = notes.count("CHATBOT_TRANSLATION_HANDOFF_V1")
+        has_runtime_request_binding = any(
+            artifact.get("runtime_request_sha256") is not None
+            for _label, artifact in artifacts
+        )
+        has_chatbot_summary = any(
+            isinstance(candidate, Mapping)
+            and candidate.get("summary_basis") in CHATBOT_SUMMARY_BASES
+            for candidate in (
+                run.get("candidates")
+                if isinstance(run.get("candidates"), list)
+                else []
+            )
+        )
+        if handoff_marker_count > 1:
+            errors.append(
+                "Run.notes must contain CHATBOT_TRANSLATION_HANDOFF_V1 at most once"
+            )
+        if (
+            has_runtime_request_binding or has_chatbot_summary
+        ) and handoff_marker_count != 1:
+            errors.append(
+                "runtime request or chatbot summary evidence requires exactly one "
+                "CHATBOT_TRANSLATION_HANDOFF_V1 marker"
+            )
+
+        profile_marker = marker_payloads.get("RADAR_PROFILE:")
+        noted_streams: Any = None
+        noted_sources: Any = None
+        for prefix, label in (
+            ("RADAR_STREAMS_JSON:", "RADAR_STREAMS_JSON"),
+            ("RADAR_SOURCES_JSON:", "RADAR_SOURCES_JSON"),
+        ):
+            payload = marker_payloads.get(prefix)
+            if payload is None:
+                continue
+            try:
+                parsed = json.loads(payload)
+            except json.JSONDecodeError as exc:
+                errors.append(f"Run.notes {label} is invalid JSON: {exc}")
+                continue
+            if prefix == "RADAR_STREAMS_JSON:":
+                noted_streams = parsed
+            else:
+                noted_sources = parsed
+
+        run_profile = run.get("profile_id")
+        run_streams = run.get("resolved_stream_ids")
+        run_sources = run.get("resolved_source_ids")
+        if not isinstance(run_profile, str) or not run_profile:
+            errors.append("Run.profile_id must be non-empty")
+        for label, values in (
+            ("Run.resolved_stream_ids", run_streams),
+            ("Run.resolved_source_ids", run_sources),
+            ("Run.notes RADAR_STREAMS_JSON", noted_streams),
+            ("Run.notes RADAR_SOURCES_JSON", noted_sources),
+        ):
+            if (
+                not isinstance(values, list)
+                or not values
+                or any(not isinstance(value, str) or not value for value in values)
+                or values != sorted(set(values))
+            ):
+                errors.append(
+                    f"{label} must be a non-empty sorted unique string array"
+                )
+        if isinstance(run_profile, str) and profile_marker != run_profile:
+            errors.append("Run.profile_id must equal RADAR_PROFILE")
+        if isinstance(run_streams, list) and run_streams != noted_streams:
+            errors.append("Run.resolved_stream_ids must equal RADAR_STREAMS_JSON")
+        if isinstance(run_sources, list) and run_sources != noted_sources:
+            errors.append("Run.resolved_source_ids must equal RADAR_SOURCES_JSON")
+
+        for label, artifact in artifacts[1:]:
+            for field in MASTER_CONTROL_FIELDS:
+                if field in artifact and artifact.get(field) != run.get(field):
+                    errors.append(
+                        f"{label}.{field} must be JSON-identical to Run.{field}"
+                    )
+
+        if _chatbot_translation_contract(run):
+            for label, artifact in artifacts:
+                request_sha256 = artifact.get("runtime_request_sha256")
+                if not isinstance(request_sha256, str) or re.fullmatch(
+                    r"[0-9a-f]{64}", request_sha256
+                ) is None:
+                    errors.append(
+                        f"{label}.runtime_request_sha256 must be a lowercase "
+                        "64-hex digest for CHATBOT_TRANSLATION_HANDOFF_V1"
+                    )
+
+        master_path = root / "config" / "radar_master.json"
+        try:
+            expected_master_sha256 = hashlib.sha256(master_path.read_bytes()).hexdigest()
+        except OSError as exc:
+            return None, errors + [f"cannot hash authoritative master control: {exc}"]
+        if run.get("master_control_sha256") != expected_master_sha256:
+            errors.append(
+                "Run.master_control_sha256 does not match authoritative master bytes"
+            )
+
+        selected_profile = (
+            run_profile
+            if isinstance(run_profile, str) and run_profile
+            else profile_marker
+        )
+        if not selected_profile:
+            return None, errors
+        try:
+            from tools.radar_control import RadarControlError, load_master_runtime
+
+            runtime = load_master_runtime(master_path, profile_id=selected_profile)
+        except (OSError, ImportError, RadarControlError) as exc:
+            return None, errors + [
+                "cannot resolve configured V3 source registry from master control: "
+                + str(exc)
+            ]
+        resolved_streams = sorted(
+            str(stream_id)
+            for stream_id in (runtime.streams.get("streams") or {})
+        )
+        resolved_sources = sorted(
+            str(source_id)
+            for source_id in (runtime.streams.get("source_catalog") or {})
+        )
+        if run_streams != resolved_streams:
+            errors.append(
+                "Run.resolved_stream_ids must exactly equal load_master_runtime resolution"
+            )
+        if run_sources != resolved_sources:
+            errors.append(
+                "Run.resolved_source_ids must exactly equal load_master_runtime resolution"
+            )
+        return runtime.streams, errors
+
+    # Historical V3 bundles predate master control and bind the checked-in
+    # legacy catalog.  Keeping that path explicit preserves validation of old
+    # immutable runs without allowing a modern profile to fall back silently.
+    try:
+        import yaml
+
+        streams_config = yaml.safe_load(
+            (root / "config" / "streams.yml").read_text(encoding="utf-8")
+        )
+    except (OSError, UnicodeDecodeError, ImportError, AttributeError, TypeError) as exc:
+        return None, [f"cannot load configured V3 source registry: {exc}"]
+    if not isinstance(streams_config, Mapping):
+        return None, ["config/streams.yml must contain a mapping"]
+    return streams_config, []
+
+
 def _chatbot_translation_contract(run: Mapping[str, Any]) -> bool:
     return _contract_marker(run, "CHATBOT_TRANSLATION_HANDOFF_V1")
 
 
-def _study_classification_errors(item: Mapping[str, Any], index: int) -> list[str]:
+def _study_classification_errors(
+    item: Mapping[str, Any],
+    index: int,
+    *,
+    collection: str = "Run.candidates",
+    allow_legacy_missing: bool = False,
+) -> list[str]:
     errors: list[str] = []
-    prefix = f"Run.candidates[{index}]"
+    prefix = f"{collection}[{index}]"
+    classification_fields = set(STUDY_CLASSIFICATION_PARITY_FIELDS)
+    if allow_legacy_missing and not classification_fields <= set(item):
+        document_type = item.get("document_type")
+        if (
+            item.get("is_preprint") is True
+            and document_type not in (None, "preprint")
+        ):
+            errors.append(
+                f"{prefix}.is_preprint=true conflicts with formal document_type"
+            )
+        return errors
     provider_types = item.get("provider_publication_types")
     if not isinstance(provider_types, list) or any(not isinstance(value, str) or not value.strip() for value in provider_types):
         errors.append(f"{prefix}.provider_publication_types must be a list of non-empty strings")
@@ -1063,6 +1420,66 @@ def _state_run_parity_errors(
                 errors.append(
                     f"State.works[{work_id}].event_class must equal Run.candidates[{index}].event_class"
                 )
+            elif field == "provider_publication_types":
+                current_types = set(current) if isinstance(current, list) else set()
+                historical_types = (
+                    set(historical) if isinstance(historical, list) else set()
+                )
+                if not current_types <= historical_types:
+                    errors.append(
+                        f"State.works[{work_id}].provider_publication_types must "
+                        "contain all current Run provider types"
+                    )
+            elif field == "is_preprint":
+                retained_formal_history = (
+                    current is True
+                    and historical is False
+                    and state_work.get("document_type")
+                    in {
+                        "journal_article",
+                        "conference_paper",
+                        "protocol",
+                        "guideline",
+                    }
+                )
+                if not retained_formal_history and current is not historical:
+                    errors.append(
+                        f"State.works[{work_id}].is_preprint must equal or "
+                        "monotonically strengthen Run.candidates"
+                    )
+            elif field == "document_type":
+                formal_types = {
+                    "journal_article",
+                    "conference_paper",
+                    "protocol",
+                    "guideline",
+                }
+                retained_formal_history = (
+                    current not in formal_types and historical in formal_types
+                )
+                if not retained_formal_history and canonical(current) != canonical(
+                    historical
+                ):
+                    errors.append(
+                        f"State.works[{work_id}].document_type must equal or "
+                        "monotonically strengthen Run.candidates"
+                    )
+            elif field == "document_type_basis":
+                same_document_type = candidate.get("document_type") == state_work.get(
+                    "document_type"
+                )
+                if same_document_type and canonical(current) != canonical(historical):
+                    errors.append(
+                        f"State.works[{work_id}].document_type_basis must equal "
+                        f"Run.candidates[{index}].document_type_basis"
+                    )
+            elif field in {"study_designs", "study_design_basis", "title_zh_tw"} and canonical(
+                current
+            ) != canonical(historical):
+                errors.append(
+                    f"State.works[{work_id}].{field} must equal "
+                    f"Run.candidates[{index}].{field}"
+                )
     return errors
 
 
@@ -1135,17 +1552,12 @@ def _v3_contract_errors(
     if errors:
         return errors
 
-    try:
-        import yaml
-
-        streams_config = yaml.safe_load(
-            (root / "config" / "streams.yml").read_text(encoding="utf-8")
-        )
-    except (OSError, UnicodeDecodeError, ImportError, AttributeError, TypeError) as exc:
-        errors.append(f"cannot load configured V3 source registry: {exc}")
+    streams_config, configuration_errors = _configured_streams_for_run(
+        root, run, state, evidence
+    )
+    errors.extend(configuration_errors)
+    if streams_config is None:
         return errors
-    if not isinstance(streams_config, Mapping):
-        return errors + ["config/streams.yml must contain a mapping"]
     configured_sources = {
         str(source_id)
         for stream in (streams_config.get("streams") or {}).values()
@@ -1157,11 +1569,18 @@ def _v3_contract_errors(
         str(source_id)
         for source_id in (streams_config.get("source_catalog") or {})
     }
+    inventory_required_sources = {
+        str(source_id)
+        for source_id, source_config in (
+            streams_config.get("source_catalog") or {}
+        ).items()
+        if isinstance(source_config, Mapping)
+        and str(source_config.get("adapter") or source_id) == "rss_atom"
+    }
     if not configured_sources or configured_sources != catalog_sources:
         errors.append(
-            "config/streams.yml source_catalog must exactly cover configured stream sources"
+            "resolved source_catalog must exactly cover configured stream sources"
         )
-
     attempts = list(run.get("retrieval_attempts") or [])
     expansions = list(run.get("search_expansions") or [])
     followups = list(run.get("followup_attempts") or [])
@@ -1263,11 +1682,280 @@ def _v3_contract_errors(
             errors.append(
                 f"Run.queries[{position}] references unconfigured sources: {sorted(unknown)}"
             )
+    strict_http_telemetry = _producer_requires_http_telemetry(root, run)
+    if strict_http_telemetry and not _contract_marker(
+        run, "EXECUTOR_HTTP_TELEMETRY_V1"
+    ):
+        errors.append(
+            "HTTP-telemetry-capable producer requires EXECUTOR_HTTP_TELEMETRY_V1"
+        )
+    expected_query_access_ids = {
+        f"{str(query.get('query_id') or '')}-{str(source_id)}"
+        for query in queries
+        for source_id in query.get("source_ids", [])
+        if str(query.get("query_id") or "") and str(source_id)
+    }
+    expected_query_access_ids.update(
+        str(attempt.get("source_access_id") or "")
+        for attempt in attempts
+        if isinstance(attempt, Mapping)
+        and attempt.get("query_id")
+        and attempt.get("source_access_id")
+    )
+    inventory_observations: dict[str, tuple[Any, ...]] = {}
+    inventory_window_counts: dict[str, int] = {}
+    inventory_fields = set(SOURCE_INVENTORY_FIELDS)
+    inventory_pagination_fields = set(SOURCE_INVENTORY_PAGINATION_FIELDS)
+    http_telemetry_fields = set(SOURCE_HTTP_TELEMETRY_FIELDS)
     for position, access in enumerate(source_access):
         provider = str(access.get("provider") or "")
+        access_status = str(access.get("status") or "")
         if provider not in configured_sources:
             errors.append(
                 f"Run.source_access[{position}] provider is not a configured source"
+            )
+        present_inventory_fields = inventory_fields.intersection(access)
+        if (
+            provider in inventory_required_sources
+            and access_status != "NOT_ATTEMPTED"
+            and present_inventory_fields != inventory_fields
+        ):
+            errors.append(
+                f"Run.source_access[{position}] configured inventory adapter requires "
+                f"all observation fields; missing {sorted(inventory_fields - present_inventory_fields)}"
+            )
+        elif present_inventory_fields and present_inventory_fields != inventory_fields:
+            errors.append(
+                f"Run.source_access[{position}] incomplete inventory observation: "
+                f"missing {sorted(inventory_fields - present_inventory_fields)}"
+            )
+        elif present_inventory_fields == inventory_fields:
+            retrieval_complete = access.get("retrieval_complete")
+            status = str(access.get("status") or "")
+            if retrieval_complete is False and status not in {"FAILED", "PARTIAL"}:
+                errors.append(
+                    f"Run.source_access[{position}] incomplete inventory retrieval must be FAILED or PARTIAL"
+                )
+            if retrieval_complete is True and status in {"FAILED", "PARTIAL"}:
+                errors.append(
+                    f"Run.source_access[{position}] complete inventory retrieval cannot be FAILED or PARTIAL"
+                )
+            feed_count = access.get("feed_entry_count")
+            registry_count = access.get("registry_record_count")
+            window_count = access.get("window_record_count")
+            unusable_count = access.get("unusable_record_count", 0)
+            if (
+                isinstance(unusable_count, int)
+                and not isinstance(unusable_count, bool)
+                and unusable_count > 0
+                and retrieval_complete is True
+            ):
+                errors.append(
+                    f"Run.source_access[{position}] unusable inventory records must fail completeness closed"
+                )
+            if (
+                isinstance(feed_count, int)
+                and not isinstance(feed_count, bool)
+                and isinstance(registry_count, int)
+                and not isinstance(registry_count, bool)
+                and isinstance(window_count, int)
+                and not isinstance(window_count, bool)
+                and window_count > feed_count + registry_count
+            ):
+                errors.append(
+                    f"Run.source_access[{position}] window inventory exceeds retrieved inventory"
+                )
+            observation = tuple(
+                access.get(field) for field in SOURCE_INVENTORY_FIELDS
+            ) + (
+                access.get("unusable_record_count"),
+                access.get("inventory_pages_requested"),
+                access.get("inventory_pages_received"),
+            )
+            prior_observation = inventory_observations.setdefault(
+                provider, observation
+            )
+            if prior_observation != observation:
+                errors.append(
+                    "Run.source_access inventory observation disagrees across "
+                    f"{provider!r} queries"
+                )
+            if isinstance(window_count, int) and not isinstance(window_count, bool):
+                inventory_window_counts.setdefault(provider, window_count)
+        present_pagination_fields = inventory_pagination_fields.intersection(access)
+        if (
+            strict_http_telemetry
+            and provider in inventory_required_sources
+            and access_status != "NOT_ATTEMPTED"
+            and (
+                "unusable_record_count" not in access
+                or present_pagination_fields != inventory_pagination_fields
+            )
+        ):
+            missing_extended = {
+                "unusable_record_count",
+                *SOURCE_INVENTORY_PAGINATION_FIELDS,
+            } - set(access)
+            errors.append(
+                f"Run.source_access[{position}] modern inventory telemetry is incomplete: "
+                f"missing {sorted(missing_extended)}"
+            )
+        if present_pagination_fields and present_pagination_fields != inventory_pagination_fields:
+            errors.append(
+                f"Run.source_access[{position}] incomplete inventory pagination: "
+                f"missing {sorted(inventory_pagination_fields - present_pagination_fields)}"
+            )
+        elif present_pagination_fields == inventory_pagination_fields:
+            requested_pages = access.get("inventory_pages_requested")
+            received_pages = access.get("inventory_pages_received")
+            if (
+                not isinstance(requested_pages, int)
+                or isinstance(requested_pages, bool)
+                or requested_pages < 1
+                or not isinstance(received_pages, int)
+                or isinstance(received_pages, bool)
+                or received_pages < 0
+                or received_pages > requested_pages
+            ):
+                errors.append(
+                    f"Run.source_access[{position}] has invalid inventory pagination"
+                )
+            elif access.get("retrieval_complete") is True and received_pages != requested_pages:
+                errors.append(
+                    f"Run.source_access[{position}] complete inventory must receive every requested page"
+                )
+        present_http_fields = http_telemetry_fields.intersection(access)
+        telemetry_required_for_access = (
+            str(access.get("source_id") or "") in expected_query_access_ids
+            or provider in {"publisher", "formal_proceedings_or_publisher"}
+        )
+        if (
+            strict_http_telemetry
+            and telemetry_required_for_access
+            and present_http_fields != http_telemetry_fields
+        ):
+            errors.append(
+                f"Run.source_access[{position}] modern executor receipt requires HTTP telemetry; "
+                f"missing {sorted(http_telemetry_fields - present_http_fields)}"
+            )
+        if present_http_fields and present_http_fields != http_telemetry_fields:
+            errors.append(
+                f"Run.source_access[{position}] incomplete HTTP telemetry: "
+                f"missing {sorted(http_telemetry_fields - present_http_fields)}"
+            )
+        elif present_http_fields == http_telemetry_fields:
+            requests_attempted = access.get("http_requests_attempted")
+            responses_received = access.get("http_responses_received")
+            cache_reused = access.get("cache_reused")
+            valid_counts = (
+                isinstance(requests_attempted, int)
+                and not isinstance(requests_attempted, bool)
+                and requests_attempted >= 0
+                and isinstance(responses_received, int)
+                and not isinstance(responses_received, bool)
+                and 0 <= responses_received <= requests_attempted
+            )
+            if not valid_counts:
+                errors.append(
+                    f"Run.source_access[{position}] has invalid HTTP telemetry"
+                )
+            elif cache_reused is True:
+                if requests_attempted != 0 or responses_received != 0:
+                    errors.append(
+                        f"Run.source_access[{position}] cache reuse cannot claim HTTP I/O"
+                    )
+                cache_status = str(access.get("status") or "")
+                valid_failed_replay = (
+                    cache_status == "FAILED"
+                    and access.get("retrieval_complete") is False
+                    and bool(
+                        access.get("error") or access.get("observation_errors")
+                    )
+                )
+                if cache_status not in {"SUCCESS", "NO_RESULTS", "PARTIAL"} and not valid_failed_replay:
+                    errors.append(
+                        f"Run.source_access[{position}] cache reuse requires a completed or explicitly incomplete local result"
+                    )
+            elif str(access.get("status") or "") in {"SUCCESS", "NO_RESULTS", "PARTIAL"} and (
+                requests_attempted < 1 or responses_received < 1
+            ):
+                errors.append(
+                    f"Run.source_access[{position}] completed network operation requires an HTTP response"
+                )
+            if (
+                cache_reused is False
+                and inventory_pagination_fields <= set(access)
+                and (
+                    requests_attempted < access.get("inventory_pages_requested")
+                    or responses_received < access.get("inventory_pages_received")
+                )
+            ):
+                errors.append(
+                    f"Run.source_access[{position}] HTTP telemetry cannot be smaller than the fetched inventory snapshot"
+                )
+    for position, access in enumerate(source_access):
+        if access.get("cache_reused") is not True:
+            continue
+        provider = str(access.get("provider") or "")
+        accessed_at = str(access.get("accessed_at") or "")
+        failed_incomplete_replay = (
+            str(access.get("status") or "") == "FAILED"
+            and access.get("retrieval_complete") is False
+        )
+        snapshot = (
+            tuple(access.get(field) for field in SOURCE_INVENTORY_FIELDS)
+            if inventory_fields <= set(access)
+            else None
+        )
+        has_prior_fetch = any(
+            str(peer.get("provider") or "") == provider
+            and peer.get("cache_reused") is False
+            and isinstance(peer.get("http_requests_attempted"), int)
+            and not isinstance(peer.get("http_requests_attempted"), bool)
+            and peer.get("http_requests_attempted", 0) >= 1
+            and isinstance(peer.get("http_responses_received"), int)
+            and not isinstance(peer.get("http_responses_received"), bool)
+            and (
+                failed_incomplete_replay
+                or peer.get("http_responses_received", 0) >= 1
+            )
+            and (
+                not accessed_at
+                or not str(peer.get("accessed_at") or "")
+                or str(peer.get("accessed_at") or "") <= accessed_at
+            )
+            and (
+                snapshot is None
+                or (
+                    inventory_fields <= set(peer)
+                    and tuple(
+                        peer.get(field) for field in SOURCE_INVENTORY_FIELDS
+                    )
+                    == snapshot
+                )
+            )
+            for peer in source_access
+        )
+        if not has_prior_fetch:
+            errors.append(
+                f"Run.source_access[{position}] cache replay lacks a prior matching provider fetch"
+            )
+    for provider, window_count in inventory_window_counts.items():
+        check = coverage_check_by_source.get(provider)
+        if isinstance(check, Mapping) and check.get("result_count") != window_count:
+            errors.append(
+                f"source CHECK {provider!r} result_count disagrees with complete window inventory"
+            )
+        expected_url = inventory_observations.get(provider, (None,) * 6)[5]
+        if (
+            isinstance(check, Mapping)
+            and isinstance(expected_url, str)
+            and expected_url
+            and _v3_canonical_source_url(check.get("url"))
+            != _v3_canonical_source_url(expected_url)
+        ):
+            errors.append(
+                f"source CHECK {provider!r} URL disagrees with its inventory endpoint"
             )
     raw_candidate_count = (run.get("counts") or {}).get("raw_candidates")
     derived_raw_candidate_count = sum(
@@ -1287,6 +1975,14 @@ def _v3_contract_errors(
         status = str(attempt.get("status") or "")
         result_count = attempt.get("result_count")
         pagination = attempt.get("pagination")
+        query_id = str(attempt.get("query_id") or "")
+        source_id = str(attempt.get("source_id") or "")
+        access_id = str(attempt.get("source_access_id") or "")
+        linked_access = source_access_by_id.get(access_id) if access_id else None
+        cache_receipt = (
+            isinstance(linked_access, Mapping)
+            and linked_access.get("cache_reused") is True
+        )
         if attempt.get("receipt_origin") != "EXECUTOR":
             errors.append(f"{prefix}.receipt_origin must be EXECUTOR")
         if status == "NO_RESULTS" and result_count != 0:
@@ -1315,25 +2011,38 @@ def _v3_contract_errors(
                 and received_pages > requested_pages
             ):
                 errors.append(f"{prefix} cannot receive more pages than requested")
-            if status in {"SUCCESS", "NO_RESULTS", "PARTIAL"} and (
-                not isinstance(requested_pages, int)
-                or isinstance(requested_pages, bool)
-                or requested_pages < 1
-                or not isinstance(received_pages, int)
-                or isinstance(received_pages, bool)
-                or received_pages < 1
+            if status in {"SUCCESS", "NO_RESULTS", "PARTIAL"}:
+                if cache_receipt:
+                    if requested_pages != 0 or received_pages != 0:
+                        errors.append(
+                            f"{prefix} cache replay must use zero-page pagination"
+                        )
+                elif (
+                    not isinstance(requested_pages, int)
+                    or isinstance(requested_pages, bool)
+                    or requested_pages < 1
+                    or not isinstance(received_pages, int)
+                    or isinstance(received_pages, bool)
+                    or received_pages < 1
+                ):
+                    errors.append(
+                        f"{prefix} {status} requires at least one successfully received page"
+                    )
+            if status == "NOT_ATTEMPTED" and received_pages != 0:
+                errors.append(f"{prefix} NOT_ATTEMPTED requires pages_received=0")
+            if (
+                isinstance(linked_access, Mapping)
+                and set(SOURCE_HTTP_TELEMETRY_FIELDS) <= set(linked_access)
+                and (
+                    requested_pages != linked_access.get("http_requests_attempted")
+                    or received_pages != linked_access.get("http_responses_received")
+                )
             ):
                 errors.append(
-                    f"{prefix} {status} requires at least one successfully received page"
+                    f"{prefix}.pagination disagrees with source_access HTTP telemetry"
                 )
-            if status in {"FAILED", "NOT_ATTEMPTED"} and received_pages != 0:
-                errors.append(f"{prefix} {status} requires pages_received=0")
-        query_id = str(attempt.get("query_id") or "")
-        source_id = str(attempt.get("source_id") or "")
-        access_id = str(attempt.get("source_access_id") or "")
         if source_id not in configured_sources:
             errors.append(f"{prefix}.source_id is not a configured source")
-        linked_access = source_access_by_id.get(access_id) if access_id else None
         if access_id and linked_access is None:
             errors.append(
                 f"{prefix} source_access_id references an unknown access record"
@@ -1501,6 +2210,11 @@ def _v3_contract_errors(
             continue
         statuses = {str(item.get("status") or "NOT_ATTEMPTED") for item in matches}
         expected_count = sum(int(item.get("result_count") or 0) for item in matches)
+        # Query receipts count per-query matches.  A complete feed/registry
+        # inventory is one provider-level observation repeated on those query
+        # records, so summing the receipts would multiply the same window.
+        if source_id in inventory_window_counts:
+            expected_count = inventory_window_counts[source_id]
         if "FAILED" in statuses or "PARTIAL" in statuses:
             expected_status = "FAILED"
         elif "SUCCESS" in statuses:
@@ -2359,6 +3073,17 @@ def validate_delivery_payload(
                     )
 
     errors.extend(_candidate_errors(run, report_html))
+    if _study_classification_contract(run):
+        for index, work in enumerate(state.get("works", [])):
+            if isinstance(work, Mapping):
+                errors.extend(
+                    _study_classification_errors(
+                        work,
+                        index,
+                        collection="State.works",
+                        allow_legacy_missing=True,
+                    )
+                )
     errors.extend(_access_contract_errors(run))
     errors.extend(_publisher_and_review_errors(run, evidence))
     errors.extend(_state_run_parity_errors(run, state))

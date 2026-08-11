@@ -26,13 +26,18 @@ class WorkPackTests(unittest.TestCase):
             "EVIDENCE_RADAR_PROTOCOL.md",
             "requirements.txt",
             "config/deployment.yml",
+            "config/radar_master.json",
             "docs/WORK_SETUP.md",
             "docs/SEMANTIC_CONTRACT_V3.md",
             "docs/MIGRATION_DUAL_LANE_1.0.md",
             "schemas/evidence-radar-state.schema.json",
             "tools/delivery_contract.py",
+            "tools/featured_selection.py",
+            "tools/materialize_delivery_aliases.py",
             "tools/merge_radar_state.py",
             "tools/package_work_delivery.py",
+            "tools/publisher_feed.py",
+            "tools/radar_control.py",
             "tools/render_report_from_artifacts.py",
             "tools/run_github_radar.py",
             "tools/validate_delivery_bundle.py",
@@ -62,6 +67,8 @@ class WorkPackTests(unittest.TestCase):
             self.assertIn("EvidenceRadar-WorkRun-<run_id>.zip", document)
             self.assertIn(".zip.sha256", document)
             self.assertIn("manifest.json", document)
+            self.assertIn("config/radar_master.json", document)
+            self.assertIn("--profile", document)
         self.assertIn("mix policy files", setup)
 
     def test_work_run_has_one_terminal_four_file_delivery_boundary(self) -> None:
@@ -101,7 +108,7 @@ class WorkPackTests(unittest.TestCase):
                 self.assertEqual("manifest.json", names[-1])
                 manifest = json.loads(archive.read("manifest.json"))
                 self.assertEqual("evidenceradar-work-pack", manifest["format"])
-                self.assertEqual("1.3.0", manifest["pack_version"])
+                self.assertEqual("1.4.0", manifest["pack_version"])
                 self.assertEqual(len(manifest["files"]), manifest["file_count"])
                 self.assertTrue(manifest["reproducible"])
                 for item in manifest["files"]:
@@ -161,6 +168,16 @@ class WorkPackTests(unittest.TestCase):
                 check=False,
             )
             self.assertEqual(0, renderer_help.returncode, renderer_help.stdout)
+            runner_help = subprocess.run(
+                [sys.executable, "tools/run_github_radar.py", "--help"],
+                cwd=extracted,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                check=False,
+            )
+            self.assertEqual(0, runner_help.returncode, runner_help.stdout)
+            self.assertIn("--profile", runner_help.stdout)
             merged_dir = temporary / "merged"
             merged_dir.mkdir()
             merged_state = merged_dir / "EvidenceRadar_State.json"

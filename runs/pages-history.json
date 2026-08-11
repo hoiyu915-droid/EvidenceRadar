@@ -1,0 +1,33 @@
+{
+  "format": "evidenceradar-pages-history",
+  "manifest_version": "1",
+  "runs": [
+    {
+      "directory": "github-actions-20260810T175707+0900",
+      "files": [
+        {
+          "path": "EvidenceRadar_Report.html",
+          "sha256": "c4a6d36b9b1a25ef4411986c07f3850a11c5c1a505890cd72fce5066eb34ba60",
+          "size": 2291740
+        },
+        {
+          "path": "EvidenceRadar_State.json",
+          "sha256": "bace3d7d9b1fb8123b340ca4e5caad3202234587e93d0f143daf223583e418db",
+          "size": 6248285
+        },
+        {
+          "path": "EvidenceRadar_Evidence.json",
+          "sha256": "01ac665272ff34d6a09514ebacf5722ed3275ef3cf85ff70dd18fc7a842b73dc",
+          "size": 6653441
+        },
+        {
+          "path": "EvidenceRadar_Run.json",
+          "sha256": "75a5bbc601fe456ab650156b6fe50ea6336deda4ce239a21f514770517c557c5",
+          "size": 1954768
+        }
+      ],
+      "protocol_commit": "c7b9aafaa385763bd8c4c72ae0f9d15a4ff0b99b",
+      "run_id": "github-actions-20260810T175707+0900"
+    }
+  ]
+}

@@ -33,6 +33,27 @@
       "type": "string",
       "minLength": 1
     },
+    "profile_id": {"type": "string", "minLength": 1},
+    "resolved_stream_ids": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "resolved_source_ids": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "master_control_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "runtime_request_sha256": {
+      "type": ["string", "null"],
+      "pattern": "^[0-9a-f]{64}$"
+    },
     "coverage_status": {
       "type": "string",
       "enum": [

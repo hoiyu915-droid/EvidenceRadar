@@ -29,7 +29,7 @@ from dataclasses import asdict, dataclass, field, fields
 from datetime import date, datetime, time as datetime_time, timedelta, timezone as datetime_timezone
 from email.utils import parsedate_to_datetime
 from pathlib import Path
-from typing import Any, Callable, Iterable, Iterator
+from typing import Any, Callable, Iterable, Iterator, Mapping
 from urllib.parse import parse_qsl, quote, urlencode, urljoin, urlparse
 from zoneinfo import ZoneInfo
 
@@ -47,6 +47,18 @@ from tools.translation_handoff import (
     load_translation_request,
     request_sha256,
     write_translation_request,
+)
+from tools.featured_selection import (
+    featured_policy_from_output,
+    featured_policy_note,
+    parse_featured_policy_note,
+    select_featured_work_ids_v2,
+)
+from tools.publisher_feed import PublisherFeedError, fetch_feed_records
+from tools.radar_control import (
+    RadarControlError,
+    load_master_runtime,
+    project_runtime_limits,
 )
 PUBMED_BASE = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
 EUROPE_PMC_SEARCH = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
@@ -85,6 +97,16 @@ QUALIFYING_EVENTS = {
     "formal_version_verified",
 }
 VERIFICATION_SOURCES = {"publisher", "formal_proceedings_or_publisher"}
+DISCOVERY_ADAPTER_KEYS = {
+    "pubmed",
+    "europe_pmc",
+    "openalex",
+    "arxiv",
+    "openreview",
+    "acl_anthology",
+    "pmlr",
+    "rss_atom",
+}
 OA_STATUSES = {"YES", "NO", "UNKNOWN"}
 FULLTEXT_ACCESS_STATUSES = {
     "ACCESSIBLE",
@@ -310,24 +332,27 @@ def classify_publication(
         for label in labels
     )
 
-    if provider_preprint:
-        document_type, document_basis = "preprint", "PROVIDER_METADATA"
-    elif is_preprint:
-        document_type, document_basis = "preprint", "SOURCE_CLASS"
-    elif provider_protocol:
+    # A merged formal observation outranks an earlier preprint observation.
+    # This lets a DOI/PMID version-of-record become the canonical document
+    # without erasing the preprint source from observed_sources/events.
+    if provider_protocol:
         document_type, document_basis = "protocol", "PROVIDER_METADATA"
     elif provider_guideline:
         document_type, document_basis = "guideline", "PROVIDER_METADATA"
     elif provider_conference:
         document_type, document_basis = "conference_paper", "PROVIDER_METADATA"
+    elif provider_journal:
+        document_type, document_basis = "journal_article", "PROVIDER_METADATA"
+    elif provider_preprint:
+        document_type, document_basis = "preprint", "PROVIDER_METADATA"
+    elif is_preprint:
+        document_type, document_basis = "preprint", "SOURCE_CLASS"
     elif title_protocol:
         document_type, document_basis = "protocol", "TITLE_EXPLICIT"
     elif title_guideline:
         document_type, document_basis = "guideline", "TITLE_EXPLICIT"
     elif source_key in {"acl anthology", "pmlr"}:
         document_type, document_basis = "conference_paper", "SOURCE_CLASS"
-    elif provider_journal:
-        document_type, document_basis = "journal_article", "PROVIDER_METADATA"
     elif source_key in {"pubmed", "europe pmc"}:
         document_type, document_basis = "journal_article", "SOURCE_CLASS"
     else:
@@ -569,7 +594,7 @@ def _provider_oa_evidence(candidate: Candidate) -> list[dict[str, str]]:
     if candidate.pmcid:
         evidence.append(
             {
-                "source": candidate.source or "repository",
+                "source": "PubMed Central",
                 "evidence_type": "repository_identifier",
                 "value": candidate.pmcid,
                 "url": f"https://pmc.ncbi.nlm.nih.gov/articles/{quote(candidate.pmcid, safe='')}/",
@@ -584,7 +609,14 @@ def _provider_oa_evidence(candidate: Candidate) -> list[dict[str, str]]:
                 "url": f"https://arxiv.org/abs/{quote(candidate.arxiv_id, safe='/')}",
             }
         )
-    if candidate.open_access is True and not evidence:
+    # A caller-supplied OA evidence object (for example the authoritative
+    # source-catalog ``fully_oa`` declaration) is already the provenance.
+    # Do not relabel that declaration as a provider-returned OA flag.
+    has_explicit_evidence = any(
+        isinstance(item, dict) and str(item.get("evidence_type") or "")
+        for item in candidate.oa_evidence or []
+    )
+    if candidate.open_access is True and not evidence and not has_explicit_evidence:
         evidence.append(
             {
                 "source": candidate.source or "provider",
@@ -592,7 +624,7 @@ def _provider_oa_evidence(candidate: Candidate) -> list[dict[str, str]]:
                 "value": "true",
             }
         )
-    elif candidate.open_access is False and not evidence:
+    elif candidate.open_access is False and not evidence and not has_explicit_evidence:
         evidence.append(
             {
                 "source": candidate.source or "provider",
@@ -1171,8 +1203,9 @@ def fetch_openalex(
             or item.get("id")
             or ""
         )
+        is_preprint = work_type.casefold() in {"preprint", "posted-content"}
         events = []
-        if publication_date:
+        if publication_date and not is_preprint:
             events.append(
                 event_record(
                     "formal_version_verified",
@@ -1209,7 +1242,7 @@ def fetch_openalex(
                     if _terminal_id(ids.get("pmcid"))
                     else (item.get("open_access") or {}).get("is_oa")
                 ),
-                is_preprint=work_type.casefold() in {"preprint", "posted-content"},
+                is_preprint=is_preprint,
                 provider_publication_types=[work_type] if work_type else [],
                 events=events,
             )
@@ -1516,20 +1549,6 @@ def fetch_arxiv(
                 landing_url = str(link.attrib["href"])
                 break
         doi = normalize_doi(_text(entry.find(f"{arxiv}doi")))
-        event_time = published_raw or publication_date
-        events = []
-        if event_time:
-            events.append(
-                event_record(
-                    "oa_fulltext_first_available",
-                    event_time,
-                    "arXiv",
-                    event_source_field,
-                    landing_url,
-                    "instant" if "T" in event_time else "date",
-                    "provider_metadata",
-                )
-            )
         candidates.append(
             Candidate(
                 title=title,
@@ -1549,7 +1568,8 @@ def fetch_arxiv(
                 landing_url=landing_url,
                 open_access=True,
                 is_preprint=True,
-                events=events,
+                provider_publication_types=["preprint"],
+                events=[],
             )
         )
     return candidates
@@ -1634,25 +1654,6 @@ def fetch_openreview(
             authors = [str(part).strip() for part in authors_value if str(part).strip()]
         else:
             authors = []
-        published_text = str(published_value or "").strip()
-        event_time = (
-            published_text
-            if published_text and _normalized_provider_date(published_text)
-            else publication_date
-        )
-        events = []
-        if event_time:
-            events.append(
-                event_record(
-                    "formal_version_verified",
-                    event_time,
-                    "OpenReview",
-                    published_field if published_value else "note timestamp",
-                    landing_url,
-                    "instant" if "T" in event_time else "date",
-                    "provider_metadata",
-                )
-            )
         candidates.append(
             Candidate(
                 title=title,
@@ -1666,8 +1667,9 @@ def fetch_openreview(
                 doi=normalize_doi(_openreview_value(content, "doi")),
                 landing_url=landing_url,
                 open_access=True,
-                is_preprint=not bool(_openreview_value(content, "venue")),
-                events=events,
+                is_preprint=True,
+                provider_publication_types=["preprint"],
+                events=[],
             )
         )
         if len(candidates) >= max_results:
@@ -1689,7 +1691,7 @@ def _matches_source_query(text: str, query: str) -> bool:
         for phrase in re.findall(r'"([^\"]{3,})"', query)
         if phrase.strip()
     ]
-    if any(phrase in haystack for phrase in quoted):
+    if any(_contains_search_term(haystack, phrase) for phrase in quoted):
         return True
     tokens = [
         token
@@ -1698,7 +1700,24 @@ def _matches_source_query(text: str, query: str) -> bool:
     ]
     if not tokens:
         return True
-    return any(token.rstrip("*") in haystack for token in tokens)
+    return any(_contains_search_term(haystack, token) for token in tokens)
+
+
+def _contains_search_term(text: str, raw_term: str) -> bool:
+    """Match terms on alphanumeric boundaries so ``AI`` cannot match ``paired``."""
+
+    haystack = unicodedata.normalize("NFKD", html.unescape(text)).casefold()
+    term = re.sub(r"\s+", " ", str(raw_term or "").casefold()).strip()
+    if not term:
+        return False
+    wildcard = term.endswith("*")
+    term = term.rstrip("*")
+    pieces = [re.escape(piece) for piece in term.split() if piece]
+    if not pieces:
+        return False
+    body = r"\s+".join(pieces)
+    suffix = "" if wildcard else r"(?![a-z0-9])"
+    return re.search(rf"(?<![a-z0-9]){body}{suffix}", haystack) is not None
 
 
 def _xml_link(entry: ET.Element, atom: str, rel: str = "alternate") -> str:
@@ -1720,10 +1739,6 @@ def _candidate_from_acl_atom(
     landing_url = _xml_link(entry, atom) or raw_id
     title = _text(entry.find(f"{atom}title"))
     published = _text(entry.find(f"{atom}published"))
-    event_source_field = "atom:published"
-    if not published:
-        published = _text(entry.find(f"{atom}updated"))
-        event_source_field = "atom:updated"
     if not title:
         return None
     doi_url = _xml_link(entry, atom, "doi")
@@ -1750,7 +1765,7 @@ def _candidate_from_acl_atom(
                 "formal_proceedings_release",
                 published or publication_date,
                 "ACL Anthology",
-                event_source_field,
+                "atom:published",
                 landing_url,
                 "instant" if "T" in published else "date",
                 "provider_metadata",
@@ -1834,7 +1849,7 @@ def fetch_acl_anthology(
         cache["acl_anthology_items"] = items
     results: list[Candidate] = []
     for template in cache["acl_anthology_items"]:
-        if template.publication_date and not _date_is_in_provider_window(
+        if not template.publication_date or not _date_is_in_provider_window(
             template.publication_date, start_date, end_date
         ):
             continue
@@ -1861,10 +1876,6 @@ def _parse_pmlr_atom(
         title = _text(entry.find(f"{atom}title"))
         landing_url = _xml_link(entry, atom) or _text(entry.find(f"{atom}id"))
         published = _text(entry.find(f"{atom}published"))
-        event_source_field = "atom:published"
-        if not published:
-            published = _text(entry.find(f"{atom}updated"))
-            event_source_field = "atom:updated"
         publication_date = _normalized_provider_date(published)
         if not title:
             continue
@@ -1889,7 +1900,7 @@ def _parse_pmlr_atom(
                         "formal_proceedings_release",
                         published or publication_date,
                         "PMLR",
-                        event_source_field,
+                        "atom:published",
                         landing_url,
                         "instant" if "T" in published else "date",
                         "provider_metadata",
@@ -2010,7 +2021,7 @@ def fetch_pmlr(
         cache["pmlr_items"] = items
     results: list[Candidate] = []
     for template in cache["pmlr_items"]:
-        if template.publication_date and not _date_is_in_provider_window(
+        if not template.publication_date or not _date_is_in_provider_window(
             template.publication_date, start_date, end_date
         ):
             continue
@@ -2034,13 +2045,18 @@ def event_record(
     precision: str,
     confidence: str,
 ) -> dict[str, Any]:
+    # The public State contract calls an ISO date-time observation
+    # ``timestamp``.  Older adapters used the internal word ``instant``;
+    # normalize centrally so a successfully notified timestamped event cannot
+    # make the State artifact fail its schema after discovery has completed.
+    normalized_precision = "timestamp" if precision == "instant" else precision
     return {
         "event_type": event_type,
         "occurred_at": occurred_at,
         "source": source,
         "source_field": source_field,
         "source_url": source_url,
-        "precision": precision,
+        "precision": normalized_precision,
         "confidence": confidence,
     }
 
@@ -2083,11 +2099,98 @@ def category_lookup(scoring: dict[str, Any]) -> dict[str, str]:
     return lookup
 
 
+
+def fetch_rss_atom(
+    session: requests.Session,
+    query: str,
+    stream: str,
+    category: str,
+    start_date: date,
+    end_date: date,
+    max_results: int,
+    *,
+    source_id: str,
+    source_config: dict[str, Any],
+    cache: dict[str, Any],
+) -> list[Candidate]:
+    try:
+        records = fetch_feed_records(
+            session,
+            source_id=source_id,
+            source_config=source_config,
+            query=query,
+            start_date=start_date,
+            end_date=end_date,
+            max_results=max_results,
+            cache=cache,
+            user_agent=USER_AGENT,
+        )
+    except PublisherFeedError as exc:
+        raise RadarRuntimeError(str(exc)) from exc
+    candidates: list[Candidate] = []
+    fully_oa = str(source_config.get("oa_mode") or "").casefold() == "fully_oa"
+    for record in records:
+        publication_date = str(record.get("publication_date") or "")
+        landing_url = str(record.get("landing_url") or record.get("feed_url") or "")
+        events = []
+        if publication_date:
+            source_field = str(record.get("source_field") or "publisher_feed")
+            event_type = (
+                "formal_version_verified"
+                if source_field.startswith("crossref:")
+                and source_field != "crossref:published-online"
+                else "version_of_record_first_online"
+            )
+            events.append(
+                event_record(
+                    event_type,
+                    publication_date,
+                    source_id,
+                    source_field,
+                    landing_url,
+                    "date",
+                    str(record.get("event_confidence") or "publisher_verified"),
+                )
+            )
+        candidates.append(
+            Candidate(
+                title=str(record.get("title") or ""),
+                stream=stream,
+                category=category,
+                source=source_id,
+                publication_date=publication_date,
+                authors=[str(value) for value in record.get("authors", []) if str(value)],
+                venue=str(record.get("venue") or ""),
+                abstract=str(record.get("summary") or ""),
+                doi=normalize_doi(str(record.get("doi") or "")),
+                landing_url=landing_url,
+                open_access=True if fully_oa else None,
+                oa_evidence=(
+                    [
+                        {
+                            "source": source_id,
+                            "evidence_type": "source_catalog_oa_mode",
+                            "value": "fully_oa",
+                            "url": str(record.get("feed_url") or landing_url),
+                        }
+                    ]
+                    if fully_oa
+                    else []
+                ),
+                provider_publication_types=["journal article"],
+                events=events,
+            )
+        )
+    return candidates
+
+
 def score_candidate(candidate: Candidate, relevance_terms: Iterable[str]) -> int:
     title = candidate.title.casefold()
     text = f"{candidate.title} {candidate.abstract}".casefold()
-    matches = sum(1 for term in relevance_terms if str(term).casefold() in text)
-    title_matches = sum(1 for term in relevance_terms if str(term).casefold() in title)
+    matches = sum(1 for term in relevance_terms if _contains_search_term(text, str(term)))
+    title_matches = sum(
+        1 for term in relevance_terms if _contains_search_term(title, str(term))
+    )
     identity_bonus = 8 if candidate.doi or candidate.pmid else 0
     oa_bonus = 4 if candidate.open_access else 0
     return min(100, 40 + matches * 6 + title_matches * 3 + identity_bonus + oa_bonus)
@@ -2124,7 +2227,51 @@ def candidate_is_eligible(candidate: Candidate, scoring: dict[str, Any]) -> bool
     return status in {"PRIORITY", "REVIEW_REQUIRED"}
 
 
+def _candidate_has_formal_publication_signal(candidate: Candidate) -> bool:
+    """Return whether this observation positively identifies a formal version."""
+
+    if candidate.is_preprint or candidate.document_type == "preprint":
+        return False
+    if candidate.document_type in {
+        "journal_article",
+        "conference_paper",
+        "protocol",
+        "guideline",
+    }:
+        return True
+    publication_labels = {
+        _publication_label(value)
+        for value in candidate.provider_publication_types
+    }
+    if publication_labels & {
+        "journal article",
+        "article",
+        "research article",
+        "proceedings article",
+        "conference paper",
+        "conference proceedings",
+        "protocol",
+        "guideline",
+    }:
+        return True
+    return any(
+        str(event.get("event_type") or "")
+        in {
+            "version_of_record_first_online",
+            "first_formal_indexing",
+            "formal_proceedings_release",
+            "preprint_to_peer_reviewed_upgrade",
+            "formal_version_verified",
+        }
+        for event in candidate.events
+    )
+
+
 def _merge_candidate_observations(target: Candidate, incoming: Candidate) -> None:
+    target_is_formal = _candidate_has_formal_publication_signal(target)
+    incoming_is_formal = _candidate_has_formal_publication_signal(incoming)
+    has_formal_version = target_is_formal or incoming_is_formal
+    observed_preprint = target.is_preprint or incoming.is_preprint
     target.events = merge_event_lists(target.events, incoming.events)
     target.query_ids = sorted(set(target.query_ids) | set(incoming.query_ids))
     target.observed_streams = sorted(
@@ -2135,10 +2282,32 @@ def _merge_candidate_observations(target: Candidate, incoming: Candidate) -> Non
         set(target.observed_sources or [target.source])
         | set(incoming.observed_sources or [incoming.source])
     )
+    if incoming_is_formal and not target_is_formal:
+        for field_name in (
+            "title",
+            "source",
+            "publication_date",
+            "venue",
+            "abstract",
+            "landing_url",
+        ):
+            incoming_value = getattr(incoming, field_name)
+            if incoming_value:
+                setattr(target, field_name, incoming_value)
     target.authors = list(dict.fromkeys([*target.authors, *incoming.authors]))
+    for field_name in ("venue", "abstract"):
+        if not getattr(target, field_name) and getattr(incoming, field_name):
+            setattr(target, field_name, getattr(incoming, field_name))
+    # Formal scalar provenance must never be replaced by an older preprint.
+    # Missing formal metadata may, however, be completed by another formal
+    # observation; a landing page may fall back to discovery only when no
+    # formal URL is available.
+    if not target.publication_date and incoming_is_formal and incoming.publication_date:
+        target.publication_date = incoming.publication_date
+    if not target.landing_url and incoming.landing_url:
+        target.landing_url = incoming.landing_url
     if incoming.open_access is True:
         target.open_access = True
-    target.is_preprint = target.is_preprint or incoming.is_preprint
     for field_name in ("doi", "pmid", "pmcid", "arxiv_id", "anthology_id", "openalex_id"):
         if not getattr(target, field_name) and getattr(incoming, field_name):
             setattr(target, field_name, getattr(incoming, field_name))
@@ -2167,24 +2336,185 @@ def _merge_candidate_observations(target: Candidate, incoming: Candidate) -> Non
     target.provider_publication_types = _stable_publication_types(
         [*(target.provider_publication_types or []), *(incoming.provider_publication_types or [])]
     )
+    target.is_preprint = observed_preprint and not has_formal_version
     _apply_candidate_classification(target)
 
 
 def deduplicate(candidates: Iterable[Candidate]) -> list[Candidate]:
-    selected: dict[str, Candidate] = {}
-    for candidate in candidates:
-        key = candidate.work_id
-        current = selected.get(key)
-        if current is None or candidate.score > current.score:
-            if current is not None:
-                _merge_candidate_observations(candidate, current)
+    """Merge conflict-free identity components across every strong identifier."""
+
+    def stable_key(candidate: Candidate) -> tuple[Any, ...]:
+        return (
+            candidate.normalized_title,
+            0 if _candidate_has_formal_publication_signal(candidate) else 1,
+            tuple(sorted(candidate.identifiers.items())),
+            -int(candidate.score),
+            candidate.source.casefold(),
+            json.dumps(asdict(candidate), ensure_ascii=False, sort_keys=True),
+        )
+
+    items = sorted(list(candidates), key=stable_key)
+    if not items:
+        return []
+    identifier_fields = tuple(field for field in DEDUPE_PRIORITY if field != "normalized_title")
+    parent = list(range(len(items)))
+    component_values: list[dict[str, set[str]]] = [
+        {
+            field: {value.casefold()}
+            for field, value in candidate.identifiers.items()
+        }
+        for candidate in items
+    ]
+
+    def find(index: int) -> int:
+        if parent[index] != index:
+            parent[index] = find(parent[index])
+        return parent[index]
+
+    def union_checked(left: int, right: int, *, matched_on: str) -> None:
+        left_root, right_root = find(left), find(right)
+        if left_root == right_root:
+            return
+        for field in identifier_fields:
+            left_values = component_values[left_root].get(field, set())
+            right_values = component_values[right_root].get(field, set())
+            if left_values and right_values and left_values != right_values:
+                raise RadarRuntimeError(
+                    "conflicting candidate identifiers would be transitively merged "
+                    f"on {matched_on}: {field}={sorted(left_values)!r} vs "
+                    f"{sorted(right_values)!r}"
+                )
+        merged_values = {
+            field: component_values[left_root].get(field, set())
+            | component_values[right_root].get(field, set())
+            for field in identifier_fields
+            if component_values[left_root].get(field, set())
+            or component_values[right_root].get(field, set())
+        }
+        if right_root < left_root:
+            left_root, right_root = right_root, left_root
+        parent[right_root] = left_root
+        component_values[left_root] = merged_values
+        component_values[right_root] = {}
+
+    by_identifier: dict[tuple[str, str], int] = {}
+    for index, candidate in enumerate(items):
+        for field, value in candidate.identifiers.items():
+            key = (field, value.casefold())
+            previous = by_identifier.get(key)
+            if previous is None:
+                by_identifier[key] = index
             else:
-                candidate.observed_streams = sorted(set(candidate.observed_streams or [candidate.stream]))
-                candidate.observed_sources = sorted(set(candidate.observed_sources or [candidate.source]))
-            selected[key] = candidate
-        elif current is not None:
-            _merge_candidate_observations(current, candidate)
-    return sorted(selected.values(), key=lambda item: (-item.score, item.work_id))
+                union_checked(previous, index, matched_on=field)
+
+    by_title: dict[str, list[int]] = {}
+    for index, candidate in enumerate(items):
+        if candidate.normalized_title:
+            by_title.setdefault(candidate.normalized_title, []).append(index)
+
+    generic_titles = {
+        "announcement",
+        "commentary",
+        "correction",
+        "editorial",
+        "erratum",
+        "foreword",
+        "introduction",
+        "letter",
+        "news",
+        "preface",
+    }
+
+    def normalized_person(value: str) -> str:
+        return re.sub(r"[^a-z0-9]+", "", value.casefold())
+
+    def title_bridge_has_positive_evidence(title: str, roots: list[int]) -> bool:
+        tokens = re.findall(r"[a-z0-9]+", title.casefold())
+        if (
+            len(tokens) < 4
+            or len("".join(tokens)) < 20
+            or " ".join(tokens) in generic_titles
+            or set(tokens) <= generic_titles
+        ):
+            return False
+        grouped_candidates = [
+            [items[index] for index in by_title[title] if find(index) == root]
+            for root in roots
+        ]
+        date_sets = [
+            {
+                str(candidate.publication_date or "")[:10]
+                for candidate in group
+                if str(candidate.publication_date or "")[:10]
+            }
+            for group in grouped_candidates
+        ]
+        if any(not values for values in date_sets) or not set.intersection(*date_sets):
+            return False
+        author_sets = [
+            {
+                normalized_person(author)
+                for candidate in group
+                for author in candidate.authors
+                if normalized_person(author)
+            }
+            for group in grouped_candidates
+        ]
+        venue_sets = [
+            {
+                re.sub(r"[^a-z0-9]+", "", candidate.venue.casefold())
+                for candidate in group
+                if candidate.venue
+            }
+            for group in grouped_candidates
+        ]
+        author_match = bool(
+            all(author_sets) and set.intersection(*author_sets)
+        )
+        venue_match = bool(all(venue_sets) and set.intersection(*venue_sets))
+        return author_match or venue_match
+
+    for title, indexes in sorted(by_title.items()):
+        roots = sorted({find(index) for index in indexes})
+        if len(roots) < 2:
+            continue
+        # A title may bridge complementary identifiers (DOI-only + PMID-only),
+        # but never two distinct values of the same strong identifier type.
+        if any(
+            len(
+                set().union(
+                    *(component_values[root].get(field, set()) for root in roots)
+                )
+            ) > 1
+            for field in identifier_fields
+        ):
+            continue
+        if not title_bridge_has_positive_evidence(title, roots):
+            continue
+        anchor = roots[0]
+        for root in roots[1:]:
+            union_checked(anchor, root, matched_on=f"normalized_title:{title}")
+            anchor = find(anchor)
+
+    components: dict[int, list[Candidate]] = {}
+    for index, candidate in enumerate(items):
+        components.setdefault(find(index), []).append(candidate)
+
+    merged: list[Candidate] = []
+    for component in components.values():
+        ordered = sorted(component, key=stable_key)
+        canonical = copy.deepcopy(ordered[0])
+        canonical.observed_streams = sorted(
+            set(canonical.observed_streams or [canonical.stream])
+        )
+        canonical.observed_sources = sorted(
+            set(canonical.observed_sources or [canonical.source])
+        )
+        for incoming in ordered[1:]:
+            _merge_candidate_observations(canonical, incoming)
+        canonical.score = max(int(candidate.score) for candidate in ordered)
+        merged.append(canonical)
+    return sorted(merged, key=lambda item: (-item.score, item.work_id))
 
 
 def merge_event_lists(*groups: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -2197,6 +2527,35 @@ def merge_event_lists(*groups: Iterable[dict[str, Any]]) -> list[dict[str, Any]]
             )
             events[key] = dict(event)
     return [events[key] for key in sorted(events)]
+
+
+class _RequestTelemetrySession:
+    """Count real HTTP request/response units made by one adapter operation."""
+
+    def __init__(self, session: requests.Session) -> None:
+        self._session = session
+        self.requests_attempted = 0
+        self.responses_received = 0
+
+    def get(self, *args: Any, **kwargs: Any) -> Any:
+        self.requests_attempted += 1
+        try:
+            response = self._session.get(*args, **kwargs)
+        except requests.RequestException as exc:
+            response = getattr(exc, "response", None)
+            history = getattr(response, "history", ()) if response is not None else ()
+            history_count = len(history) if isinstance(history, (list, tuple)) else 0
+            self.requests_attempted += history_count
+            self.responses_received += history_count + (1 if response is not None else 0)
+            raise
+        history = getattr(response, "history", ())
+        history_count = len(history) if isinstance(history, (list, tuple)) else 0
+        self.requests_attempted += history_count
+        self.responses_received += 1 + history_count
+        return response
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._session, name)
 
 
 def discover_candidates(
@@ -2227,13 +2586,25 @@ def discover_candidates(
         "openreview": fetch_openreview,
         "acl_anthology": fetch_acl_anthology,
         "pmlr": fetch_pmlr,
+        "rss_atom": fetch_rss_atom,
     }
+    source_catalog = {
+        str(source_id): dict(config)
+        for source_id, config in streams.get("source_catalog", {}).items()
+        if isinstance(config, dict)
+    }
+    verification_sources = set(
+        str(value)
+        for value in streams.get("source_check_contract", {}).get(
+            "bounded_verification_sources", []
+        )
+    ) | VERIFICATION_SOURCES
     for stream, config in streams.get("streams", {}).items():
         sources = [str(item) for item in config.get("sources", [])]
         category = categories.get(str(stream), str(stream))
         for query in config.get("queries", []):
             for discovery_source in sources:
-                if discovery_source in VERIFICATION_SOURCES:
+                if discovery_source in verification_sources:
                     continue
                 query_index += 1
                 query_id = f"query-{query_index:03d}"
@@ -2242,19 +2613,29 @@ def discover_candidates(
                 status = "NOT_ATTEMPTED"
                 error = ""
                 found: list[Candidate] = []
-                fetcher = adapters.get(discovery_source)
+                source_config = source_catalog.get(discovery_source, {})
+                adapter_key = str(source_config.get("adapter") or discovery_source)
+                fetcher = adapters.get(adapter_key)
+                request_session = _RequestTelemetrySession(session)
+                adapter_invoked = False
+                circuit_open = False
                 if fetcher is None:
-                    error = f"No automated discovery adapter for configured source: {discovery_source}."
+                    error = (
+                        "No automated discovery adapter for configured source: "
+                        f"{discovery_source} (adapter={adapter_key})."
+                    )
                     unavailable_sources.add(discovery_source)
                 elif discovery_source in source_failure_reason:
+                    circuit_open = True
                     error = (
                         "Provider circuit open after an earlier check failed: "
                         + source_failure_reason[discovery_source]
                     )
                 else:
                     try:
+                        adapter_invoked = True
                         fetch_args = (
-                            session,
+                            request_session,
                             str(query),
                             str(stream),
                             category,
@@ -2262,14 +2643,39 @@ def discover_candidates(
                             end.date(),
                             max_results,
                         )
-                        if discovery_source == "arxiv":
+                        if adapter_key == "arxiv":
                             found = fetcher(*fetch_args, sleep=time.sleep)
-                        elif discovery_source in {"acl_anthology", "pmlr"}:
+                        elif adapter_key in {"acl_anthology", "pmlr"}:
                             found = fetcher(*fetch_args, cache=source_cache)
+                        elif adapter_key == "rss_atom":
+                            found = fetcher(
+                                *fetch_args,
+                                source_id=discovery_source,
+                                source_config=source_config,
+                                cache=source_cache,
+                            )
                         else:
                             found = fetcher(*fetch_args)
                         searched_sources.add(discovery_source)
                         status = "SUCCESS" if found else "NO_RESULTS"
+                        source_observation = source_cache.get(
+                            f"source_observation:{discovery_source}", {}
+                        )
+                        if (
+                            adapter_key == "rss_atom"
+                            and isinstance(source_observation, dict)
+                            and source_observation.get("retrieval_complete") is False
+                        ):
+                            status = "PARTIAL" if found else "FAILED"
+                            observation_errors = [
+                                str(value)
+                                for value in source_observation.get("errors", [])
+                                if str(value)
+                            ]
+                            error = "; ".join(observation_errors) or (
+                                "configured journal inventory was incomplete"
+                            )
+                            unavailable_sources.add(discovery_source)
                     except (
                         RadarRuntimeError,
                         requests.RequestException,
@@ -2305,14 +2711,84 @@ def discover_candidates(
                         **({"notes": [error]} if error else {}),
                     }
                 )
+                source_observation_for_access = source_cache.get(
+                    f"source_observation:{discovery_source}", {}
+                )
+                include_source_observation = (
+                    adapter_key == "rss_atom"
+                    and isinstance(source_observation_for_access, dict)
+                    and not circuit_open
+                )
+                cache_reused = (
+                    adapter_invoked
+                    and request_session.requests_attempted == 0
+                    and (
+                        status in {"SUCCESS", "NO_RESULTS", "PARTIAL"}
+                        or (
+                            status == "FAILED"
+                            and adapter_key == "rss_atom"
+                            and isinstance(source_observation_for_access, dict)
+                            and source_observation_for_access.get(
+                                "retrieval_complete"
+                            )
+                            is False
+                        )
+                    )
+                )
                 source_access.append(
                     {
                         "source_id": f"{query_id}-{discovery_source}",
                         "provider": discovery_source,
-                        "url": SOURCE_ENDPOINTS.get(discovery_source, ""),
+                        "url": (
+                            str(source_observation_for_access.get("inventory_url") or "")
+                            if include_source_observation
+                            else ""
+                        )
+                        or SOURCE_ENDPOINTS.get(discovery_source, ""),
                         "accessed_at": searched_at,
                         "status": status,
                         "result_count": len(found),
+                        "http_requests_attempted": request_session.requests_attempted,
+                        "http_responses_received": request_session.responses_received,
+                        "cache_reused": cache_reused,
+                        **(
+                            {
+                                key: value
+                                for key, value in source_cache.get(
+                                    f"source_observation:{discovery_source}", {}
+                                ).items()
+                                if key
+                                in {
+                                    "retrieval_complete",
+                                    "retrieval_backend",
+                                    "feed_entry_count",
+                                    "registry_record_count",
+                                    "unusable_record_count",
+                                    "window_record_count",
+                                    "inventory_url",
+                                    "inventory_pages_requested",
+                                    "inventory_pages_received",
+                                }
+                            }
+                            if include_source_observation
+                            else {}
+                        ),
+                        **(
+                            {
+                                "observation_errors": [
+                                    str(value)
+                                    for value in source_cache.get(
+                                        f"source_observation:{discovery_source}", {}
+                                    ).get("errors", [])
+                                    if str(value)
+                                ]
+                            }
+                            if include_source_observation
+                            and source_cache.get(
+                                f"source_observation:{discovery_source}", {}
+                            ).get("errors")
+                            else {}
+                        ),
                         **({"error": error} if error else {}),
                     }
                 )
@@ -2336,6 +2812,11 @@ def qualifying_event(
     end: datetime,
     timezone: ZoneInfo,
 ) -> dict[str, Any] | None:
+    # A preprint observation is discovery metadata, not a formal publication
+    # trigger. A verified upgrade is represented by the merged/formal candidate
+    # (is_preprint=False) carrying preprint_to_peer_reviewed_upgrade evidence.
+    if candidate.is_preprint or candidate.document_type == "preprint":
+        return None
     matches = [
         event for event in candidate.events
         if event_in_window(event, start, end, timezone)
@@ -2431,6 +2912,8 @@ def probe_publisher_pages(
         result_url = url
         http_status: int | None = None
         current_url = url
+        http_requests_attempted = 0
+        http_responses_received = 0
         try:
             visited: set[str] = set()
             for _redirect in range(7):
@@ -2446,6 +2929,7 @@ def probe_publisher_pages(
                 ):
                     error = f"publisher domain budget reached before access: {domain}"
                     break
+                http_requests_attempted += 1
                 response = session.get(
                     current_url,
                     headers={"User-Agent": USER_AGENT, "Accept": "text/html,application/xhtml+xml;q=0.9,*/*;q=0.5"},
@@ -2453,6 +2937,7 @@ def probe_publisher_pages(
                     allow_redirects=False,
                     stream=True,
                 )
+                http_responses_received += 1
                 http_status = response.status_code
                 response_url = str(response.url or current_url)
                 if not is_doi_resolver:
@@ -2485,9 +2970,10 @@ def probe_publisher_pages(
                 domain_counts[domain] = domain_counts.get(domain, 0) + 1
             result_url = current_url
             error = redact_error(exc)
+        verification_source = verification_source_for_candidate(candidate)
         access_record = {
-            "source_id": f"publisher-{attempts:03d}",
-            "provider": "publisher",
+            "source_id": f"{verification_source}-{attempts:03d}",
+            "provider": verification_source,
             "work_id": candidate.work_id,
             "candidate_title": candidate.title,
             "category": candidate.category,
@@ -2495,6 +2981,9 @@ def probe_publisher_pages(
             "accessed_at": accessed_at.isoformat(),
             "status": status,
             "result_count": 1 if status == "SUCCESS" else 0,
+            "http_requests_attempted": http_requests_attempted,
+            "http_responses_received": http_responses_received,
+            "cache_reused": False,
             **({"http_status": http_status} if http_status is not None else {}),
             **({"error": error} if error else {}),
         }
@@ -2514,6 +3003,15 @@ def probe_publisher_pages(
             + ", ".join(sorted(blocked_domains))
         )
     return successes, access_records, warnings
+
+
+def verification_source_for_candidate(candidate: Candidate) -> str:
+    if candidate.document_type == "conference_paper" or any(
+        str(event.get("event_type") or "") == "formal_proceedings_release"
+        for event in candidate.events
+    ):
+        return "formal_proceedings_or_publisher"
+    return "publisher"
 
 
 def sha256_bytes(payload: bytes) -> str:
@@ -3363,11 +3861,25 @@ def _manual_translation_overrides(
 
 def _freeze_resume_context(
     *,
+    profile_id: str,
+    master_control_sha256: str,
+    resolved_stream_ids: list[str],
+    resolved_source_ids: list[str],
+    publisher_target_min: int,
+    publisher_hard_max: int,
     discovery: DiscoveryResult,
     publisher_access: list[dict[str, Any]],
     publisher_warnings: list[str],
 ) -> dict[str, Any]:
     return {
+        "profile_id": profile_id,
+        "master_control_sha256": master_control_sha256,
+        "resolved_stream_ids": list(resolved_stream_ids),
+        "resolved_source_ids": list(resolved_source_ids),
+        "publisher_limits": {
+            "target_min": publisher_target_min,
+            "hard_max": publisher_hard_max,
+        },
         "all_candidates": [_candidate_payload(candidate) for candidate in discovery.all_candidates],
         "priority_candidate_ids": [candidate.work_id for candidate in discovery.priority_candidates],
         "raw_candidate_count": discovery.raw_candidate_count,
@@ -3379,6 +3891,85 @@ def _freeze_resume_context(
         "publisher_access": copy.deepcopy(publisher_access),
         "publisher_warnings": list(publisher_warnings),
     }
+
+
+def _validate_resume_control_bindings(
+    value: dict[str, Any],
+    *,
+    master_control_sha256: str,
+    resolved_stream_ids: list[str],
+    resolved_source_ids: list[str],
+) -> None:
+    """Reject a Stage B resume against a different master resolution."""
+
+    observed_sha256 = value.get("master_control_sha256")
+    if not isinstance(observed_sha256, str) or not re.fullmatch(
+        r"[0-9a-f]{64}", observed_sha256
+    ):
+        raise RadarRuntimeError(
+            "translation request resume_context master_control_sha256 is invalid"
+        )
+
+    observed_arrays: dict[str, list[str]] = {}
+    for field_name in ("resolved_stream_ids", "resolved_source_ids"):
+        observed = value.get(field_name)
+        if (
+            not isinstance(observed, list)
+            or not observed
+            or any(not isinstance(item, str) or not item for item in observed)
+            or observed != sorted(set(observed))
+        ):
+            raise RadarRuntimeError(
+                f"translation request resume_context {field_name} must be a "
+                "non-empty sorted unique string array"
+            )
+        observed_arrays[field_name] = observed
+
+    if observed_sha256 != master_control_sha256:
+        raise RadarRuntimeError(
+            "translation request master control SHA-256 mismatch"
+        )
+    if observed_arrays["resolved_stream_ids"] != resolved_stream_ids:
+        raise RadarRuntimeError(
+            "translation request resolved stream IDs mismatch current master resolution"
+        )
+    if observed_arrays["resolved_source_ids"] != resolved_source_ids:
+        raise RadarRuntimeError(
+            "translation request resolved source IDs mismatch current master resolution"
+        )
+
+
+def _validated_translation_window(value: Any) -> tuple[datetime, datetime, int]:
+    """Return the exact aware Stage A window frozen into a translation request."""
+
+    if not isinstance(value, dict):
+        raise RadarRuntimeError("translation request window must be an object")
+    try:
+        start = datetime.fromisoformat(str(value["start"]))
+        end = datetime.fromisoformat(str(value["end"]))
+    except (KeyError, TypeError, ValueError) as exc:
+        raise RadarRuntimeError(
+            "translation request window start/end is invalid"
+        ) from exc
+    if (
+        start.tzinfo is None
+        or start.utcoffset() is None
+        or end.tzinfo is None
+        or end.utcoffset() is None
+    ):
+        raise RadarRuntimeError(
+            "translation request window start/end must be timezone-aware"
+        )
+    hours = value.get("hours")
+    if isinstance(hours, bool) or not isinstance(hours, int) or hours <= 0:
+        raise RadarRuntimeError(
+            "translation request window hours must be a positive integer"
+        )
+    if end - start != timedelta(hours=hours):
+        raise RadarRuntimeError(
+            "translation request window start/end duration disagrees with hours"
+        )
+    return start, end, hours
 
 
 def _restore_resume_context(
@@ -3709,10 +4300,42 @@ def build_state(
                 )
                 for stream_id in sorted(set(work.get("streams", [])))
             ]
-            work["is_preprint"] = bool(work.get("is_preprint")) or candidate.is_preprint
-            work["provider_publication_types"] = list(candidate.provider_publication_types)
-            work["document_type"] = candidate.document_type
-            work["document_type_basis"] = candidate.document_type_basis
+            existing_formal = (
+                str(work.get("document_type") or "")
+                in {"journal_article", "conference_paper", "protocol", "guideline"}
+                or any(
+                    str(value).casefold()
+                    in {
+                        "journal article",
+                        "conference paper",
+                        "conference proceedings",
+                        "proceedings article",
+                        "protocol",
+                        "guideline",
+                    }
+                    for value in work.get("provider_publication_types", [])
+                )
+            )
+            candidate_formal = _candidate_has_formal_publication_signal(candidate)
+            if candidate_formal:
+                work["is_preprint"] = False
+                work["document_type"] = candidate.document_type
+                work["document_type_basis"] = candidate.document_type_basis
+            elif existing_formal:
+                # A later preprint/index observation cannot downgrade an
+                # already established formal version in canonical State.
+                work["is_preprint"] = False
+            else:
+                work["is_preprint"] = bool(work.get("is_preprint")) or candidate.is_preprint
+                if candidate.document_type != "unknown":
+                    work["document_type"] = candidate.document_type
+                    work["document_type_basis"] = candidate.document_type_basis
+            work["provider_publication_types"] = _stable_publication_types(
+                [
+                    *work.get("provider_publication_types", []),
+                    *candidate.provider_publication_types,
+                ]
+            )
             work["study_designs"] = list(candidate.study_designs)
             work["study_design_basis"] = candidate.study_design_basis
         prior_works[candidate.work_id] = work
@@ -3842,7 +4465,15 @@ def build_source_coverage(
             notes = [str(item) for item in supplied.get("notes", []) if str(item)]
         else:
             statuses = {str(record.get("status") or "NOT_ATTEMPTED") for record in records}
-            result_count = sum(int(record.get("result_count") or 0) for record in records)
+            window_counts = [
+                int(record["window_record_count"])
+                for record in records
+                if isinstance(record.get("window_record_count"), int)
+            ]
+            query_match_count = sum(
+                int(record.get("result_count") or 0) for record in records
+            )
+            result_count = max(window_counts) if window_counts else query_match_count
             if "FAILED" in statuses or "PARTIAL" in statuses:
                 status = "FAILED"
             elif "SUCCESS" in statuses:
@@ -3851,20 +4482,71 @@ def build_source_coverage(
                 status = "NO_RESULTS"
             else:
                 status = "NOT_ATTEMPTED"
-            summary = (
-                f"{len(records)} configured query check(s); "
-                f"{result_count} provider result(s)."
+            if window_counts:
+                feed_counts = [
+                    int(record["feed_entry_count"])
+                    for record in records
+                    if isinstance(record.get("feed_entry_count"), int)
+                ]
+                registry_counts = [
+                    int(record["registry_record_count"])
+                    for record in records
+                    if isinstance(record.get("registry_record_count"), int)
+                ]
+                summary = (
+                    f"{result_count} complete window record(s); "
+                    f"{query_match_count} query match(es) across {len(records)} check(s); "
+                    f"RSS entries {max(feed_counts) if feed_counts else 0}; "
+                    f"registry records {max(registry_counts) if registry_counts else 0}."
+                )
+            else:
+                summary = (
+                    f"{len(records)} configured query check(s); "
+                    f"{result_count} provider result(s)."
+                )
+            notes = sorted(
+                {
+                    note
+                    for record in records
+                    for note in [
+                        str(record.get("error") or ""),
+                        *[
+                            str(value)
+                            for value in record.get("observation_errors", [])
+                            if str(value)
+                        ],
+                    ]
+                    if note
+                }
             )
-            notes = sorted({
-                str(record.get("error") or "")
-                for record in records
-                if str(record.get("error") or "")
-            })
         check_times = [
             str(record.get("accessed_at") or "")
             for record in records
             if str(record.get("accessed_at") or "")
         ]
+        inventory_urls = sorted(
+            {
+                str(record.get("inventory_url") or "")
+                for record in records
+                if str(record.get("inventory_url") or "").startswith(
+                    ("http://", "https://")
+                )
+            }
+        )
+        access_urls = sorted(
+            {
+                str(record.get("url") or "")
+                for record in records
+                if str(record.get("url") or "").startswith(("http://", "https://"))
+            }
+        )
+        check_url = (
+            inventory_urls[0]
+            if len(inventory_urls) == 1
+            else access_urls[0]
+            if len(access_urls) == 1
+            else SOURCE_ENDPOINTS.get(source, "")
+        )
         checks.append(
             {
                 "source_id": source,
@@ -3873,7 +4555,7 @@ def build_source_coverage(
                 "checked_at": max(check_times) if check_times else checked_at.isoformat(),
                 "result_count": result_count,
                 "summary": summary,
-                **({"url": SOURCE_ENDPOINTS[source]} if SOURCE_ENDPOINTS.get(source) else {}),
+                **({"url": check_url} if check_url else {}),
                 **({"notes": notes} if notes else {}),
             }
         )
@@ -3998,6 +4680,31 @@ def build_retrieval_ledger(
     attempts: list[dict[str, Any]] = []
     expansions: list[dict[str, Any]] = []
     represented_access_ids: set[str] = set()
+
+    def pagination_for(
+        status: str, access: dict[str, Any] | Mapping[str, Any]
+    ) -> dict[str, int]:
+        requested = access.get("http_requests_attempted")
+        received = access.get("http_responses_received")
+        if (
+            isinstance(requested, int)
+            and not isinstance(requested, bool)
+            and requested >= 0
+            and isinstance(received, int)
+            and not isinstance(received, bool)
+            and 0 <= received <= requested
+        ):
+            return {
+                "pages_requested": requested,
+                "pages_received": received,
+            }
+        return {
+            "pages_requested": 0 if status == "NOT_ATTEMPTED" else 1,
+            "pages_received": (
+                1 if status in {"SUCCESS", "NO_RESULTS", "PARTIAL"} else 0
+            ),
+        }
+
     for query in queries:
         query_id = str(query.get("query_id") or "")
         requested = str(query.get("query") or "")
@@ -4029,8 +4736,13 @@ def build_retrieval_ledger(
                 and source_id in item.get("discovery_sources", [])
                 and item.get("work_id")
             )
+            actual_endpoint = str(
+                access.get("inventory_url")
+                or access.get("url")
+                or SOURCE_ENDPOINTS.get(source_id, "")
+            )
             fingerprint_value = {
-                "endpoint": str(access.get("url") or SOURCE_ENDPOINTS.get(source_id, "")),
+                "endpoint": actual_endpoint,
                 "source_id": source_id,
                 "actual_query": actual,
                 "window": [start.isoformat(), end.isoformat()],
@@ -4045,7 +4757,7 @@ def build_retrieval_ledger(
                 "query_id": query_id,
                 "attempted_at": str(query.get("searched_at") or access.get("accessed_at") or end.isoformat()),
                 "status": status,
-                "endpoint": str(access.get("url") or SOURCE_ENDPOINTS.get(source_id, "unknown")),
+                "endpoint": actual_endpoint or "unknown",
                 "requested_query": requested,
                 "actual_query": actual,
                 "request_limit": per_query_limit,
@@ -4053,15 +4765,18 @@ def build_retrieval_ledger(
                 "receipt_origin": "EXECUTOR",
                 "result_count": int(query.get("result_count") or 0),
                 "result_ids_sha256": _canonical_json_sha256(work_ids),
-                "pagination": {
-                    "pages_requested": 0 if status == "NOT_ATTEMPTED" else 1,
-                    "pages_received": 1 if status in {"SUCCESS", "NO_RESULTS", "PARTIAL"} else 0,
-                },
+                "pagination": pagination_for(status, access),
                 "limit_reached": int(query.get("result_count") or 0) >= per_query_limit,
             }
-            if status in {"FAILED", "NOT_ATTEMPTED"}:
+            if access.get("cache_reused") is True:
+                attempt["notes"] = [
+                    "Results were filtered from the provider inventory cached by an earlier operation in this run."
+                ]
+            if status in {"FAILED", "NOT_ATTEMPTED", "PARTIAL"}:
                 attempt["error_class"] = (
-                    "PROVIDER_REQUEST_FAILED"
+                    "INCOMPLETE_PROVIDER_INVENTORY"
+                    if status == "PARTIAL"
+                    else "PROVIDER_REQUEST_FAILED"
                     if status == "FAILED"
                     else "REQUEST_NOT_ATTEMPTED"
                 )
@@ -4092,6 +4807,11 @@ def build_retrieval_ledger(
         status = str(access.get("status") or "NOT_ATTEMPTED")
         work_id = str(access.get("work_id") or "")
         result_ids = [work_id] if work_id else []
+        actual_endpoint = str(
+            access.get("inventory_url")
+            or access.get("url")
+            or SOURCE_ENDPOINTS.get(provider, "unknown")
+        )
         attempts.append(
             {
                 "attempt_id": _v3_id(
@@ -4103,19 +4823,14 @@ def build_retrieval_ledger(
                 **({"work_id": work_id} if work_id else {}),
                 "attempted_at": str(access.get("accessed_at") or end.isoformat()),
                 "status": status,
-                "endpoint": str(access.get("url") or SOURCE_ENDPOINTS.get(provider, "unknown")),
+                "endpoint": actual_endpoint,
                 "request_fingerprint": _canonical_json_sha256(
-                    {"url": str(access.get("url") or ""), "provider": provider, "work_id": work_id}
+                    {"url": actual_endpoint, "provider": provider, "work_id": work_id}
                 ),
                 "receipt_origin": "EXECUTOR",
                 "result_count": int(access.get("result_count") or 0),
                 "result_ids_sha256": _canonical_json_sha256(result_ids),
-                "pagination": {
-                    "pages_requested": 0 if status == "NOT_ATTEMPTED" else 1,
-                    "pages_received": (
-                        1 if status in {"SUCCESS", "NO_RESULTS", "PARTIAL"} else 0
-                    ),
-                },
+                "pagination": pagination_for(status, access),
                 "limit_reached": False,
                 **(
                     {
@@ -4527,25 +5242,58 @@ def derive_work_relations(
         if isinstance(item, dict) and item.get("relation_id")
     }
     current_ids = {str(item.get("work_id")) for item in candidate_records}
-    current_by_title = {
-        re.sub(r"\s+", " ", re.sub(r"[^\w\s]", " ", str(item.get("title") or "").casefold())).strip(): item
-        for item in candidate_records
-    }
+
+    def normalized_identifiers(item: Mapping[str, Any]) -> dict[str, str]:
+        return {
+            str(field): str(value).casefold().strip()
+            for field, value in (item.get("identifiers") or {}).items()
+            if str(value).strip()
+        }
+
+    current_by_identifier: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for item in candidate_records:
+        if not isinstance(item, dict):
+            continue
+        for field, value in normalized_identifiers(item).items():
+            current_by_identifier.setdefault((field, value), []).append(item)
     for prior_work in (prior_state or {}).get("works", []):
         if not isinstance(prior_work, dict):
             continue
         prior_id = str(prior_work.get("work_id") or "")
         if not prior_id or prior_id in current_ids:
             continue
-        title_key = str(prior_work.get("normalized_title") or "")
-        current = current_by_title.get(title_key)
-        if current is None:
+        prior_identifiers = normalized_identifiers(prior_work)
+        matches_by_work_id: dict[str, dict[str, Any]] = {}
+        for field, value in prior_identifiers.items():
+            for item in current_by_identifier.get((field, value), []):
+                work_id = str(item.get("work_id") or "")
+                if work_id:
+                    matches_by_work_id[work_id] = item
+        # A normalized title alone is not version evidence.  Generic titles,
+        # same-title collisions, and split current identities must never create
+        # an automatic NEW_VERSION/PREPRINT_TO_VOR relation.
+        if len(matches_by_work_id) != 1:
             continue
-        current_identifiers = current.get("identifiers") or {}
-        prior_identifiers = prior_work.get("identifiers") or {}
+        current = next(iter(matches_by_work_id.values()))
+        current_identifiers = normalized_identifiers(current)
+        if any(
+            field in current_identifiers
+            and current_identifiers[field] != value
+            for field, value in prior_identifiers.items()
+        ):
+            continue
+        shared_identifiers = sorted(
+            field
+            for field, value in prior_identifiers.items()
+            if current_identifiers.get(field) == value
+        )
+        if not shared_identifiers:
+            continue
         relation_type = (
             "PREPRINT_TO_VOR"
-            if current_identifiers.get("doi") and prior_identifiers.get("arxiv_id")
+            if current_identifiers.get("doi")
+            and prior_identifiers.get("arxiv_id")
+            and current.get("is_preprint") is not True
             else "NEW_VERSION"
         )
         relation_id = _v3_id("workrel", prior_id, current.get("work_id"), relation_type)
@@ -4555,7 +5303,9 @@ def derive_work_relations(
             "to_work_id": str(current.get("work_id")),
             "relation_type": relation_type,
             "comparison_basis": (
-                "Normalized title continuity plus newly observed formal/repository identifiers."
+                "Shared strong identifier continuity ("
+                + ", ".join(shared_identifiers)
+                + ") plus a newly preferred version identity."
             ),
             "review_status": "AUTO_DETECTED",
             "observed_run_id": run_id,
@@ -4702,44 +5452,17 @@ def select_featured_work_ids(
     target_per_category: int = 5,
     hard_max_per_category: int = 8,
     excluded_event_classes: set[str] | None = None,
+    featured_policy: dict[str, Any] | None = None,
 ) -> set[str]:
-    """Select a readable daily digest without dropping the full ledger."""
+    """Select a readable digest without truncating the complete ledger."""
 
-    target = max(1, int(target_per_category))
-    hard_max = max(target, int(hard_max_per_category))
-    excluded_event_classes = excluded_event_classes or {
-        "BACKFILL_INDEXING",
-        "CORRECTION_NOTICE",
-    }
-    by_category: dict[str, list[dict[str, Any]]] = {}
-    for item in candidate_records:
-        by_category.setdefault(str(item.get("category") or ""), []).append(item)
-    triage_rank = {"PRIORITY": 0, "REVIEW_REQUIRED": 1, "LOWER_PRIORITY": 2}
-    selected: set[str] = set()
-    for items in by_category.values():
-        eligible = [
-            item
-            for item in items
-            if str(item.get("event_status") or "") != "NO_QUALIFYING_EVENT"
-            and str(item.get("event_class") or "OTHER") not in excluded_event_classes
-        ]
-        eligible.sort(
-            key=lambda item: (
-                triage_rank.get(str(item.get("triage_status") or ""), 3),
-                -int(item.get("routing_score") or 0),
-                str(item.get("work_id") or ""),
-            )
-        )
-        preferred = [
-            item
-            for item in eligible
-            if str(item.get("triage_status") or "") in {"PRIORITY", "REVIEW_REQUIRED"}
-        ]
-        chosen = preferred[:hard_max]
-        if len(chosen) < target:
-            chosen.extend(eligible[len(chosen) : target])
-        selected.update(str(item.get("work_id")) for item in chosen if item.get("work_id"))
-    return selected
+    return select_featured_work_ids_v2(
+        candidate_records,
+        target_per_category=target_per_category,
+        hard_max_per_category=hard_max_per_category,
+        excluded_event_classes=excluded_event_classes,
+        policy=featured_policy,
+    )
 
 
 def render_report(
@@ -4763,6 +5486,7 @@ def render_report(
     featured_target_per_category: int = 5,
     featured_hard_max_per_category: int = 8,
     featured_excluded_event_classes: set[str] | None = None,
+    featured_policy: dict[str, Any] | None = None,
 ) -> str:
     displayed = [item for item in candidate_records if item["displayed_in_report"]]
     window_hours = max(1, round((end - start).total_seconds() / 3600))
@@ -4771,6 +5495,7 @@ def render_report(
         target_per_category=featured_target_per_category,
         hard_max_per_category=featured_hard_max_per_category,
         excluded_event_classes=featured_excluded_event_classes,
+        featured_policy=featured_policy,
     )
     categories: dict[str, list[dict[str, Any]]] = {}
     for item in displayed:
@@ -5367,7 +6092,7 @@ h1{margin:.1rem 0 .45rem;font-size:clamp(2rem,5vw,3.5rem);line-height:1.08;lette
 <main>
 <section id="candidate-pool" aria-labelledby="candidate-heading">
 <h2 id="candidate-heading">本輪候選池</h2>
-<p class="panel-intro">今日精選只接受本輪 {window_hours} 小時內有合格事件的候選；每類再依閱讀層級與分數顯示約 {featured_target_per_category}–{featured_hard_max_per_category} 項。完整去重候選仍保留在收合的完整池，可搜尋、展開與依事件分流；無合格事件者不會被標成今日優先。分數只協助閱讀順序，不代表研究價值。</p>
+<p class="panel-intro">今日精選只接受本輪 {window_hours} 小時內有合格事件的候選；閱讀量由 profile 的每類 target/hard、ranking pool 與 final digest budget 控制。完整去重候選仍保留在收合的完整池，可搜尋、展開與依事件分流；無合格事件者不會被標成今日優先。分數只協助閱讀順序，不代表研究價值。</p>
 <div id="empty-state" class="empty-state" hidden>沒有符合目前篩選條件的候選。</div>
 {candidate_html}
 </section>
@@ -5448,6 +6173,7 @@ def render_report_from_documents(
         featured_excluded_event_classes=set(
             str(value) for value in rendering.get("featured_excluded_event_classes", [])
         ),
+        featured_policy=parse_featured_policy_note(run.get("notes", [])),
     )
 
 
@@ -5556,6 +6282,24 @@ def write_state_atomic(
             fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
 
 
+def _apply_master_runtime_limits(
+    output: dict[str, Any],
+    deployment: dict[str, Any],
+    limits: dict[str, Any],
+) -> None:
+    """Project authoritative profile limits without mutating checked-out files."""
+    try:
+        projected_output, projected_deployment = project_runtime_limits(
+            output, deployment, limits
+        )
+    except RadarControlError as exc:
+        raise RadarRuntimeError(str(exc)) from exc
+    output.clear()
+    output.update(projected_output)
+    deployment.clear()
+    deployment.update(projected_deployment)
+
+
 def execute(
     *,
     root: Path,
@@ -5568,20 +6312,15 @@ def execute(
     publisher_target_min: int | None = None,
     publisher_hard_max: int | None = None,
     protocol_commit: str | None = None,
+    profile_id: str | None = None,
     translation_request_path: Path | None = None,
     translation_response_path: Path | None = None,
     session: requests.Session | None = None,
     discoverer: Callable[..., Any] = discover_candidates,
     publisher_probe: Callable[..., tuple[list[tuple[Candidate, dict[str, Any]]], list[dict[str, Any]], list[str]]] = probe_publisher_pages,
 ) -> dict[str, Any]:
-    streams = load_yaml(root / "config" / "streams.yml")
-    scoring = load_yaml(root / "config" / "scoring.yml")
-    output = load_yaml(root / "config" / "output.yml")
-    deployment = load_yaml(root / "config" / "deployment.yml")
-    timezone_name = str(output.get("window", {}).get("timezone", DEFAULT_TIMEZONE))
-    timezone = ZoneInfo(timezone_name)
-    commit = _protocol_commit(root, protocol_commit)
     handoff_request: dict[str, Any] | None = None
+    resume_context: dict[str, Any] | None = None
     validated_translations: dict[str, dict[str, str]] | None = None
     if translation_response_path is not None:
         if translation_request_path is None:
@@ -5595,15 +6334,103 @@ def execute(
             )
         except TranslationHandoffError as exc:
             raise RadarRuntimeError(str(exc)) from exc
+        raw_resume_context = handoff_request.get("resume_context")
+        if not isinstance(raw_resume_context, dict):
+            raise RadarRuntimeError(
+                "translation request resume_context must be an object"
+            )
+        resume_context = raw_resume_context
+        request_profile = str(resume_context.get("profile_id") or "")
+        if not request_profile:
+            raise RadarRuntimeError(
+                "translation request resume_context is missing its bound profile_id"
+            )
+        if profile_id is not None and profile_id != request_profile:
+            raise RadarRuntimeError("translation request profile mismatch")
+        profile_id = request_profile
+        bound_publisher = resume_context.get("publisher_limits")
+        if not isinstance(bound_publisher, dict):
+            raise RadarRuntimeError(
+                "translation request resume_context is missing bound publisher limits"
+            )
+        try:
+            raw_bound_target = bound_publisher["target_min"]
+            raw_bound_hard = bound_publisher["hard_max"]
+        except KeyError as exc:
+            raise RadarRuntimeError(
+                "translation request publisher limits are invalid"
+            ) from exc
+        if (
+            isinstance(raw_bound_target, bool)
+            or not isinstance(raw_bound_target, int)
+            or isinstance(raw_bound_hard, bool)
+            or not isinstance(raw_bound_hard, int)
+            or not 0 <= raw_bound_target <= raw_bound_hard
+            or raw_bound_hard > ABSOLUTE_PUBLISHER_HARD_MAX
+        ):
+            raise RadarRuntimeError(
+                "translation request publisher limits are invalid"
+            )
+        bound_target = raw_bound_target
+        bound_hard = raw_bound_hard
+        if publisher_target_min is not None and publisher_target_min != bound_target:
+            raise RadarRuntimeError("translation request publisher target mismatch")
+        if publisher_hard_max is not None and publisher_hard_max != bound_hard:
+            raise RadarRuntimeError("translation request publisher hard max mismatch")
+        publisher_target_min = bound_target
+        publisher_hard_max = bound_hard
+
+    output = load_yaml(root / "config" / "output.yml")
+    deployment = load_yaml(root / "config" / "deployment.yml")
+    master_path = root / "config" / "radar_master.json"
+    if not master_path.is_file():
+        raise RadarRuntimeError(
+            "authoritative master control is missing: config/radar_master.json"
+        )
+    try:
+        master_payload = master_path.read_bytes()
+        master_runtime = load_master_runtime(master_path, profile_id=profile_id)
+        if master_path.read_bytes() != master_payload:
+            raise RadarRuntimeError("authoritative master control changed during load")
+    except (OSError, RadarControlError) as exc:
+        raise RadarRuntimeError(f"invalid radar master control: {exc}") from exc
+    master_control_sha256 = hashlib.sha256(master_payload).hexdigest()
+    resolved_stream_ids = sorted(
+        str(value) for value in master_runtime.streams.get("streams", {})
+    )
+    resolved_source_ids = sorted(
+        str(value) for value in master_runtime.streams.get("source_catalog", {})
+    )
+    if resume_context is not None:
+        _validate_resume_control_bindings(
+            resume_context,
+            master_control_sha256=master_control_sha256,
+            resolved_stream_ids=resolved_stream_ids,
+            resolved_source_ids=resolved_source_ids,
+        )
+    runtime_request_digest = (
+        str(handoff_request.get("request_sha256"))
+        if handoff_request is not None
+        else None
+    )
+    streams = master_runtime.streams
+    scoring = master_runtime.scoring
+    SOURCE_ENDPOINTS.update(master_runtime.source_endpoints)
+    output.setdefault("selection", {})["categories"] = master_runtime.category_order
+    _apply_master_runtime_limits(output, deployment, master_runtime.limits)
+    timezone_name = str(output.get("window", {}).get("timezone", DEFAULT_TIMEZONE))
+    timezone = ZoneInfo(timezone_name)
+    commit = _protocol_commit(root, protocol_commit)
+    request_start: datetime | None = None
+    request_window_hours: int | None = None
+    if handoff_request is not None:
         if handoff_request.get("execution_lane") != execution_lane:
             raise RadarRuntimeError("translation request execution lane mismatch")
         if handoff_request.get("protocol_commit") != commit:
             raise RadarRuntimeError("translation request producer commit mismatch")
-        request_window = handoff_request.get("window") or {}
-        try:
-            end_at = datetime.fromisoformat(str(request_window["end"]))
-        except (KeyError, TypeError, ValueError) as exc:
-            raise RadarRuntimeError("translation request window end is invalid") from exc
+        request_start, end_at, request_window_hours = _validated_translation_window(
+            handoff_request.get("window")
+        )
         run_id = str(handoff_request.get("run_id") or "")
     if end_at is None:
         end_at = datetime.now(timezone)
@@ -5613,8 +6440,12 @@ def execute(
         end_at = end_at.replace(tzinfo=timezone)
     else:
         end_at = end_at.astimezone(timezone)
-    window_hours = int(output.get("window", {}).get("rolling_hours", 72))
-    start = end_at - timedelta(hours=window_hours)
+    if request_start is not None and request_window_hours is not None:
+        start = request_start.astimezone(timezone)
+        window_hours = request_window_hours
+    else:
+        window_hours = int(output.get("window", {}).get("rolling_hours", 72))
+        start = end_at - timedelta(hours=window_hours)
     publisher_config = dict(deployment.get("publisher_output", {}))
     if publisher_target_min is not None:
         publisher_config["target_min_per_run"] = publisher_target_min
@@ -5766,8 +6597,6 @@ def execute(
         if candidate.work_id in access_by_work
     ]
     source_access.extend(publisher_access)
-    if publisher_access:
-        searched_sources.add("publisher")
     publisher_failures = [item for item in publisher_access if item["status"] == "FAILED"]
     publisher_attempted = len(
         [item for item in publisher_access if item["status"] in {"SUCCESS", "FAILED"}]
@@ -5775,54 +6604,66 @@ def execute(
     publisher_accessible = len(
         [item for item in publisher_access if item["status"] == "SUCCESS"]
     )
-    if publisher_failures:
-        unavailable_sources.add("publisher")
-
-    verification_requested = requested_sources & VERIFICATION_SOURCES
+    configured_verification_sources = set(
+        str(value)
+        for value in streams.get("source_check_contract", {}).get(
+            "bounded_verification_sources", []
+        )
+    ) | VERIFICATION_SOURCES
+    verification_requested = requested_sources & configured_verification_sources
     checked_sources.update(verification_requested)
-    if publisher_attempted:
-        searched_sources.update(verification_requested)
-    if publisher_failures:
-        unavailable_sources.update(verification_requested)
-    if publisher_failures:
-        verification_status = "FAILED"
-        verification_summary = (
-            f"Bounded verification attempted {publisher_attempted} page(s); "
-            f"{publisher_accessible} succeeded and {len(publisher_failures)} failed."
+    verification_summaries: dict[str, dict[str, Any]] = {}
+    for source in sorted(verification_requested):
+        source_records = [
+            item
+            for item in publisher_access
+            if str(item.get("provider") or "publisher") == source
+        ]
+        source_attempted = len(
+            [item for item in source_records if item.get("status") in {"SUCCESS", "FAILED"}]
         )
-    elif publisher_accessible:
-        verification_status = "SUCCESS"
-        verification_summary = (
-            f"Bounded verification accessed {publisher_accessible} of "
-            f"{publisher_attempted} attempted page(s)."
+        source_successes = len(
+            [item for item in source_records if item.get("status") == "SUCCESS"]
         )
-    elif publisher_attempted:
-        verification_status = "FAILED"
-        verification_summary = (
-            f"Bounded verification attempted {publisher_attempted} page(s); none succeeded."
+        source_failures = len(
+            [item for item in source_records if item.get("status") == "FAILED"]
         )
-        unavailable_sources.update(verification_requested)
-    elif event_candidates:
-        verification_status = "NOT_ATTEMPTED"
-        verification_summary = (
-            "Qualifying candidates existed, but no publisher URL was attempted within the configured budget."
+        eligible_count = sum(
+            1
+            for candidate, _event in event_candidates
+            if verification_source_for_candidate(candidate) == source
         )
-        unavailable_sources.update(verification_requested)
-    else:
-        verification_status = "NOT_ATTEMPTED"
-        verification_summary = (
-            "No qualifying event candidate was available, so no bounded-verification request was made."
-        )
-        unavailable_sources.update(verification_requested)
-    verification_summaries = {
-        source: {
-            "status": verification_status,
-            "result_count": publisher_accessible,
-            "summary": verification_summary,
+        if source_attempted:
+            searched_sources.add(source)
+        if source_failures:
+            status = "FAILED"
+            unavailable_sources.add(source)
+            summary = (
+                f"Bounded {source} verification attempted {source_attempted} page(s); "
+                f"{source_successes} succeeded and {source_failures} failed."
+            )
+        elif source_successes:
+            status = "SUCCESS"
+            summary = (
+                f"Bounded {source} verification accessed {source_successes} of "
+                f"{source_attempted} attempted page(s)."
+            )
+        elif eligible_count:
+            status = "NOT_ATTEMPTED"
+            unavailable_sources.add(source)
+            summary = (
+                f"{eligible_count} qualifying candidate(s) required {source} verification, "
+                "but no page was attempted within the configured budget."
+            )
+        else:
+            status = "NO_RESULTS"
+            summary = f"No qualifying candidate required {source} verification."
+        verification_summaries[source] = {
+            "status": status,
+            "result_count": source_successes,
+            "summary": summary,
             "notes": publisher_warnings,
         }
-        for source in verification_requested
-    }
 
     display_candidates = select_display_candidates(
         all_candidates,
@@ -5843,6 +6684,14 @@ def execute(
         summary_warnings: list[dict[str, str]] = []
     elif translation_request_path is not None:
         resume_context = _freeze_resume_context(
+            profile_id=str(
+                streams.get("control_plane", {}).get("profile_id") or "legacy"
+            ),
+            master_control_sha256=master_control_sha256,
+            resolved_stream_ids=resolved_stream_ids,
+            resolved_source_ids=resolved_source_ids,
+            publisher_target_min=publisher_min,
+            publisher_hard_max=publisher_max,
             discovery=discovery,
             publisher_access=publisher_access,
             publisher_warnings=publisher_warnings,
@@ -5900,6 +6749,11 @@ def execute(
         featured_config = {}
     featured_target = int(featured_config.get("target_min", 5))
     featured_hard_max = int(featured_config.get("hard_max", 8))
+    featured_policy = featured_policy_from_output(
+        selection_config,
+        default_target_per_category=featured_target,
+        default_hard_max_per_category=featured_hard_max,
+    )
     candidate_pool_config = selection_config.get("candidate_pool", {})
     if not isinstance(candidate_pool_config, dict):
         candidate_pool_config = {}
@@ -5913,6 +6767,7 @@ def execute(
         target_per_category=featured_target,
         hard_max_per_category=featured_hard_max,
         excluded_event_classes=excluded_featured_classes,
+        featured_policy=featured_policy,
     )
     oa_counts = {
         status: sum(1 for item in candidate_records if item.get("oa_status") == status)
@@ -5923,15 +6778,12 @@ def execute(
         for status in sorted(FULLTEXT_ACCESS_STATUSES)
     }
     adapter_sources = {
-        "pubmed",
-        "europe_pmc",
-        "openalex",
-        "arxiv",
-        "openreview",
-        "acl_anthology",
-        "pmlr",
+        str(source_id)
+        for source_id, source_config in streams.get("source_catalog", {}).items()
+        if isinstance(source_config, dict)
+        and str(source_config.get("adapter") or source_id) in DISCOVERY_ADAPTER_KEYS
     }
-    unsupported = requested_sources - adapter_sources - VERIFICATION_SOURCES
+    unsupported = requested_sources - adapter_sources - configured_verification_sources
     failed_adapters = (requested_sources & adapter_sources) - searched_sources
     unavailable_sources.update(unsupported)
     unavailable_sources.update(failed_adapters)
@@ -6064,6 +6916,15 @@ def execute(
         protocol_commit=commit,
         base_state_sha256=base_hash,
     )
+    state.update(
+        {
+            "profile_id": master_runtime.profile_id,
+            "resolved_stream_ids": resolved_stream_ids,
+            "resolved_source_ids": sorted(requested_sources),
+            "master_control_sha256": master_control_sha256,
+            "runtime_request_sha256": runtime_request_digest,
+        }
+    )
     translated_titles = {
         str(item["work_id"]): str(item["title_zh_tw"])
         for item in candidate_records
@@ -6096,10 +6957,19 @@ def execute(
         source_registry=source_registry,
         source_observations=source_observations,
     )
+    master_bindings = {
+        "profile_id": master_runtime.profile_id,
+        "resolved_stream_ids": resolved_stream_ids,
+        "resolved_source_ids": sorted(requested_sources),
+        "master_control_sha256": master_control_sha256,
+        "runtime_request_sha256": runtime_request_digest,
+    }
+    evidence.update(copy.deepcopy(master_bindings))
     run = {
         "schema_version": "1.0",
         "artifact_type": "EvidenceRadar_Run",
         "run_id": run_id,
+        **copy.deepcopy(master_bindings),
         "started_at": end_at.isoformat(),
         "finished_at": finished_at.isoformat(),
         "mode": "daily",
@@ -6210,7 +7080,22 @@ def execute(
         "notes": [
             "SEMANTIC_CONTRACT_V2",
             "SEMANTIC_CONTRACT_V3",
+            "EXECUTOR_HTTP_TELEMETRY_V1",
             "STUDY_CLASSIFICATION_V1",
+            featured_policy_note(featured_policy),
+            f"RADAR_PROFILE:{streams.get('control_plane', {}).get('profile_id', 'legacy')}",
+            "RADAR_STREAMS_JSON:"
+            + json.dumps(
+                resolved_stream_ids,
+                ensure_ascii=False,
+                separators=(",", ":"),
+            ),
+            "RADAR_SOURCES_JSON:"
+            + json.dumps(
+                sorted(requested_sources),
+                ensure_ascii=False,
+                separators=(",", ":"),
+            ),
             *( ["CHATBOT_TRANSLATION_HANDOFF_V1"] if handoff_request is not None else [] ),
             "GitHub Actions retains every deduplicated candidate in the Run ledger; publisher access limits network probes, not candidate visibility or value.",
             "The automated lane does not promote unreviewed scientific claims."
@@ -6297,6 +7182,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--publisher-hard-max", type=int)
     parser.add_argument("--protocol-commit")
     parser.add_argument(
+        "--profile",
+        help="Profile id from config/radar_master.json (defaults to control_plane.default_profile)",
+    )
+    parser.add_argument(
         "--translation-request",
         type=Path,
         help="Stage A output, or the immutable request paired with --translation-response",
@@ -6330,6 +7219,7 @@ def main(argv: list[str] | None = None) -> int:
             publisher_target_min=args.publisher_target_min,
             publisher_hard_max=args.publisher_hard_max,
             protocol_commit=args.protocol_commit,
+            profile_id=args.profile,
             translation_request_path=(
                 args.translation_request.resolve() if args.translation_request else None
             ),

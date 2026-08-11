@@ -7,8 +7,7 @@ on:
     paths:
       - "artifacts/current/**"
       - "state/current/EvidenceRadar_State.json"
-      - "public/reports/**"
-  workflow_dispatch:
+      - "runs/**"
 
 permissions:
   contents: read
@@ -31,6 +30,20 @@ jobs:
         uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
+
+      - name: Require exact main checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_REF_NAME" != "main" ]; then
+            echo "::error::Pages deployments must run from main"
+            exit 1
+          fi
+          git fetch --no-tags origin main
+          if [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]; then
+            echo "::error::Pages checkout is not the current origin/main commit"
+            exit 1
+          fi
 
       - name: Set up Python 3.12
         uses: actions/setup-python@v7.0.0
@@ -56,33 +69,75 @@ jobs:
         id: pages
         uses: actions/configure-pages@v6.0.0
 
-      - name: Validate and build the public report site
+      - name: Resolve previous immutable history revision
+        id: history_baseline
+        shell: bash
+        env:
+          EVENT_BEFORE: ${{ github.event.before || '' }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
         run: |
-          producer_commit="$(python -c 'import json; print(json.load(open("artifacts/current/EvidenceRadar_Run.json", encoding="utf-8"))["protocol_commit"])')"
-          producer_root="$RUNNER_TEMP/evidenceradar-pages-producer"
-          git worktree add --detach "$producer_root" "$producer_commit"
-          # Contract-equivalent bundle path: --bundle artifacts/current
-          (
-            cd "$producer_root"
-            python tools/build_pages_site.py \
-              --root . \
-              --bundle "$GITHUB_WORKSPACE/artifacts/current" \
-              --canonical-state "$GITHUB_WORKSPACE/state/current/EvidenceRadar_State.json" \
-              --repository "$GITHUB_REPOSITORY" \
-              --base-url "${{ steps.pages.outputs.base_url }}" \
-              --output-dir "$GITHUB_WORKSPACE/_site"
-          )
-
-      - name: Add immutable standalone reports
-        run: |
-          if [ -d public/reports ]; then
-            while IFS= read -r -d '' archive; do
-              target="_site/${archive#public/}"
-              target="${target%.gz}"
-              mkdir -p "$(dirname "$target")"
-              gzip -dc "$archive" > "$target"
-            done < <(find public/reports -type f -name 'index.html.gz' -print0)
+          set -euo pipefail
+          case "$GITHUB_EVENT_NAME" in
+            push) history_baseline="$EVENT_BEFORE" ;;
+            pull_request) history_baseline="$PR_BASE_SHA" ;;
+            *)
+              echo "::error::unsupported Pages event: $GITHUB_EVENT_NAME"
+              exit 1
+              ;;
+          esac
+          if ! [[ "$history_baseline" =~ ^[0-9a-f]{40}$ ]] || \
+            [[ "$history_baseline" =~ ^0+$ ]]; then
+            echo "::error::Pages history baseline must be a prior full commit SHA"
+            exit 1
           fi
+          resolved="$(git rev-parse --verify "${history_baseline}^{commit}" 2>/dev/null || true)"
+          if [ "$resolved" != "$history_baseline" ]; then
+            echo "::error::Pages history baseline commit is unavailable: $history_baseline"
+            exit 1
+          fi
+          if [ "$resolved" = "$GITHUB_SHA" ] || \
+            ! git merge-base --is-ancestor "$resolved" "$GITHUB_SHA"; then
+            echo "::error::Pages history baseline must precede the deployed revision"
+            exit 1
+          fi
+          echo "ref=$resolved" >> "$GITHUB_OUTPUT"
+
+      - name: Detect canonical byte changes
+        id: canonical_changes
+        env:
+          HISTORY_BASELINE: ${{ steps.history_baseline.outputs.ref }}
+        run: |
+          set -euo pipefail
+          canonical_changed=false
+          if ! git diff --quiet "$HISTORY_BASELINE" "$GITHUB_SHA" -- \
+            artifacts/current state/current/EvidenceRadar_State.json; then
+            canonical_changed=true
+          fi
+          echo "canonical_changed=$canonical_changed" >> "$GITHUB_OUTPUT"
+
+      - name: Require current producer for changed canonical bytes
+        if: steps.canonical_changes.outputs.canonical_changed == 'true'
+        run: |
+          PYTHONDONTWRITEBYTECODE=1 python tools/validate_delivery_bundle.py \
+            --root . \
+            --bundle artifacts/current \
+            --canonical-state state/current/EvidenceRadar_State.json \
+            --require-current-producer \
+            --require-semantic-contract-v3 \
+            --reject-dirty
+
+      - name: Build the public report site from the validated canonical bundle
+        run: |
+          PYTHONDONTWRITEBYTECODE=1 python tools/build_pages_site.py \
+            --root . \
+            --bundle artifacts/current \
+            --canonical-state state/current/EvidenceRadar_State.json \
+            --repository "$GITHUB_REPOSITORY" \
+            --base-url "${{ steps.pages.outputs.base_url }}" \
+            --history-manifest runs/pages-history.json \
+            --history-baseline-ref "${{ steps.history_baseline.outputs.ref }}" \
+            --skip-current-producer-check \
+            --output-dir _site
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v5.0.0

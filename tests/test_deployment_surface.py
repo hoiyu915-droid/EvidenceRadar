@@ -144,12 +144,42 @@ class GithubDeploymentSurfaceTests(unittest.TestCase):
     def test_publication_workflows_remain_explicit_and_separate(self) -> None:
         self.assertIn("workflow_dispatch:", self.public_release_workflow)
 
-    def test_public_release_validates_the_canonical_current_bundle(self) -> None:
+    def test_public_release_validates_current_drift_before_recorded_producer(self) -> None:
         self.assertIn("fetch-depth: 0", self.public_release_workflow)
+        self.assertIn(
+            "Detect canonical bundle changes in this revision",
+            self.public_release_workflow,
+        )
+        self.assertIn(
+            "Require current producer when canonical bytes change",
+            self.public_release_workflow,
+        )
+        self.assertIn(
+            "if: steps.canonical_change.outputs.changed == 'true'",
+            self.public_release_workflow,
+        )
         self.assertIn(
             "Validate committed canonical bundle against its recorded producer",
             self.public_release_workflow,
         )
+        current_step_start = self.public_release_workflow.index(
+            "Require current producer when canonical bytes change"
+        )
+        producer_step_start = self.public_release_workflow.index(
+            "Validate committed canonical bundle against its recorded producer"
+        )
+        current_step = self.public_release_workflow[
+            current_step_start:producer_step_start
+        ]
+        self.assertIn("python tools/validate_delivery_bundle.py", current_step)
+        self.assertIn("--root .", current_step)
+        self.assertIn("--bundle artifacts/current", current_step)
+        self.assertIn(
+            "--canonical-state state/current/EvidenceRadar_State.json", current_step
+        )
+        self.assertIn("--require-current-producer", current_step)
+        self.assertIn("--require-semantic-contract-v3", current_step)
+        self.assertIn("--reject-dirty", current_step)
         self.assertIn("EvidenceRadar_Run.json", self.public_release_workflow)
         self.assertIn('git cat-file -e "$protocol_commit^{commit}"', self.public_release_workflow)
         self.assertIn("git worktree add --detach", self.public_release_workflow)
@@ -168,10 +198,8 @@ class GithubDeploymentSurfaceTests(unittest.TestCase):
         self.assertIn("--require-current-producer", self.public_release_workflow)
         self.assertIn("--require-semantic-contract-v3", self.public_release_workflow)
         tests_index = self.public_release_workflow.index("Run standard-library tests")
-        bundle_index = self.public_release_workflow.index(
-            "Validate committed canonical bundle against its recorded producer"
-        )
-        self.assertLess(tests_index, bundle_index)
+        self.assertLess(tests_index, current_step_start)
+        self.assertLess(current_step_start, producer_step_start)
 
     def test_pages_deploys_only_a_validated_bundle_and_emits_links(self) -> None:
         for marker in (
@@ -179,11 +207,26 @@ class GithubDeploymentSurfaceTests(unittest.TestCase):
             "pages: write",
             "id-token: write",
             "actions/configure-pages@v6.0.0",
+            "Require exact main checkout",
+            'GITHUB_REF_NAME" != "main',
+            "git fetch --no-tags origin main",
+            'git rev-parse origin/main',
             "Fail closed if GitHub Pages is not enabled",
             "gh api \"repos/${GITHUB_REPOSITORY}/pages\"",
             'build_type\" != \"workflow',
+            "Resolve previous immutable history revision",
+            'git merge-base --is-ancestor "$resolved" "$GITHUB_SHA"',
+            "Detect canonical byte changes",
+            "Require current producer for changed canonical bytes",
+            "if: steps.canonical_changes.outputs.canonical_changed == 'true'",
+            'git diff --quiet "$HISTORY_BASELINE" "$GITHUB_SHA"',
+            "python tools/validate_delivery_bundle.py",
+            "--root .",
             "python tools/build_pages_site.py",
             "--bundle artifacts/current",
+            "--history-manifest runs/pages-history.json",
+            '--history-baseline-ref "${{ steps.history_baseline.outputs.ref }}"',
+            "--skip-current-producer-check",
             "actions/upload-pages-artifact@v5.0.0",
             "actions/deploy-pages@v5.0.0",
             "links.json",
@@ -192,18 +235,66 @@ class GithubDeploymentSurfaceTests(unittest.TestCase):
         install_index = self.pages_workflow.index(
             "python -m pip install -r requirements.txt"
         )
+        main_index = self.pages_workflow.index("Require exact main checkout")
+        baseline_index = self.pages_workflow.index(
+            "Resolve previous immutable history revision"
+        )
+        detect_index = self.pages_workflow.index("Detect canonical byte changes")
+        validate_index = self.pages_workflow.index(
+            "python tools/validate_delivery_bundle.py"
+        )
         build_index = self.pages_workflow.index("python tools/build_pages_site.py")
-        self.assertLess(install_index, build_index)
+        self.assertLess(main_index, install_index)
+        self.assertLess(install_index, baseline_index)
+        self.assertLess(baseline_index, detect_index)
+        self.assertLess(detect_index, validate_index)
+        self.assertLess(validate_index, build_index)
+        strict_block = self.pages_workflow[validate_index:build_index]
+        self.assertIn("--require-current-producer", strict_block)
+        build_block = self.pages_workflow[build_index:]
+        self.assertIn("--history-baseline-ref", build_block)
+        self.assertIn("--skip-current-producer-check", build_block)
+        self.assertNotIn("HEAD^", self.pages_workflow)
+        self.assertNotIn("workflow_dispatch:", self.pages_workflow)
+        self.assertNotIn("history_baseline_ref", self.pages_workflow)
+        for forbidden in (
+            "producer_root",
+            "git worktree add",
+            "public/reports",
+            "gzip -dc",
+            "Add immutable standalone reports",
+        ):
+            self.assertNotIn(forbidden, self.pages_workflow)
 
     def test_pages_push_requires_a_canonical_artifact_change(self) -> None:
         push_paths = self.pages_workflow[
             self.pages_workflow.index("  push:\n") : self.pages_workflow.index(
-                "  workflow_dispatch:", self.pages_workflow.index("  push:\n")
+                "permissions:", self.pages_workflow.index("  push:\n")
             )
         ]
         self.assertIn('"artifacts/current/**"', push_paths)
         self.assertIn('"state/current/EvidenceRadar_State.json"', push_paths)
+        self.assertIn('"runs/**"', push_paths)
+        baseline = self.pages_workflow[
+            self.pages_workflow.index("Resolve previous immutable history revision") :
+            self.pages_workflow.index("Detect canonical byte changes")
+        ]
+        self.assertIn('push) history_baseline="$EVENT_BEFORE"', baseline)
+        self.assertIn('pull_request) history_baseline="$PR_BASE_SHA"', baseline)
+        self.assertNotIn("workflow_dispatch)", baseline)
+        self.assertNotIn("MANUAL_BASELINE", baseline)
+        detection = self.pages_workflow[
+            self.pages_workflow.index("Detect canonical byte changes") :
+            self.pages_workflow.index(
+                "Require current producer for changed canonical bytes"
+            )
+        ]
+        self.assertIn("canonical_changed=false", detection)
+        self.assertIn('git diff --quiet "$HISTORY_BASELINE" "$GITHUB_SHA"', detection)
+        self.assertIn("artifacts/current state/current/EvidenceRadar_State.json", detection)
+        self.assertIn('echo "canonical_changed=$canonical_changed"', detection)
         for forbidden in (
+            '"public/reports/**"',
             '"schemas/**"',
             '"config/**"',
             '"tools/',

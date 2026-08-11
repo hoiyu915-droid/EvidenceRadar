@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Project master/profile limits into ephemeral legacy runtime configs.
+"""Inspect or project master/profile limits for legacy compatibility.
 
 The repository keeps streams.yml, output.yml and deployment.yml as compatibility
-inputs. This tool overlays the authoritative limits from radar_master.json in a
-disposable runtime checkout before EvidenceRadar executes. Source/query routing
-is still compiled by radar_control + the runner bridge.
+inputs. Current producers consume resolved limits in memory and never require
+this tool to mutate their checkout. The write mode remains for older runtimes;
+formal workflows use ``--check`` only.
 """
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ import yaml
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from tools.radar_control import RadarControlError, load_master
+from tools.radar_control import RadarControlError, load_master, project_runtime_limits
 
 
 class RuntimeConfigError(RuntimeError):
@@ -165,21 +165,10 @@ def effective_configs(
         "global_candidate_hard_max": None,
     }
 
-    selection_runtime = output.setdefault("selection", {})
-    ranking_runtime = selection_runtime.setdefault("ranking_pool", {})
-    ranking_runtime["max_per_category"] = limits["ranking_pool"].get("max_per_category")
-    featured = selection_runtime.setdefault("featured", {})
-    featured["target_min"] = int(limits["selection"]["featured_target_per_category"])
-    featured["hard_max"] = int(limits["selection"]["featured_hard_max_per_category"])
-    featured["per_category"] = copy.deepcopy(limits["selection"].get("per_category", {}))
-    featured["final_digest"] = copy.deepcopy(
-        limits["selection"].get("final_digest", {"target": None, "hard_max": None})
-    )
-
-    publisher = deployment.setdefault("publisher_output", {})
-    publisher["target_min_per_run"] = int(limits["verification"]["publisher_target_per_run"])
-    publisher["hard_max_per_run"] = int(limits["verification"]["publisher_hard_max_per_run"])
-    publisher["per_domain_hard_max"] = int(limits["verification"]["publisher_per_domain_hard_max"])
+    output, deployment = project_runtime_limits(output, deployment, limits)
+    ranking_runtime = output["selection"]["ranking_pool"]
+    featured = output["selection"]["featured"]
+    publisher = deployment["publisher_output"]
 
     summary = {
         "profile_id": selected_profile,

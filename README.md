@@ -163,6 +163,16 @@ true。`publisher` 與 `formal_proceedings_or_publisher` 都是
 最新報告、三份 JSON 與 immutable run 的固定連結。GitHub blob/raw 網址與
 ChatGPT Work 的本機路徑不算 HTML 交付；Pages deployment 成功後才回報公開連結。
 
+Pages 每次部署都是完整站點替換。可公開的歷史 run 必須列在
+`runs/pages-history.json`，並以 run ID、recorded producer commit 及四檔的 byte
+size／SHA-256 綁定。建站時會逐筆通過 current delivery contract；歷史 renderer 的
+byte parity 再由 recorded producer validator 核對，之後才從完整 inventory 重建
+`runs/<run_id>/` 和 `runs/index.json`。任一核准項目缺檔、hash
+漂移、producer 不存在、路徑或 run ID 衝突都會停止部署。未列入 manifest 的 legacy
+目錄以及只有 HTML 的 `public/reports/*.gz` 不會被 overlay 到同源網站。新的 canonical
+publication 必須在同一個 reviewed change 保存其完整四檔並 append manifest，否則
+Pages 會拒絕 current run，避免下一次 replacement 讓 immutable URL 消失。
+
 `tools/validate_delivery_bundle.py` 會把四件套視為一個整體，檢查 producer/lane
 provenance、canonical State、source coverage、完整候選 ledger、Featured/full-pool
 標記、OA／全文存取一致性，以及 HTML 實際顯示的 work IDs。只有具可稽核直接全文

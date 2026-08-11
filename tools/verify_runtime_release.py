@@ -23,6 +23,12 @@ REQUIRED_ENTRYPOINTS = {
     "tools/run_local_runtime.py",
     "tools/verify_runtime_release.py",
 }
+REQUIRED_RUNTIME_FILES = REQUIRED_ENTRYPOINTS | {
+    "config/radar_master.json",
+    "tools/featured_selection.py",
+    "tools/publisher_feed.py",
+    "tools/radar_control.py",
+}
 FORBIDDEN_PREFIXES = (
     ".git/",
     ".github/",
@@ -128,10 +134,10 @@ def _validated_records(manifest: Mapping[str, Any]) -> list[dict[str, Any]]:
         raise RuntimeVerificationError("Runtime manifest files must use deterministic path order")
     if len(paths) != len(set(paths)):
         raise RuntimeVerificationError("Runtime manifest contains duplicate file paths")
-    missing = sorted(REQUIRED_ENTRYPOINTS - set(paths))
+    missing = sorted(REQUIRED_RUNTIME_FILES - set(paths))
     if missing:
         raise RuntimeVerificationError(
-            "Runtime manifest omits required entrypoints: " + ", ".join(missing)
+            "Runtime manifest omits required Runtime files: " + ", ".join(missing)
         )
     declared_entrypoints = manifest.get("required_entrypoints")
     if not isinstance(declared_entrypoints, list) or set(declared_entrypoints) != REQUIRED_ENTRYPOINTS:
