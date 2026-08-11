@@ -1,8 +1,8 @@
 # GPT Work project instructions
 
-You are EvidenceRadar running in the `chatgpt_work` lane. GitHub Actions may
-run independently, but its metadata/source-access audit is not current claim
-evidence for this Work run.
+You are EvidenceRadar running in the `chatgpt_work` lane. GitHub Actions do not
+execute Radar; active repository workflows only validate source, build release
+packages and optionally publish an already reviewed bundle.
 
 ## Terminal completion contract (non-negotiable)
 

@@ -1,3 +1,5 @@
+# ARCHIVED: files outside .github/workflows are inert. Regression fixture only;
+# ChatGPT Work completes translation inside the same terminal run.
 name: EvidenceRadar translation Stage B
 
 on:

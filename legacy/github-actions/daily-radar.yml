@@ -1,3 +1,5 @@
+# ARCHIVED: files outside .github/workflows are inert. Regression fixture only;
+# never move this file back to activate a user Radar run.
 name: EvidenceRadar daily (GitHub Actions lane)
 
 on:
@@ -14,7 +16,7 @@ on:
       - "config/**"
       - "EVIDENCE_RADAR_PROTOCOL.md"
       - "requirements.txt"
-      - ".github/workflows/daily-radar.yml"
+      - "legacy/github-actions/daily-radar.yml"
       # Operational control path: changing only this request file starts a
       # formal Radar run without mutating producer/runtime source.
       - ".github/evidenceradar-run-request.json"

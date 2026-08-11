@@ -1,5 +1,5 @@
 execution:
-  owners: [chatgpt_work, github_actions]
+  owners: [chatgpt_work]
   lanes:
     chatgpt_work:
       method: live_web_search_and_direct_source_read
@@ -10,13 +10,14 @@ execution:
       post_download_github_access: false
       repository_writeback: false
     github_actions:
+      enabled: false
       method: automated_discovery_source_audit_and_translation_request
-      trigger: scheduled_or_workflow_dispatch
+      trigger: archived_not_active
       repository_writeback: false
   mcp: false
   external_server: false
   codex: false
-  github_actions: true
+  github_actions: false
 
 window:
   timezone: Asia/Tokyo

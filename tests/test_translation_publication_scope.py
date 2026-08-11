@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-WORKFLOW = ROOT / ".github" / "workflows" / "daily-radar.yml"
+WORKFLOW = ROOT / "legacy" / "github-actions" / "daily-radar.yml"
 
 
 class TranslationPublicationScopeTests(unittest.TestCase):

@@ -53,12 +53,14 @@ python3 tools/build_work_pack.py --output-dir dist
 ```
 
 完整步驟見 [`docs/WORK_SETUP.md`](docs/WORK_SETUP.md)。Repository 內仍保留供
-維護者回歸與舊部署相容的 `github_actions` producer，但它不是用家入口，也不會被
+維護者回歸與舊部署參考的 `github_actions` producer；原 workflow 已移至
+`legacy/github-actions/`，不會由 main 排程或 dispatch。它不是用家入口，也不會被
 Work Pack 呼叫。執行 Radar 不需要 GitHub workflow、issue、PR 或 Stage B。
 
-## 維護者相容 producer 的 10–15 出版社存取預算
+## 封存維護者 producer 的 10–15 出版社存取預算
 
-GitHub runner 每輪以 10 筆可存取 publisher/source-page audit records 為目標，
+以下描述 `legacy/github-actions/` 回歸 fixture 的舊契約，不是現行用家流程。
+封存 GitHub runner 每輪以 10 筆可存取 publisher/source-page audit records 為目標，
 出版社頁面嘗試數硬上限為 15。每個 resolved domain 最多兩次，request 之間延遲，
 遇到 HTTP `401`、`403` 或 `429` 立即停止該網域。
 
@@ -75,8 +77,8 @@ DOI、PubMed、OpenAlex 或 abstract landing page 的 HTTP 200 不會被誤報�
 
 HTML 提供題名／作者／期刊／簡述搜尋，以及類別、閱讀層級、來源、OA、全文存取
 篩選與分類收合。套用篩選時會展開完整池，不會只搜尋 Featured。
-每個 item 都必須有結構化 `title_zh_tw`。Stage A 的 request 以 canonical SHA-256
-綁定候選與凍結 resume context；Stage B 只接受同 SHA、exact ID parity 的普通 ChatGPT
+封存 producer 的每個 item 都必須有結構化 `title_zh_tw`。其 Stage A request 以 canonical SHA-256
+綁定候選與凍結 resume context；舊 Stage B 只接受同 SHA、exact ID parity 的普通 ChatGPT
 response。任何英文題名未成功翻譯、數字／年份／縮寫遺失，或回傳「題名所示／相關議題」
 等模板 filler 時，本輪 fail closed，不發佈 HTML。來源有
 摘要時可在中文題名後追加一至兩句研究目的／對象／方法簡述；沒有摘要時就只顯示忠實
@@ -107,8 +109,8 @@ true。`publisher` 與 `formal_proceedings_or_publisher` 都是
 `bounded_verification` stage，即使 publisher 10–15 探測預算沒有 eligible item，
 也必須寫出 `NO_RESULTS`、`FAILED` 或 `NOT_ATTEMPTED` 的 check summary。
 
-設定位於 [`config/deployment.yml`](config/deployment.yml)，手動 workflow 可在
-本輪覆寫 `publisher_target_min` 和 `publisher_hard_max`，但 runner 仍強制
+相容設定位於 [`config/deployment.yml`](config/deployment.yml)；封存 workflow 的
+歷史手動輸入可覆寫 `publisher_target_min` 和 `publisher_hard_max`，但 runner 仍強制
 `0 ≤ target ≤ hard max`。
 
 ## 四個 artifact 與狀態同步
@@ -166,8 +168,8 @@ python3 tools/render_report_from_artifacts.py --bundle "$WORK_RUN_DIR"
 claim 以 claim ID 綁 Evidence。手動加進 HTML 的結論或數字會被 byte-parity gate
 拒絕。
 
-Work 與 GitHub 從不同 State 分支執行時，使用 deterministic union，不能用較新的
-檔案直接覆蓋另一條 lane：
+若維護者需要把歷史 GitHub State 與 Work State 匯合，使用 deterministic union，
+不能用較新的檔案直接覆蓋另一份歷史：
 
 ```sh
 python3 tools/merge_radar_state.py \
@@ -205,7 +207,7 @@ Run status 只可使用 `COMPLETE`、`PARTIAL_SOURCE_COVERAGE`、
 - [`config/`](config/)：來源、分類、輸出與部署設定
 - [`schemas/`](schemas/)：State、Evidence、Run schema
 - [`examples/`](examples/)：最小結構範例，不是目前研究證據
-- [`tools/run_github_radar.py`](tools/run_github_radar.py)：新的 GitHub lane runner
+- [`tools/run_github_radar.py`](tools/run_github_radar.py)：封存 producer 與 renderer 共用的 projection library；Work Pack 中 CLI 停用
 - [`tools/merge_radar_state.py`](tools/merge_radar_state.py)：雙 lane State union
 - [`tools/build_work_pack.py`](tools/build_work_pack.py)：可重現 Work Pack builder
 - [`tools/package_work_delivery.py`](tools/package_work_delivery.py)：驗證後建立唯一 run-id Work ZIP／manifest／checksum
@@ -222,10 +224,10 @@ Run status 只可使用 `COMPLETE`、`PARTIAL_SOURCE_COVERAGE`、
 Codex is **not** part of the radar runtime and is not required by downstream
 users. It may be used separately for repository maintenance, tests, release
 preparation and public-source auditing. MCP and an external server are not
-required by either supported lane.
+required by the `chatgpt_work` lane.
 
 `daily/`、舊 `state/` 與 `legacy/python-runtime/` 是 2026-08-08 前的歷史快照；
-新 GitHub runner 不會呼叫 archived crawler。除非使用者另行要求，EvidenceRadar
+封存 GitHub runner 不會呼叫 archived crawler。除非使用者另行要求，EvidenceRadar
 也不啟動 TA／TP03 或圖像生成。
 
 ## Open-source maintenance

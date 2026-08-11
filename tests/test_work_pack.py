@@ -102,6 +102,10 @@ class WorkPackTests(unittest.TestCase):
         self.assertIn("do not invoke GitHub Actions", entry)
         self.assertIn("## 唯一用家執行路徑", readme)
         self.assertIn("執行 Radar 不需要 GitHub workflow、issue、PR 或 Stage B", readme)
+        self.assertFalse((ROOT / ".github/workflows/daily-radar.yml").exists())
+        self.assertFalse((ROOT / ".github/workflows/translation-stage-b.yml").exists())
+        self.assertTrue((ROOT / "legacy/github-actions/daily-radar.yml").exists())
+        self.assertTrue((ROOT / "legacy/github-actions/translation-stage-b.yml").exists())
         self.assertIn("post_download_github_access: false", (ROOT / "config" / "deployment.yml").read_text(encoding="utf-8"))
 
     def test_build_is_byte_reproducible_and_manifest_verifies_every_file(self) -> None:

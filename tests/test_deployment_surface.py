@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-WORKFLOW = ROOT / ".github" / "workflows" / "daily-radar.yml"
+WORKFLOW = ROOT / "legacy" / "github-actions" / "daily-radar.yml"
 PAGES_WORKFLOW = ROOT / ".github" / "workflows" / "pages.yml"
 PUBLIC_RELEASE_WORKFLOW = ROOT / ".github" / "workflows" / "public-release.yml"
 DOC = ROOT / "docs" / "GITHUB_DEPLOYMENT.md"

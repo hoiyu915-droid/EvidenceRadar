@@ -71,7 +71,8 @@ manual-run surface.
 
 ## Rollback
 
-Disable `.github/workflows/daily-radar.yml` to stop automated execution. This
-does not delete canonical State or run bundles. A Work-only deployment may
-continue using the same schemas and artifacts, but must retain the provenance
-fields on new output so a later merge remains possible.
+Automated GitHub Radar execution is already disabled: the former daily and
+Stage B workflows live under `legacy/github-actions/`, outside GitHub's active
+workflow directory. This does not delete canonical State or run bundles. A
+Work-only deployment continues using the same schemas and artifacts, and must
+retain the provenance fields on every new output.
