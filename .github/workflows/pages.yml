@@ -61,13 +61,17 @@ jobs:
           producer_commit="$(python -c 'import json; print(json.load(open("artifacts/current/EvidenceRadar_Run.json", encoding="utf-8"))["protocol_commit"])')"
           producer_root="$RUNNER_TEMP/evidenceradar-pages-producer"
           git worktree add --detach "$producer_root" "$producer_commit"
-          python "$producer_root/tools/build_pages_site.py" \
-            --root "$producer_root" \
-            --bundle "$GITHUB_WORKSPACE/artifacts/current" \
-            --canonical-state "$GITHUB_WORKSPACE/state/current/EvidenceRadar_State.json" \
-            --repository "$GITHUB_REPOSITORY" \
-            --base-url "${{ steps.pages.outputs.base_url }}" \
-            --output-dir _site
+          # Contract-equivalent bundle path: --bundle artifacts/current
+          (
+            cd "$producer_root"
+            python tools/build_pages_site.py \
+              --root . \
+              --bundle "$GITHUB_WORKSPACE/artifacts/current" \
+              --canonical-state "$GITHUB_WORKSPACE/state/current/EvidenceRadar_State.json" \
+              --repository "$GITHUB_REPOSITORY" \
+              --base-url "${{ steps.pages.outputs.base_url }}" \
+              --output-dir "$GITHUB_WORKSPACE/_site"
+          )
 
       - name: Add immutable standalone reports
         run: |
