@@ -1,23 +1,26 @@
-# EvidenceRadar GitHub Actions 部署
+# EvidenceRadar 封存 GitHub Actions 部署參考
 
-EvidenceRadar 有兩條可選的 evidence execution lane：GitHub Actions 這份文件描述
-每日自動 discovery/source audit；ChatGPT Work 的完整 evidence review 則按
-[`docs/WORK_SETUP.md`](WORK_SETUP.md) 執行。另有一個受限的 scheduled Work control
-plane，只替 GitHub lane 的 frozen request 產生導航用繁中翻譯與搬運已驗證
-publication；它不是第三條 evidence lane，也不做 source verification。
+> **main 已停用。** Radar 的正式用家執行由 ChatGPT Work 完成。原 Stage A／B
+> workflow 保存在 `legacy/github-actions/`，只供歷史稽核與 regression；GitHub
+> 現在負責 source、驗證、release package 儲存與可選 publication hosting。不得用
+> 這些封存 workflow 代替用家要求的「執行 Radar」。
+
+EvidenceRadar 現在只有一條正式 execution lane：ChatGPT Work，完整流程按
+[`docs/WORK_SETUP.md`](WORK_SETUP.md) 執行。GitHub Actions 只做 source validation、
+Work Pack／Runtime 發布與可選的 Pages publication。舊 GitHub discovery 及
+translation handoff 僅保存在 `legacy/github-actions/`，不會在 `main` 啟動。
 
 ## 建立自己的 repository
 
 1. 在 GitHub 開啟本 repo，選 **Use this template** 建立獨立 repository；若要
    保留 upstream 關係，也可以 fork。不要直接在 upstream 的 default branch
    放自己的 state 或 secrets。
-2. 在自己的 repository 開啟 **Settings → Actions → General**，允許 Actions
-   執行，將 **Workflow permissions** 設為 **Read and write permissions**，並在
-   **Actions** 頁面啟用這個 workflow。排程只會在 default branch 的 workflow
-   檔上生效。
-3. 確認 default branch 已包含 `requirements.txt`、`tools/run_github_radar.py`
-   與目前的 schema/config。先用 **Run workflow** 做一次手動 smoke run，再
-   讓每日排程接手。
+2. 在自己的 repository 開啟 **Settings → Actions → General**。只有建立 release
+   或 Pages publication 的 repository 才需要允許 Actions；使用者執行 Radar
+   本身不需要 GitHub Actions 權限。
+3. 確認 default branch 已包含目前的 schema/config、Work Pack builder 與
+   validator。發布 `EvidenceRadar-WorkPack-current.zip` 及其 SHA-256 sidecar；
+   使用者只需讓 GPT 下載並驗證這個 package 一次。
 4. 在 **Settings → Pages → Build and deployment** 把 Source 設成
    **GitHub Actions**。`pages.yml` 只會發布通過四件套、provenance、候選
    ledger/HTML 數量與 producer-version 檢查的 current bundle。
@@ -50,11 +53,11 @@ Provider 基線以 [NCBI E-utilities usage guidelines](https://www.ncbi.nlm.nih.
 與 [OpenAlex authentication/rate-limit documentation](https://developers.openalex.org/api-reference/rate-limits/check-rate-limit-status)
 為準；上游規則改變時，先更新 config、tests 與這份文件。
 
-## 排程、手動輸出與權限
+## 封存的排程與 handoff（非現行流程）
 
-`.github/workflows/daily-radar.yml` 每日於 `06:17 Asia/Tokyo` 執行，刻意避開
-整點尖峰。GitHub 的 [`schedule` syntax](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onschedule)
-使用 IANA timezone。**Run workflow** 可覆寫本輪 publisher 網路存取預算：
+舊 `legacy/github-actions/daily-radar.yml` 曾每日於 `06:17 Asia/Tokyo` 執行，
+並提供以下 publisher 網路存取預算 override。該檔不在 `.github/workflows/`，
+因此 GitHub 不會排程、手動 dispatch 或因 push 啟動它；以下只供歷史稽核：
 
 若只交付已審閱的 queue／workflow control-plane 修正，而且已有仍在 retention 內的
 immutable request 等待處理，merge commit 可帶精確標記
@@ -170,7 +173,7 @@ Pages workflow 的 deployment 成功前，不應把推算網址宣稱為已可�
 公開連結，先交付實際 HTML 檔，再經審閱的 GitHub publication 更新 bundle；部署
 完成後讀取 `links.json` 回傳網址。
 
-每日 hosted workflow 只執行 Stage A，產生並上傳
+封存的 hosted workflow 只執行 Stage A，產生並上傳
 `EvidenceRadar_TranslationRequest.json`，狀態為 `TRANSLATION_REQUIRED`。GitHub
 hosted runner 不呼叫模型、不 fallback 到 Copilot 或 OpenAI API；它建立
 `evidenceradar-handoff` queue issue 後停止。
@@ -182,7 +185,7 @@ checkpoint SHA、batch ID 與 candidate ID parity 都是 fail-closed。Checkpoin
 `automation/evidenceradar-translation-<request-sha>` branch，完成後 branch diff
 收斂成 `.github/evidenceradar-translation-submission.json` 一檔並經 PR validation。
 
-Submission 合併後，`translation-stage-b.yml` 下載原始 Actions artifact，核對 queue
+歷史上 Submission 合併後，`legacy/github-actions/translation-stage-b.yml` 下載原始 Actions artifact，核對 queue
 issue 與 full request SHA，checkout request 記錄的 exact producer commit，並以目前
 canonical State resume Stage B；它不重跑 discovery。Workflow 會從 exact producer
 的 CLI capability 分流：支援 `--profile` 的 modern producer 必須收到 request 綁定的

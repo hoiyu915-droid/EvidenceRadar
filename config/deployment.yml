@@ -4,11 +4,11 @@ execution_lanes:
   chatgpt_work:
     enabled: true
     verification_scope: full_source_and_claim_review
-    state_handoff: user_carried_or_imported_artifact
+    state_handoff: embedded_seed_or_newer_user_artifact
   github_actions:
-    enabled: true
+    enabled: false
     verification_scope: automated_discovery_and_source_access_audit
-    state_handoff: repository_canonical_state
+    state_handoff: archived_legacy_only
 
 publisher_output:
   budget_scope: publisher_network_access_only
@@ -23,6 +23,9 @@ publisher_output:
   padding_forbidden: true
 
 github_actions:
+  active_radar_execution: false
+  legacy_only: true
+  archived_workflow_directory: legacy/github-actions
   schedule:
     cron: "17 6 * * *"
     timezone: Asia/Tokyo
@@ -58,15 +61,20 @@ provider_credentials:
     required_for: elevated_eutilities_rate
     missing_behavior: enforce_three_requests_per_second
   EVIDENCERADAR_TRANSLATION_API_KEY:
-    storage: optional_github_actions_secret
-    required_for: provider_abstract_translation_to_zh_tw
-    missing_behavior: use_github_copilot_cli_fallback_or_fail_closed_in_publication_mode
+    storage: archived_legacy_github_actions_secret
+    required_for: archived_provider_abstract_translation_only
+    missing_behavior: not_used_by_chatgpt_work
   EVIDENCERADAR_TRANSLATION_MODEL:
-    storage: optional_github_actions_variable
-    required_for: translation_model_override
-    missing_behavior: use_gpt_5_mini
+    storage: archived_legacy_github_actions_variable
+    required_for: archived_translation_model_override_only
+    missing_behavior: native_chatgpt_work_translation
 
 work_pack:
   enabled: true
-  state_required_after_first_run: true
+  release_asset: EvidenceRadar-WorkPack-current.zip
+  checksum_asset: EvidenceRadar-WorkPack-current.zip.sha256
+  embedded_seed_state: state/current/EvidenceRadar_State.json
+  entrypoint: WORK_ENTRY.md
+  terminal_four_artifact_delivery: true
+  post_download_github_access: false
   repository_writeback_required: false

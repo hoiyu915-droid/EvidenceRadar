@@ -3,7 +3,7 @@
 
 The builder deliberately has a narrow allow-list. It packages the protocol,
 configuration, taxonomy, templates, schemas, examples, setup/migration guides,
-the active V3 renderer/runner and validation tools; runtime history, the legacy
+the active V3 renderer/projection library and validation tools; runtime history, the legacy
 crawler, CI files and secret-bearing material stay out of the archive. The
 resulting manifest records every included file's digest and the source Git
 revision so a release can be audited after extraction.  The builder itself is
@@ -31,6 +31,20 @@ from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SPEC_PATH = ROOT / "release" / "work-pack-manifest.json"
+WORK_ENTRYPOINT = "WORK_ENTRY.md"
+SEED_STATE_PATH = "state/current/EvidenceRadar_State.json"
+WORK_PACK_CAPABILITIES = (
+    "EXECUTOR_HTTP_TELEMETRY_V1",
+    "MASTER_CONTROL_V1",
+    "TERMINAL_FOUR_ARTIFACT_DELIVERY_V1",
+)
+CANONICAL_ARTIFACTS = (
+    "EvidenceRadar_Report.html",
+    "EvidenceRadar_State.json",
+    "EvidenceRadar_Evidence.json",
+    "EvidenceRadar_Run.json",
+)
+DISABLED_ENTRYPOINTS = ("tools/run_github_radar.py",)
 _VERSION_RE = re.compile(r"^[0-9A-Za-z][0-9A-Za-z._+-]*$")
 _SECRET_PATTERNS = (
     re.compile(r"-----BEGIN (?:RSA |OPENSSH |EC |PGP )?PRIVATE KEY-----", re.I),
@@ -351,6 +365,13 @@ def build_work_pack(
         records.append({"path": relative, "sha256": _sha256(data), "size": len(data)})
         payloads.append((relative, data))
 
+    seed_state = next(
+        (dict(record) for record in records if record["path"] == SEED_STATE_PATH),
+        None,
+    )
+    if seed_state is None:
+        raise WorkPackError(f"Work Pack must include seed State: {SEED_STATE_PATH}")
+
     manifest: dict[str, Any] = {
         "format": "evidenceradar-work-pack",
         "manifest_version": str(spec["manifest_version"]),
@@ -360,6 +381,15 @@ def build_work_pack(
         "git_commit": git["git_commit"],
         "git_dirty": git["git_dirty"],
         "git_state": git["git_state"],
+        "execution_lane": "chatgpt_work",
+        "entrypoint": WORK_ENTRYPOINT,
+        "terminal_delivery": True,
+        "canonical_artifacts": list(CANONICAL_ARTIFACTS),
+        "github_role": "source_and_package_storage_only",
+        "post_download_github_access": False,
+        "disabled_entrypoints": list(DISABLED_ENTRYPOINTS),
+        "capabilities": list(WORK_PACK_CAPABILITIES),
+        "seed_state": seed_state,
         "source_date_epoch": epoch,
         "archive_manifest_path": str(spec.get("archive_manifest_path", "manifest.json")),
         "files": records,

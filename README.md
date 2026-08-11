@@ -9,73 +9,42 @@ EvidenceRadar 是一套可公開自行部署、可稽核的近期研究雷達。
 與「證據已核實」分開，使用事件窗、publication identity、來源覆蓋、claim ledger
 與可攜 State 防止重複通知和過度宣稱。
 
+## 用家入口：只要執行 Radar
+
+用家向 ChatGPT Work 說「執行文獻雷達」即可。GPT 下載一次正式 Work Pack 與
+checksum，之後在同一個 Work 對話內完成搜尋、核實、繁中翻譯、去重、State
+合併、HTML render 與四件套驗證，最後直接交付：
+
+```text
+EvidenceRadar_Report.html
+EvidenceRadar_State.json
+EvidenceRadar_Evidence.json
+EvidenceRadar_Run.json
+```
+
+GitHub 在這條路徑只負責原始碼與版本化 ZIP 儲存。下載完成後不啟動 Actions、
+不建立 issue／PR、不等待 Stage A/B，也不要求公開發布才能取得檔案。
+
 新的 `SEMANTIC_CONTRACT_V3` 再把 discovery、content fetch、claim verification、
 source identity/access observation、citation binding、model inference、數字前提與
 衝突拆開。完整規格見
 [`docs/SEMANTIC_CONTRACT_V3.md`](docs/SEMANTIC_CONTRACT_V3.md)；舊 V2 bundle
 仍可驗證，新 V3 bundle 則啟用額外 fail-closed 規則。
 
-GitHub Actions and ChatGPT Work are the two supported EvidenceRadar execution lanes.
-兩條 lane 共用同一份 protocol、config、schema 與四個 artifact 契約，但驗證能力
-保持可見差異：
+## 唯一用家執行路徑
 
-| Lane | 適合用途 | 啟動方式 | 驗證邊界 |
-|---|---|---|---|
-| GitHub Actions | 每日 discovery/source audit 與翻譯 request | 排程或手動 Run workflow | Stage A 上傳 request 並建立 metadata-only Work queue；Stage B 只接受 SHA-bound response |
-| ChatGPT Work | 研究者主動執行完整 evidence review | 讀取固定 commit 的公開 repository，或上傳 released Work Pack | 即時搜尋、直接來源閱讀、claim／數字／衝突核實 |
-
-## 自行部署：不必共用維護者的設定
-
-### 路徑 A：GitHub 每日自動執行
-
-1. 按 **Use this template** 建立自己的 repository；需要保留 upstream 關係時
-   也可以 fork。
-2. 在自己的 repository 啟用 Actions；Stage A workflow 讀取 contents，並以
-   `issues: write` 建立不含研究內容的 Work queue metadata。
-3. 到 **Actions → EvidenceRadar daily (GitHub Actions lane) → Run workflow**
-   先跑一次。之後 workflow 每日依 `Asia/Tokyo` 排程執行。
-4. 把免費的 `OPENALEX_API_KEY` 設為 repository Secret，供 OpenAlex discovery
-   使用。`NCBI_EMAIL`、`NCBI_API_KEY` 為 PubMed 建議／提額設定。缺少某來源的
-   必要 key 時，runner 會 fail closed 記錄該來源 gap，而不是填入假結果。
-5. Workflow 正常結束為 `TRANSLATION_REQUIRED`，上傳
-   `EvidenceRadar_TranslationRequest.json` 並建立 `evidenceradar-handoff` issue。
-   受限的 ChatGPT Work 排程會分批翻譯、逐批驗證與 checkpoint，完成後經 PR
-   提交 SHA-bound response；Actions 再以 request 的 exact producer commit 執行
-   Stage B。此流程不需 repository model API key 或 Copilot。
-
-使用者的設定與 canonical State 留在自己的 repository；request 與 Stage B
-候選包保留為限時 Actions artifacts。Response 與 canonical publication 都只經過
-受審閱 PR 寫入自己的 repository，不會寫回 upstream。完整設定見
-[`docs/GITHUB_DEPLOYMENT.md`](docs/GITHUB_DEPLOYMENT.md)。
-
-### 路徑 B：ChatGPT Work 使用者啟動
-
-一般執行可讓 Work 直接讀取公開 repository 的 `main`，先固定本輪 commit SHA，
-再在 **Work VM** 的新 run-id 目錄中執行、驗證與封裝；不需要先下載部署檔。
-這些檔案保存在 Work VM，並以唯一名稱的 run-id ZIP 與 checksum 交付，不會自動
-寫回 GitHub，也不會因本機路徑而自動取得公開網址。
-
-若 Work VM 無法取得 repository checkout，或需要離線／固定版本輸入，再下載
-GitHub Release 內成對的 Work Pack：
+GPT 從 GitHub latest Release 下載這兩個固定名稱：
 
 ```text
-EvidenceRadar-WorkPack-v<VERSION>.zip
-EvidenceRadar-WorkPack-v<VERSION>.zip.sha256
+EvidenceRadar-WorkPack-current.zip
+EvidenceRadar-WorkPack-current.zip.sha256
 ```
 
-驗證 checksum、解壓並上傳到自己的 ChatGPT Work project。首次可沒有 State；
-第二次起另外帶入最新 `EvidenceRadar_State.json`。Work Pack 包含 protocol、設定、
-schema、template、範例、migration、manifest、V3 canonical renderer、目前 GitHub
-runner、State merge、四件套 validation、run-id delivery packager 與 requirements；
-不含 credentials、歷史 State、每日報告、CI 或 legacy crawler。
-
-Web scheduled task 不保留本機 checkout 或 project folder；OpenAI 的現行說明是它
-可使用 connected tools、plugins 與 skills，但 durable input 必須留在可存取的
-project、upload 或 connected service：
-[Scheduled tasks](https://learn.chatgpt.com/docs/automations)。因此 EvidenceRadar
-仍由 GitHub Actions 執行 Stage A；Work 只從 immutable Actions artifact 讀取 frozen
-request，把 checkpoint 留在專用 branch，最後以 PR 交回 response。這個 control
-plane 不會把 scheduled translation 誤標成 `chatgpt_work` evidence-review lane。
+驗證 checksum 與 manifest 後，後續執行不再讀 GitHub。Work Pack 包含 protocol、
+設定、schema、template、基準 State、V3 canonical renderer、State merge、四件套
+validator、run-id delivery packager 與 requirements。renderer 所需的 GitHub
+projection module 只可 import，CLI 在 pack 內強制停用；不含 Stage B automation、
+credentials、每日報告、CI 或 legacy crawler。
 
 維護者或從 source 使用的人可重現建置：
 
@@ -83,13 +52,15 @@ plane 不會把 scheduled translation 誤標成 `chatgpt_work` evidence-review l
 python3 tools/build_work_pack.py --output-dir dist
 ```
 
-完整步驟見 [`docs/WORK_SETUP.md`](docs/WORK_SETUP.md)。因此公開使用有兩種低摩擦
-方式：GitHub 使用 template/fork；ChatGPT Work 使用一個有版本與 SHA-256 的可攜
-部署包。
+完整步驟見 [`docs/WORK_SETUP.md`](docs/WORK_SETUP.md)。Repository 內仍保留供
+維護者回歸與舊部署參考的 `github_actions` producer；原 workflow 已移至
+`legacy/github-actions/`，不會由 main 排程或 dispatch。它不是用家入口，也不會被
+Work Pack 呼叫。執行 Radar 不需要 GitHub workflow、issue、PR 或 Stage B。
 
-## GitHub lane 的 10–15 出版社存取預算
+## 封存維護者 producer 的 10–15 出版社存取預算
 
-GitHub runner 每輪以 10 筆可存取 publisher/source-page audit records 為目標，
+以下描述 `legacy/github-actions/` 回歸 fixture 的舊契約，不是現行用家流程。
+封存 GitHub runner 每輪以 10 筆可存取 publisher/source-page audit records 為目標，
 出版社頁面嘗試數硬上限為 15。每個 resolved domain 最多兩次，request 之間延遲，
 遇到 HTTP `401`、`403` 或 `429` 立即停止該網域。
 
@@ -106,8 +77,8 @@ DOI、PubMed、OpenAlex 或 abstract landing page 的 HTTP 200 不會被誤報�
 
 HTML 提供題名／作者／期刊／簡述搜尋，以及類別、閱讀層級、來源、OA、全文存取
 篩選與分類收合。套用篩選時會展開完整池，不會只搜尋 Featured。
-每個 item 都必須有結構化 `title_zh_tw`。Stage A 的 request 以 canonical SHA-256
-綁定候選與凍結 resume context；Stage B 只接受同 SHA、exact ID parity 的普通 ChatGPT
+封存 producer 的每個 item 都必須有結構化 `title_zh_tw`。其 Stage A request 以 canonical SHA-256
+綁定候選與凍結 resume context；舊 Stage B 只接受同 SHA、exact ID parity 的普通 ChatGPT
 response。任何英文題名未成功翻譯、數字／年份／縮寫遺失，或回傳「題名所示／相關議題」
 等模板 filler 時，本輪 fail closed，不發佈 HTML。來源有
 摘要時可在中文題名後追加一至兩句研究目的／對象／方法簡述；沒有摘要時就只顯示忠實
@@ -138,8 +109,8 @@ true。`publisher` 與 `formal_proceedings_or_publisher` 都是
 `bounded_verification` stage，即使 publisher 10–15 探測預算沒有 eligible item，
 也必須寫出 `NO_RESULTS`、`FAILED` 或 `NOT_ATTEMPTED` 的 check summary。
 
-設定位於 [`config/deployment.yml`](config/deployment.yml)，手動 workflow 可在
-本輪覆寫 `publisher_target_min` 和 `publisher_hard_max`，但 runner 仍強制
+相容設定位於 [`config/deployment.yml`](config/deployment.yml)；封存 workflow 的
+歷史手動輸入可覆寫 `publisher_target_min` 和 `publisher_hard_max`，但 runner 仍強制
 `0 ≤ target ≤ hard max`。
 
 ## 四個 artifact 與狀態同步
@@ -197,8 +168,8 @@ python3 tools/render_report_from_artifacts.py --bundle "$WORK_RUN_DIR"
 claim 以 claim ID 綁 Evidence。手動加進 HTML 的結論或數字會被 byte-parity gate
 拒絕。
 
-Work 與 GitHub 從不同 State 分支執行時，使用 deterministic union，不能用較新的
-檔案直接覆蓋另一條 lane：
+若維護者需要把歷史 GitHub State 與 Work State 匯合，使用 deterministic union，
+不能用較新的檔案直接覆蓋另一份歷史：
 
 ```sh
 python3 tools/merge_radar_state.py \
@@ -236,7 +207,7 @@ Run status 只可使用 `COMPLETE`、`PARTIAL_SOURCE_COVERAGE`、
 - [`config/`](config/)：來源、分類、輸出與部署設定
 - [`schemas/`](schemas/)：State、Evidence、Run schema
 - [`examples/`](examples/)：最小結構範例，不是目前研究證據
-- [`tools/run_github_radar.py`](tools/run_github_radar.py)：新的 GitHub lane runner
+- [`tools/run_github_radar.py`](tools/run_github_radar.py)：封存 producer 與 renderer 共用的 projection library；Work Pack 中 CLI 停用
 - [`tools/merge_radar_state.py`](tools/merge_radar_state.py)：雙 lane State union
 - [`tools/build_work_pack.py`](tools/build_work_pack.py)：可重現 Work Pack builder
 - [`tools/package_work_delivery.py`](tools/package_work_delivery.py)：驗證後建立唯一 run-id Work ZIP／manifest／checksum
@@ -253,10 +224,10 @@ Run status 只可使用 `COMPLETE`、`PARTIAL_SOURCE_COVERAGE`、
 Codex is **not** part of the radar runtime and is not required by downstream
 users. It may be used separately for repository maintenance, tests, release
 preparation and public-source auditing. MCP and an external server are not
-required by either supported lane.
+required by the `chatgpt_work` lane.
 
 `daily/`、舊 `state/` 與 `legacy/python-runtime/` 是 2026-08-08 前的歷史快照；
-新 GitHub runner 不會呼叫 archived crawler。除非使用者另行要求，EvidenceRadar
+封存 GitHub runner 不會呼叫 archived crawler。除非使用者另行要求，EvidenceRadar
 也不啟動 TA／TP03 或圖像生成。
 
 ## Open-source maintenance

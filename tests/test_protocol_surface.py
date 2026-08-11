@@ -8,30 +8,37 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class ProtocolSurfaceTests(unittest.TestCase):
-    def test_active_runtime_has_two_explicit_lanes(self) -> None:
+    def test_user_runtime_enables_only_chatgpt_work(self) -> None:
         output = (ROOT / "config/output.yml").read_text(encoding="utf-8")
-        self.assertIn("owners: [chatgpt_work, github_actions]", output)
+        deployment = (ROOT / "config/deployment.yml").read_text(encoding="utf-8")
+        self.assertIn("owners: [chatgpt_work]", output)
         self.assertIn("chatgpt_work:", output)
         self.assertIn("github_actions:", output)
-        self.assertIn("github_actions: true", output)
+        self.assertIn("github_actions: false", output)
+        self.assertIn("active_radar_execution: false", deployment)
+        self.assertIn("archived_workflow_directory: legacy/github-actions", deployment)
         self.assertIn("mcp: false", output)
         self.assertIn("external_server: false", output)
         self.assertIn("codex: false", output)
 
-    def test_github_execution_has_daily_and_manual_triggers(self) -> None:
+    def test_active_workflows_do_not_execute_radar(self) -> None:
         self.assertFalse((ROOT / ".manual-run").exists())
         workflow_dir = ROOT / ".github" / "workflows"
         workflows = list(workflow_dir.glob("*.yml")) + list(workflow_dir.glob("*.yaml"))
         self.assertEqual(
             [
-                "daily-radar.yml",
                 "pages.yml",
                 "public-release.yml",
                 "runtime-release.yml",
-                "translation-stage-b.yml",
+                "work-pack-release.yml",
             ],
             sorted(path.name for path in workflows),
         )
+        for workflow_path in workflows:
+            active = workflow_path.read_text(encoding="utf-8")
+            self.assertNotIn("Resume Stage B without rediscovery", active, workflow_path.name)
+            self.assertNotIn("TRANSLATION_REQUIRED", active, workflow_path.name)
+            self.assertNotIn("evidenceradar-handoff", active, workflow_path.name)
 
         maintenance = (workflow_dir / "public-release.yml").read_text(encoding="utf-8")
         self.assertIn("python tools/validate_public_release.py", maintenance)
@@ -41,7 +48,11 @@ class ProtocolSurfaceTests(unittest.TestCase):
         self.assertNotIn("python src/run.py", maintenance)
         self.assertNotIn("contents: write", maintenance)
 
-        daily = (workflow_dir / "daily-radar.yml").read_text(encoding="utf-8")
+        self.assertFalse((workflow_dir / "daily-radar.yml").exists())
+        self.assertFalse((workflow_dir / "translation-stage-b.yml").exists())
+        archived_workflows = ROOT / "legacy" / "github-actions"
+        daily = (archived_workflows / "daily-radar.yml").read_text(encoding="utf-8")
+        self.assertIn("ARCHIVED", daily)
         self.assertIn("schedule:", daily)
         self.assertIn("workflow_dispatch:", daily)
         self.assertIn("contents: read", daily)
@@ -49,7 +60,8 @@ class ProtocolSurfaceTests(unittest.TestCase):
         self.assertIn("TRANSLATION_REQUIRED", daily)
         self.assertIn("python tools/run_github_radar.py", daily)
 
-        stage_b = (workflow_dir / "translation-stage-b.yml").read_text(encoding="utf-8")
+        stage_b = (archived_workflows / "translation-stage-b.yml").read_text(encoding="utf-8")
+        self.assertIn("ARCHIVED", stage_b)
         self.assertIn("python tools/work_translation_queue.py validate-submission", stage_b)
         self.assertIn("Resume Stage B without rediscovery", stage_b)
         self.assertIn("--translation-response", stage_b)
@@ -67,6 +79,15 @@ class ProtocolSurfaceTests(unittest.TestCase):
         self.assertIn("python tools/verify_runtime_release.py", runtime_release)
         self.assertIn("immutable Runtime tag already exists", runtime_release)
         self.assertIn("gh release create", runtime_release)
+
+        work_pack_release = (workflow_dir / "work-pack-release.yml").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("workflow_dispatch:", work_pack_release)
+        self.assertNotIn("schedule:", work_pack_release)
+        self.assertIn("python tools/build_work_pack.py", work_pack_release)
+        self.assertIn("python tools/verify_work_pack.py", work_pack_release)
+        self.assertIn("EvidenceRadar-WorkPack-current.zip", work_pack_release)
 
     def test_new_runner_is_separate_from_archived_runtime(self) -> None:
         self.assertFalse((ROOT / "src").exists())
@@ -110,6 +131,7 @@ class ProtocolSurfaceTests(unittest.TestCase):
         self.assertIn("interactive_candidate_filters: true", output)
         self.assertIn("candidate_summary_max_chars: 320", output)
         self.assertIn("candidate_summary_language: zh-TW", output)
+        self.assertIn("chatgpt_work: native_chatgpt_work", output)
         self.assertIn("ordinary_chatgpt_manual_handoff", output)
         self.assertIn("EvidenceRadar_TranslationRequest.json", output)
         self.assertIn("CHATBOT_TITLE_AND_ABSTRACT_ZH_TW", protocol)

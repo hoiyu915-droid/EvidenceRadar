@@ -36,18 +36,15 @@ from zoneinfo import ZoneInfo
 import requests
 import yaml
 
+# In the ChatGPT Work Pack this module is library-only.  Its report projection
+# dependencies must not create bytecode files in the verified package tree.
+sys.dont_write_bytecode = True
+
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from tools.translation_handoff import (
-    TranslationHandoffError,
-    load_and_validate_translation_response,
-    load_translation_request,
-    request_sha256,
-    write_translation_request,
-)
 from tools.featured_selection import (
     featured_policy_from_output,
     featured_policy_note,
@@ -3804,6 +3801,8 @@ def _build_translation_request(
     resume_context: dict[str, Any],
     max_chars: int,
 ) -> dict[str, Any]:
+    from tools.translation_handoff import request_sha256
+
     request: dict[str, Any] = {
         "schema_version": "1.0",
         "artifact_type": "EvidenceRadar_TranslationRequest",
@@ -6319,6 +6318,14 @@ def execute(
     discoverer: Callable[..., Any] = discover_candidates,
     publisher_probe: Callable[..., tuple[list[tuple[Candidate, dict[str, Any]]], list[dict[str, Any]], list[str]]] = probe_publisher_pages,
 ) -> dict[str, Any]:
+    if translation_request_path is not None or translation_response_path is not None:
+        from tools.translation_handoff import (
+            TranslationHandoffError,
+            load_and_validate_translation_response,
+            load_translation_request,
+            write_translation_request,
+        )
+
     handoff_request: dict[str, Any] | None = None
     resume_context: dict[str, Any] | None = None
     validated_translations: dict[str, dict[str, str]] | None = None
@@ -7198,7 +7205,31 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def _inside_chatgpt_work_pack() -> bool:
+    """Return true when this module is the library-only Work Pack copy."""
+
+    manifest_path = ROOT / "manifest.json"
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    return (
+        isinstance(manifest, dict)
+        and manifest.get("format") == "evidenceradar-work-pack"
+        and manifest.get("execution_lane") == "chatgpt_work"
+        and "tools/run_github_radar.py"
+        in manifest.get("disabled_entrypoints", [])
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
+    if _inside_chatgpt_work_pack():
+        print(
+            "ERROR: GitHub runner CLI is disabled in the ChatGPT Work Pack; "
+            "execute WORK_ENTRY.md through terminal four-file delivery",
+            file=sys.stderr,
+        )
+        return 2
     args = parse_args(argv)
     root = args.root.resolve()
     timezone_name = str(load_yaml(root / "config" / "output.yml").get("window", {}).get("timezone", DEFAULT_TIMEZONE))

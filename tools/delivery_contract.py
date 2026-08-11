@@ -21,7 +21,7 @@ BUNDLE_FILENAMES = (
     "EvidenceRadar_Run.json",
 )
 
-SHARED_CONTRACT_PATHS = (
+CORE_CONTRACT_PATHS = (
     "EVIDENCE_RADAR_PROTOCOL.md",
     "requirements.txt",
     "config/deployment.yml",
@@ -32,12 +32,15 @@ SHARED_CONTRACT_PATHS = (
     "schemas/evidence-radar-evidence.schema.json",
     "schemas/evidence-radar-run.schema.json",
     "schemas/evidence-radar-state.schema.json",
-    "schemas/evidence-radar-translation-request.schema.json",
-    "schemas/evidence-radar-translation-response.schema.json",
     "docs/SEMANTIC_CONTRACT_V3.md",
 )
 
-GITHUB_PRODUCER_PATHS = SHARED_CONTRACT_PATHS + (
+GITHUB_TRANSLATION_CONTRACT_PATHS = (
+    "schemas/evidence-radar-translation-request.schema.json",
+    "schemas/evidence-radar-translation-response.schema.json",
+)
+
+GITHUB_PRODUCER_PATHS = CORE_CONTRACT_PATHS + GITHUB_TRANSLATION_CONTRACT_PATHS + (
     "tools/delivery_contract.py",
     "tools/featured_selection.py",
     "tools/publisher_feed.py",
@@ -47,7 +50,8 @@ GITHUB_PRODUCER_PATHS = SHARED_CONTRACT_PATHS + (
     "tools/validate_delivery_bundle.py",
 )
 
-WORK_PRODUCER_PATHS = SHARED_CONTRACT_PATHS + (
+WORK_PRODUCER_PATHS = CORE_CONTRACT_PATHS + (
+    "WORK_ENTRY.md",
     "docs/MIGRATION_DUAL_LANE_1.0.md",
     "docs/WORK_SETUP.md",
     "docs/research_taxonomy.md",
@@ -61,9 +65,9 @@ WORK_PRODUCER_PATHS = SHARED_CONTRACT_PATHS + (
     "tools/radar_control.py",
     "tools/render_report_from_artifacts.py",
     "tools/run_github_radar.py",
-    "tools/translation_handoff.py",
     "tools/validate_delivery_bundle.py",
     "tools/validate_gpt_work_artifacts.py",
+    "tools/verify_work_pack.py",
 )
 
 

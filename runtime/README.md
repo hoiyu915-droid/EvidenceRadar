@@ -4,6 +4,11 @@ This directory defines the contract for the versioned local Runtime package.
 The Runtime ZIP is a release artifact, not a mutable working copy of the
 repository.
 
+This is a maintainer automation package for the `github_actions` lane. It is
+not the ChatGPT Work user entrypoint. A user who says "execute Radar" must use
+`EvidenceRadar-WorkPack-current.zip` and receive the terminal HTML plus three
+JSON files in one Work run.
+
 ## Contract
 
 - Runtime source files are immutable after a release is built.

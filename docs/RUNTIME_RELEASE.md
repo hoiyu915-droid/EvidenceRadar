@@ -5,6 +5,11 @@ This is a packaging/deployment mode for the existing automated discovery
 producer; it is not a third evidence-review lane and does not change the four
 canonical artifact contracts.
 
+The Runtime is maintainer automation, not the end-user ChatGPT Work package.
+The user-facing latest Release is produced by `work-pack-release.yml`; Runtime
+releases are explicitly marked non-latest so the stable Work Pack download URL
+cannot resolve to this Stage A/B package.
+
 ## Separation of responsibilities
 
 ```text

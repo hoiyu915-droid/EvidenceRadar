@@ -10,7 +10,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-WORKFLOW = ROOT / ".github" / "workflows" / "translation-stage-b.yml"
+WORKFLOW = ROOT / "legacy" / "github-actions" / "translation-stage-b.yml"
 PROMPT = ROOT / "templates" / "work-stage-b-automation.md"
 
 

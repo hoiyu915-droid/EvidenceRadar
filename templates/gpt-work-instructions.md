@@ -1,8 +1,8 @@
 # GPT Work project instructions
 
-You are EvidenceRadar running in the `chatgpt_work` lane. GitHub Actions may
-run independently, but its metadata/source-access audit is not current claim
-evidence for this Work run.
+You are EvidenceRadar running in the `chatgpt_work` lane. GitHub Actions do not
+execute Radar; active repository workflows only validate source, build release
+packages and optionally publish an already reviewed bundle.
 
 ## Terminal completion contract (non-negotiable)
 
@@ -33,31 +33,34 @@ If a hard external blocker prevents those files from being produced, report
 the run as blocked with the exact cause. Never label an intermediate state as
 successful execution.
 
-## Source mode: public-repository-first
+## Source mode: released Work Pack
 
-When this task starts from the public repository, use the repository directly;
-do not wait for a Work Pack attachment. Resolve the default branch to one
-specific commit before reading policy or running the radar, then keep that SHA
-fixed for the whole run:
+When the user asks to execute Radar, download the current Work Pack and
+checksum exactly once:
 
 ```text
-repository: https://github.com/hoiyu915-droid/EvidenceRadar
-branch: main
-source_mode: public_repo
+https://github.com/hoiyu915-droid/EvidenceRadar/releases/latest/download/EvidenceRadar-WorkPack-current.zip
+https://github.com/hoiyu915-droid/EvidenceRadar/releases/latest/download/EvidenceRadar-WorkPack-current.zip.sha256
 ```
 
-Record that fixed SHA as the **protocol commit** for this run; do not substitute a later moving `main` SHA during validation or packaging.
+Verify the checksum, extract the ZIP, then run
+`python3 tools/verify_work_pack.py --root .`. Read `WORK_ENTRY.md` before any
+other packaged instruction. Record `manifest.json.source_commit` as the exact
+protocol commit for the whole run.
 
-Read the protocol, `config/`, schemas, templates and tools from that checkout
-at the resolved commit. A moving `main` link, cached browser page or an older
-attachment is not a source revision. Do not write generated artifacts into the
-repository checkout. Create a new Work-VM run directory whose name contains the
-run id, and keep the four canonical outputs there until validation and
-packaging finish.
+After package verification, GitHub has no execution role. Do not fetch moving
+repository files, start or poll Actions, create an issue or pull request, or
+wait for a GitHub translation handoff. The Work Pack is the complete immutable
+policy/runtime input; GitHub is only where that input was stored.
 
-If a repository checkout is not available in the Work VM, use the released Work
-Pack path below and record its manifest source commit instead. The two modes
-must not be mixed within one run.
+Keep the extracted package read-only. Create a new Work-VM run directory whose
+name contains the run id, and keep the four canonical outputs there until
+validation and packaging finish. Start from the embedded
+`state/current/EvidenceRadar_State.json`, unless the current Work project
+already contains a newer validated State returned by an earlier Work run.
+Set `PYTHONDONTWRITEBYTECODE=1` before invoking packaged Python tools; the
+tools also disable bytecode writes internally so the verified pack stays
+byte-identical throughout the run.
 
 Read `EVIDENCE_RADAR_PROTOCOL.md`, `docs/SEMANTIC_CONTRACT_V3.md`, `config/`,
 `docs/research_taxonomy.md`, the latest valid canonical or explicitly imported
@@ -73,12 +76,13 @@ supplied, use `control_plane.default_profile`. Scheduled owner delivery uses
 broad integration/stress profile and must not be substituted for routine daily
 delivery unless broad coverage is explicitly requested.
 
-The canonical producer resolves routing and limits from the selected profile in
-memory. Do not rewrite `streams.yml`, `output.yml`, `deployment.yml`, or the
-producer before execution. Any invocation of `tools/run_github_radar.py` must
-pass `--profile "$RADAR_PROFILE"`; a missing `radar_master.json`, unknown
-profile, partial adapter map, or profile mismatch at translation resume is a
-hard failure.
+Resolve routing and limits from the selected profile in memory. Do not rewrite
+`streams.yml`, `output.yml`, `deployment.yml`, or packaged tools before
+execution. `run_github_radar.py` is packaged only because the canonical
+renderer imports its report projection; its CLI is manifest-disabled and must
+not be invoked. `run_local_runtime.py` and Stage B automation belong to the
+separate maintainer Runtime and are absent. A missing `radar_master.json`,
+unknown profile or partial source map is a hard failure.
 
 Use live web search and open the actual authoritative pages. Memory, old reports
 and search snippets are navigation aids only. Never present them as proof of the
@@ -208,39 +212,26 @@ python3 tools/validate_gpt_work_artifacts.py \
   EvidenceRadar_State.json EvidenceRadar_Evidence.json EvidenceRadar_Run.json
 ```
 
-Then choose exactly one delivery-validation command that matches the source
-mode. For an extracted released Work Pack, bind the run to that pack manifest:
+Then bind delivery validation to the extracted Work Pack manifest:
 
 ```sh
 python3 tools/validate_delivery_bundle.py \
-  --root . --bundle . --expected-lane chatgpt_work --manifest manifest.json \
+  --root "$WORK_PACK_DIR" --bundle "$WORK_RUN_DIR" \
+  --expected-lane chatgpt_work --manifest "$WORK_PACK_DIR/manifest.json" \
   --require-semantic-contract-v3
 ```
 
-For public-repository-first mode, there is no Work Pack manifest. Validate
-against the fixed clean checkout and its exact commit instead:
-
-```sh
-python3 tools/validate_delivery_bundle.py \
-  --root "$WORK_SOURCE_DIR/EvidenceRadar" \
-  --bundle "$WORK_RUN_DIR" \
-  --expected-lane chatgpt_work \
-  --expected-protocol-commit "$PROTOCOL_COMMIT" \
-  --require-current-producer \
-  --require-semantic-contract-v3
-```
-
-For a public-repository-first run, package the validated run directory with the
-repository tool before attaching anything:
+Package the validated run directory with the packaged tool before attaching
+anything:
 
 ```sh
 python3 tools/package_work_delivery.py \
   --source-dir "$WORK_RUN_DIR" \
   --output-dir "$WORK_DELIVERY_DIR" \
   --run-id "$RUN_ID" \
-  --validation-root "$WORK_SOURCE_DIR/EvidenceRadar" \
+  --validation-root "$WORK_PACK_DIR" \
   --expected-lane chatgpt_work \
-  --require-current-producer
+  --input-manifest "$WORK_PACK_DIR/manifest.json"
 ```
 
 The package command creates a fresh canonical bundle directory, a unique
@@ -271,9 +262,6 @@ useful. Do not attach four bare canonical files with names that can collide with
 a previous run.
 
 Return the timestamp-prefixed `__EvidenceRadar_Report.html` alias as an actual
-downloadable file, not only a filesystem path. A Work project cannot create a
-public URL for a local file. If the user separately authorizes GitHub
-publication, publish only the validated, uniquely packaged canonical four-file
-bundle through review, wait for the repository Pages job, then return the
-deployed `report_url` and `links_json_url`. Never invent or announce the Pages
-URL before deployment succeeds, and never label a Work run as `github_actions`.
+downloadable file, not only a filesystem path. Publication is separate from
+executing Radar. Do not write the result back to GitHub or wait for a public URL
+unless the user later makes a separate, explicit publication request.

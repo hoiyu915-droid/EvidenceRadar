@@ -4,33 +4,54 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path, PurePosixPath
+from unittest import mock
 from zipfile import ZipFile
 
 from tools.build_work_pack import build_work_pack, collect_source_files, load_pack_spec
 from tools.delivery_contract import WORK_PRODUCER_PATHS
+from tools.verify_work_pack import (
+    WorkPackVerificationError,
+    verify_archive,
+    verify_extracted_root,
+)
+from tests.test_delivery_bundle import create_bundle
 
 
 ROOT = Path(__file__).resolve().parents[1]
+CLEAN_GIT_STATE = {
+    "git_commit": "c" * 40,
+    "source_commit": "c" * 40,
+    "git_dirty": False,
+    "git_state": "clean",
+}
+
+
+def build_clean_work_pack(*args, **kwargs):
+    with mock.patch("tools.build_work_pack._git_state", return_value=CLEAN_GIT_STATE):
+        return build_work_pack(*args, **kwargs)
 
 
 class WorkPackTests(unittest.TestCase):
-    def test_allowlist_contains_portable_contract_v3_runtime_and_tools(self) -> None:
+    def test_allowlist_is_terminal_work_surface_not_github_control_plane(self) -> None:
         spec = load_pack_spec(ROOT / "release" / "work-pack-manifest.json")
         paths = {relative for relative, _source in collect_source_files(ROOT, spec)}
         for required in (
+            "WORK_ENTRY.md",
             "EVIDENCE_RADAR_PROTOCOL.md",
             "requirements.txt",
             "config/deployment.yml",
             "config/radar_master.json",
             "docs/WORK_SETUP.md",
             "docs/SEMANTIC_CONTRACT_V3.md",
-            "docs/MIGRATION_DUAL_LANE_1.0.md",
             "schemas/evidence-radar-state.schema.json",
+            "state/current/EvidenceRadar_State.json",
+            "templates/gpt-work-instructions.md",
             "tools/delivery_contract.py",
             "tools/featured_selection.py",
             "tools/materialize_delivery_aliases.py",
@@ -42,11 +63,15 @@ class WorkPackTests(unittest.TestCase):
             "tools/run_github_radar.py",
             "tools/validate_delivery_bundle.py",
             "tools/validate_gpt_work_artifacts.py",
+            "tools/verify_work_pack.py",
         ):
             self.assertIn(required, paths)
         for forbidden in (
             ".github/workflows/daily-radar.yml",
+            "templates/work-stage-b-automation.md",
             "tools/build_work_pack.py",
+            "tools/run_local_runtime.py",
+            "tools/translation_handoff.py",
             "legacy/python-runtime/src/run.py",
             "state/literature_registry.json",
         ):
@@ -54,44 +79,40 @@ class WorkPackTests(unittest.TestCase):
         for producer_path in WORK_PRODUCER_PATHS:
             self.assertIn(producer_path, paths)
 
-    def test_work_setup_documents_repository_first_and_unique_run_delivery(self) -> None:
-        setup = (ROOT / "docs" / "WORK_SETUP.md").read_text(encoding="utf-8")
-        instructions = (ROOT / "templates" / "gpt-work-instructions.md").read_text(encoding="utf-8")
-        self.assertIn("Repository-first", setup)
-        self.assertIn("repository-first", instructions)
-        for document in (setup, instructions):
-            self.assertIn("main", document)
-            self.assertIn("protocol commit", document)
-            self.assertIn("tools/package_work_delivery.py", document)
-            self.assertIn("tools/render_report_from_artifacts.py", document)
-            self.assertIn("EvidenceRadar-WorkRun-<run_id>.zip", document)
-            self.assertIn(".zip.sha256", document)
-            self.assertIn("manifest.json", document)
-            self.assertIn("config/radar_master.json", document)
-            self.assertIn("--profile", document)
-        self.assertIn("mix policy files", setup)
-
-    def test_work_run_has_one_terminal_four_file_delivery_boundary(self) -> None:
+    def test_user_entry_is_one_download_then_terminal_four_file_delivery(self) -> None:
+        entry = (ROOT / "WORK_ENTRY.md").read_text(encoding="utf-8")
         setup = (ROOT / "docs" / "WORK_SETUP.md").read_text(encoding="utf-8")
         instructions = (ROOT / "templates" / "gpt-work-instructions.md").read_text(
             encoding="utf-8"
         )
         protocol = (ROOT / "EVIDENCE_RADAR_PROTOCOL.md").read_text(encoding="utf-8")
-        for document in (setup, instructions, protocol):
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        for document in (entry, setup, instructions, protocol):
             self.assertIn("end-to-end", document)
-            self.assertIn("TRANSLATION_REQUIRED", document)
             self.assertIn("EvidenceRadar_Report.html", document)
             self.assertIn("EvidenceRadar_State.json", document)
             self.assertIn("EvidenceRadar_Evidence.json", document)
             self.assertIn("EvidenceRadar_Run.json", document)
+        for document in (setup, instructions):
+            self.assertIn("EvidenceRadar-WorkPack-current.zip", document)
+            self.assertIn("tools/verify_work_pack.py", document)
+            self.assertNotIn("Repository-first", document)
         self.assertIn("Never return `TRANSLATION_REQUIRED`", instructions)
-        self.assertIn("not valid success results", protocol)
+        self.assertIn("Traditional Chinese translation itself", " ".join(entry.split()))
+        self.assertIn("do not invoke GitHub Actions", entry)
+        self.assertIn("## 唯一用家執行路徑", readme)
+        self.assertIn("執行 Radar 不需要 GitHub workflow、issue、PR 或 Stage B", readme)
+        self.assertFalse((ROOT / ".github/workflows/daily-radar.yml").exists())
+        self.assertFalse((ROOT / ".github/workflows/translation-stage-b.yml").exists())
+        self.assertTrue((ROOT / "legacy/github-actions/daily-radar.yml").exists())
+        self.assertTrue((ROOT / "legacy/github-actions/translation-stage-b.yml").exists())
+        self.assertIn("post_download_github_access: false", (ROOT / "config" / "deployment.yml").read_text(encoding="utf-8"))
 
     def test_build_is_byte_reproducible_and_manifest_verifies_every_file(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            first = build_work_pack(ROOT, root / "first", source_date_epoch=0)
-            second = build_work_pack(ROOT, root / "second", source_date_epoch=0)
+            first = build_clean_work_pack(ROOT, root / "first", source_date_epoch=0)
+            second = build_clean_work_pack(ROOT, root / "second", source_date_epoch=0)
             first_bytes = first.archive_path.read_bytes()
             second_bytes = second.archive_path.read_bytes()
             self.assertEqual(first_bytes, second_bytes)
@@ -108,13 +129,24 @@ class WorkPackTests(unittest.TestCase):
                 self.assertEqual("manifest.json", names[-1])
                 manifest = json.loads(archive.read("manifest.json"))
                 self.assertEqual("evidenceradar-work-pack", manifest["format"])
-                self.assertEqual("1.4.0", manifest["pack_version"])
+                self.assertEqual("1.5.0", manifest["pack_version"])
+                self.assertEqual("chatgpt_work", manifest["execution_lane"])
+                self.assertEqual("WORK_ENTRY.md", manifest["entrypoint"])
+                self.assertTrue(manifest["terminal_delivery"])
+                self.assertFalse(manifest["post_download_github_access"])
+                self.assertEqual(
+                    ["tools/run_github_radar.py"], manifest["disabled_entrypoints"]
+                )
+                self.assertEqual("source_and_package_storage_only", manifest["github_role"])
+                self.assertEqual(
+                    "state/current/EvidenceRadar_State.json",
+                    manifest["seed_state"]["path"],
+                )
                 self.assertEqual(len(manifest["files"]), manifest["file_count"])
                 self.assertTrue(manifest["reproducible"])
                 for item in manifest["files"]:
                     self.assertEqual(
-                        item["sha256"],
-                        hashlib.sha256(archive.read(item["path"])).hexdigest(),
+                        item["sha256"], hashlib.sha256(archive.read(item["path"])).hexdigest()
                     )
                     self.assertEqual(item["size"], len(archive.read(item["path"])))
                 for info in archive.infolist():
@@ -123,52 +155,25 @@ class WorkPackTests(unittest.TestCase):
                     self.assertNotIn("..", path.parts)
                     self.assertEqual((1980, 1, 1, 0, 0, 0), info.date_time)
 
-    def test_archive_excludes_history_credentials_and_legacy_crawler(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            result = build_work_pack(ROOT, Path(directory), source_date_epoch=0)
-            with ZipFile(result.archive_path) as archive:
-                names = archive.namelist()
-                self.assertFalse(any(name.startswith(("daily/", "state/", "legacy/", ".github/")) for name in names))
-                self.assertIn("tools/run_github_radar.py", names)
-                self.assertIn("tools/render_report_from_artifacts.py", names)
-                self.assertNotIn("tools/build_work_pack.py", names)
-                self.assertFalse(any(".env" in name.casefold() for name in names))
-
-    def test_fresh_extraction_validates_and_merges_state(self) -> None:
+    def test_archive_and_fresh_extraction_verify_without_github_entrypoints(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             temporary = Path(directory)
-            result = build_work_pack(ROOT, temporary / "dist", source_date_epoch=0)
+            result = build_clean_work_pack(ROOT, temporary / "dist", source_date_epoch=0)
+            verified = verify_archive(result.archive_path, result.checksum_path)
+            self.assertEqual(result.archive_sha256, verified["archive_sha256"])
             extracted = temporary / "extracted"
             with ZipFile(result.archive_path) as archive:
                 archive.extractall(extracted)
-            validation = subprocess.run(
-                [sys.executable, "tools/validate_gpt_work_artifacts.py", "--root", "."],
-                cwd=extracted,
-                text=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                check=False,
-            )
-            self.assertEqual(0, validation.returncode, validation.stdout)
-            delivery_help = subprocess.run(
-                [sys.executable, "tools/validate_delivery_bundle.py", "--help"],
-                cwd=extracted,
-                text=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                check=False,
-            )
-            self.assertEqual(0, delivery_help.returncode, delivery_help.stdout)
-            renderer_help = subprocess.run(
-                [sys.executable, "tools/render_report_from_artifacts.py", "--help"],
-                cwd=extracted,
-                text=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                check=False,
-            )
-            self.assertEqual(0, renderer_help.returncode, renderer_help.stdout)
-            runner_help = subprocess.run(
+            root_result = verify_extracted_root(extracted)
+            self.assertEqual("chatgpt_work", root_result["execution_lane"])
+            for forbidden in (
+                "tools/run_local_runtime.py",
+                "tools/translation_handoff.py",
+                "templates/work-stage-b-automation.md",
+            ):
+                self.assertFalse((extracted / forbidden).exists())
+
+            disabled_runner = subprocess.run(
                 [sys.executable, "tools/run_github_radar.py", "--help"],
                 cwd=extracted,
                 text=True,
@@ -176,38 +181,29 @@ class WorkPackTests(unittest.TestCase):
                 stderr=subprocess.STDOUT,
                 check=False,
             )
-            self.assertEqual(0, runner_help.returncode, runner_help.stdout)
-            self.assertIn("--profile", runner_help.stdout)
-            merged_dir = temporary / "merged"
-            merged_dir.mkdir()
-            merged_state = merged_dir / "EvidenceRadar_State.json"
-            merge = subprocess.run(
-                [
-                    sys.executable,
-                    "tools/merge_radar_state.py",
-                    "examples/EvidenceRadar_State.json",
-                    "examples/EvidenceRadar_State.json",
-                    "--execution-lane",
-                    "chatgpt_work",
-                    "--protocol-commit",
-                    "test-commit",
-                    "--output",
-                    str(merged_state),
-                ],
+            self.assertEqual(2, disabled_runner.returncode, disabled_runner.stdout)
+            self.assertIn(
+                "GitHub runner CLI is disabled in the ChatGPT Work Pack",
+                disabled_runner.stdout,
+            )
+
+            verifier = subprocess.run(
+                [sys.executable, "tools/verify_work_pack.py", "--root", "."],
                 cwd=extracted,
                 text=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 check=False,
             )
-            self.assertEqual(0, merge.returncode, merge.stdout)
-            merged_validation = subprocess.run(
+            self.assertEqual(0, verifier.returncode, verifier.stdout)
+            self.assertIn('"status": "PASS"', verifier.stdout)
+            state_validation = subprocess.run(
                 [
                     sys.executable,
                     "tools/validate_gpt_work_artifacts.py",
                     "--root",
                     ".",
-                    str(merged_state),
+                    "state/current/EvidenceRadar_State.json",
                 ],
                 cwd=extracted,
                 text=True,
@@ -215,7 +211,179 @@ class WorkPackTests(unittest.TestCase):
                 stderr=subprocess.STDOUT,
                 check=False,
             )
-            self.assertEqual(0, merged_validation.returncode, merged_validation.stdout)
+            self.assertEqual(0, state_validation.returncode, state_validation.stdout)
+            package_help = subprocess.run(
+                [sys.executable, "tools/package_work_delivery.py", "--help"],
+                cwd=extracted,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                check=False,
+            )
+            self.assertEqual(0, package_help.returncode, package_help.stdout)
+            self.assertIn("--input-manifest", package_help.stdout)
+
+    def test_extracted_verifier_rejects_tampering_and_control_plane_injection(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            temporary = Path(directory)
+            result = build_clean_work_pack(ROOT, temporary / "dist", source_date_epoch=0)
+            extracted = temporary / "extracted"
+            with ZipFile(result.archive_path) as archive:
+                archive.extractall(extracted)
+            state = extracted / "state" / "current" / "EvidenceRadar_State.json"
+            original = state.read_bytes()
+            state.write_bytes(original + b"\n")
+            with self.assertRaisesRegex(WorkPackVerificationError, "does not match manifest"):
+                verify_extracted_root(extracted)
+            state.write_bytes(original)
+            injected = extracted / "tools" / "run_local_runtime.py"
+            injected.write_text("raise SystemExit('wrong lane')\n", encoding="utf-8")
+            with self.assertRaisesRegex(WorkPackVerificationError, "payload set mismatch"):
+                verify_extracted_root(extracted)
+
+    def test_fresh_extraction_renders_validates_and_delivers_four_actual_files(self) -> None:
+        """Prove the released pack reaches terminal delivery without GitHub control flow."""
+
+        with tempfile.TemporaryDirectory() as directory:
+            temporary = Path(directory)
+            result = build_clean_work_pack(ROOT, temporary / "dist", source_date_epoch=0)
+            extracted = temporary / "extracted"
+            with ZipFile(result.archive_path) as archive:
+                archive.extractall(extracted)
+            verify_extracted_root(extracted)
+
+            run_id = "chatgpt-work-terminal-fixture"
+            bundle, _canonical = create_bundle(
+                temporary / "fixture",
+                protocol_commit="c" * 40,
+                run_id=run_id,
+                execution_lane="chatgpt_work",
+            )
+            run_path = bundle / "EvidenceRadar_Run.json"
+            run = json.loads(run_path.read_text(encoding="utf-8"))
+            run["candidates"][0]["content_summary"] = (
+                "這項測試研究納入十二名參與者，用於驗證繁體中文摘要、"
+                "四檔一致性與終端交付。"
+            )
+            run["candidates"][0]["summary_basis"] = (
+                "TRANSLATED_ABSTRACT_EXCERPT_ZH_TW"
+            )
+            run["counts"]["summaries_translated_zh_tw"] = 1
+            run["counts"]["summaries_fallback_zh_tw"] = 0
+            run_path.write_text(
+                json.dumps(run, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+
+            environment = os.environ.copy()
+            environment["PYTHONDONTWRITEBYTECODE"] = "1"
+
+            def run_packaged(*arguments: str) -> subprocess.CompletedProcess[str]:
+                completed = subprocess.run(
+                    [sys.executable, *arguments],
+                    cwd=extracted,
+                    env=environment,
+                    text=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    check=False,
+                )
+                self.assertEqual(0, completed.returncode, completed.stdout)
+                return completed
+
+            run_packaged(
+                "tools/render_report_from_artifacts.py",
+                "--root",
+                str(extracted),
+                "--bundle",
+                str(bundle),
+            )
+            validation = run_packaged(
+                "tools/validate_delivery_bundle.py",
+                "--root",
+                str(extracted),
+                "--bundle",
+                str(bundle),
+                "--expected-lane",
+                "chatgpt_work",
+                "--manifest",
+                str(extracted / "manifest.json"),
+                "--require-semantic-contract-v3",
+            )
+            self.assertIn("PASS: EvidenceRadar delivery bundle", validation.stdout)
+
+            delivery = temporary / "delivery"
+            run_packaged(
+                "tools/package_work_delivery.py",
+                "--source-dir",
+                str(bundle),
+                "--output-dir",
+                str(delivery),
+                "--run-id",
+                run_id,
+                "--validation-root",
+                str(extracted),
+                "--input-manifest",
+                str(extracted / "manifest.json"),
+                "--expected-lane",
+                "chatgpt_work",
+            )
+            run_packaged(
+                "tools/materialize_delivery_aliases.py",
+                "--source-dir",
+                str(bundle),
+                "--output-dir",
+                str(delivery),
+            )
+
+            direct_files = sorted(delivery.glob("*__EvidenceRadar_*"))
+            self.assertEqual(4, len(direct_files))
+            canonical_by_suffix = {
+                path.name.split("__", 1)[1]: path for path in direct_files
+            }
+            for name in (
+                "EvidenceRadar_Report.html",
+                "EvidenceRadar_State.json",
+                "EvidenceRadar_Evidence.json",
+                "EvidenceRadar_Run.json",
+            ):
+                self.assertEqual(
+                    (bundle / name).read_bytes(), canonical_by_suffix[name].read_bytes()
+                )
+            packaged = delivery / f"EvidenceRadar-WorkRun-{run_id}"
+            self.assertTrue(packaged.is_dir())
+            self.assertTrue((delivery / f"EvidenceRadar-WorkRun-{run_id}.zip").is_file())
+            self.assertTrue(
+                (delivery / f"EvidenceRadar-WorkRun-{run_id}.zip.sha256").is_file()
+            )
+
+            # The whole terminal path must leave the verified package immutable.
+            self.assertEqual([], list(extracted.rglob("*.pyc")))
+            self.assertEqual([], list(extracted.rglob("__pycache__")))
+            verify_extracted_root(extracted)
+
+    def test_work_pack_release_publishes_stable_latest_assets_from_main(self) -> None:
+        workflow = (ROOT / ".github" / "workflows" / "work-pack-release.yml").read_text(
+            encoding="utf-8"
+        )
+        for marker in (
+            "Require exact clean main checkout",
+            '"state/current/EvidenceRadar_State.json"',
+            "python tools/build_work_pack.py",
+            "python tools/verify_work_pack.py",
+            "EvidenceRadar-WorkPack-current.zip",
+            "work-pack-${GITHUB_SHA}",
+            "gh release create",
+            "--latest",
+        ):
+            self.assertIn(marker, workflow)
+        self.assertIn("contents: write", workflow)
+        self.assertIn('- "tools/run_github_radar.py"', workflow)
+        self.assertNotIn("schedule:", workflow)
+        runtime_workflow = (ROOT / ".github" / "workflows" / "runtime-release.yml").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("--latest=false", runtime_workflow)
 
 
 if __name__ == "__main__":

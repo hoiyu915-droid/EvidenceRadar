@@ -21,6 +21,10 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, Mapping
 from urllib.parse import parse_qsl, urlencode, urlparse
 
+# This validator is executed from extracted Work Packs.  Keep the verified
+# package byte-identical while importing its canonical projection helpers.
+sys.dont_write_bytecode = True
+
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -82,6 +86,22 @@ EXPECTED_ARTIFACT_MAP = {
     "state_json": "EvidenceRadar_State.json",
     "evidence_json": "EvidenceRadar_Evidence.json",
     "run_json": "EvidenceRadar_Run.json",
+}
+WORK_PACK_CAPABILITIES = {
+    "EXECUTOR_HTTP_TELEMETRY_V1",
+    "MASTER_CONTROL_V1",
+    "TERMINAL_FOUR_ARTIFACT_DELIVERY_V1",
+}
+WORK_PACK_ENTRYPOINT = "WORK_ENTRY.md"
+WORK_PACK_SEED_STATE = "state/current/EvidenceRadar_State.json"
+WORK_PACK_FORBIDDEN_CONTROL_PATHS = {
+    "schemas/evidence-radar-translation-checkpoint.schema.json",
+    "schemas/evidence-radar-translation-request.schema.json",
+    "schemas/evidence-radar-translation-response.schema.json",
+    "schemas/evidence-radar-translation-submission.schema.json",
+    "templates/work-stage-b-automation.md",
+    "tools/run_local_runtime.py",
+    "tools/translation_handoff.py",
 }
 
 
@@ -273,11 +293,41 @@ def _declared_producer_runner(
         return None
 
 
+def _declared_work_pack_capabilities(
+    root: Path, run: Mapping[str, Any]
+) -> set[str]:
+    """Return capabilities bound by an extracted Work Pack manifest.
+
+    The full manifest is checked later by ``_manifest_errors``.  Reading its
+    independently hashed package declaration here prevents a gitless Work Pack
+    from silently selecting the legacy validator path merely because the
+    GitHub-only runner is intentionally absent.
+    """
+
+    path = Path(root).resolve() / "manifest.json"
+    try:
+        manifest = load_json(path)
+    except (OSError, json.JSONDecodeError):
+        return set()
+    if (
+        manifest.get("format") != "evidenceradar-work-pack"
+        or manifest.get("source_commit") != run.get("protocol_commit")
+        or manifest.get("execution_lane") != "chatgpt_work"
+    ):
+        return set()
+    values = manifest.get("capabilities")
+    if not isinstance(values, list):
+        return set()
+    return {str(value) for value in values if isinstance(value, str)}
+
+
 def _producer_requires_master_control(
     root: Path, run: Mapping[str, Any]
 ) -> bool:
     """Return whether the declared Git producer is master-control capable."""
 
+    if "MASTER_CONTROL_V1" in _declared_work_pack_capabilities(root, run):
+        return True
     runner = _declared_producer_runner(root, run)
     return runner is not None and all(
         marker in runner
@@ -294,6 +344,8 @@ def _producer_requires_http_telemetry(
 ) -> bool:
     """Return whether the producer emits the executor HTTP telemetry contract."""
 
+    if "EXECUTOR_HTTP_TELEMETRY_V1" in _declared_work_pack_capabilities(root, run):
+        return True
     runner = _declared_producer_runner(root, run)
     return runner is not None and all(
         marker in runner
@@ -3113,6 +3165,25 @@ def _manifest_errors(
         return [f"cannot load Work Pack manifest {manifest_path}: {exc}"]
     if manifest.get("format") != "evidenceradar-work-pack":
         errors.append("Work Pack manifest format must be evidenceradar-work-pack")
+    if manifest.get("execution_lane") != "chatgpt_work":
+        errors.append("Work Pack manifest execution_lane must be chatgpt_work")
+    if manifest.get("entrypoint") != WORK_PACK_ENTRYPOINT:
+        errors.append(f"Work Pack manifest entrypoint must be {WORK_PACK_ENTRYPOINT}")
+    if manifest.get("terminal_delivery") is not True:
+        errors.append("Work Pack manifest must require terminal delivery")
+    if manifest.get("canonical_artifacts") != list(BUNDLE_FILENAMES):
+        errors.append("Work Pack manifest canonical artifact contract is invalid")
+    if manifest.get("github_role") != "source_and_package_storage_only":
+        errors.append("Work Pack manifest GitHub role must be source/package storage only")
+    if manifest.get("post_download_github_access") is not False:
+        errors.append("Work Pack manifest must forbid post-download GitHub access")
+    if manifest.get("disabled_entrypoints") != ["tools/run_github_radar.py"]:
+        errors.append("Work Pack manifest must disable the GitHub runner CLI")
+    capabilities = manifest.get("capabilities")
+    if not isinstance(capabilities, list) or not WORK_PACK_CAPABILITIES.issubset(
+        {str(value) for value in capabilities if isinstance(value, str)}
+    ):
+        errors.append("Work Pack manifest omits required execution capabilities")
     if manifest.get("source_commit") != protocol_commit:
         errors.append("Run.protocol_commit must equal manifest.json source_commit")
     if reject_dirty and manifest.get("git_dirty") is not False:
@@ -3133,12 +3204,37 @@ def _manifest_errors(
         errors.append("Work Pack manifest files must use deterministic path order")
     if len(declared_paths) != len(set(declared_paths)):
         errors.append("Work Pack manifest contains duplicate file paths")
+    forbidden_control_paths = sorted(
+        WORK_PACK_FORBIDDEN_CONTROL_PATHS & set(declared_paths)
+    )
+    if forbidden_control_paths:
+        errors.append(
+            "Work Pack manifest includes GitHub control-plane paths: "
+            + ", ".join(forbidden_control_paths)
+        )
     missing_producer_paths = sorted(set(WORK_PRODUCER_PATHS) - set(declared_paths))
     if missing_producer_paths:
         errors.append(
             "Work Pack manifest omits required producer paths: "
             + ", ".join(missing_producer_paths)
         )
+    seed_state = manifest.get("seed_state")
+    seed_record = next(
+        (
+            item
+            for item in records
+            if isinstance(item, Mapping) and item.get("path") == WORK_PACK_SEED_STATE
+        ),
+        None,
+    )
+    if not isinstance(seed_state, Mapping) or not isinstance(seed_record, Mapping):
+        errors.append("Work Pack manifest must bind the embedded seed State")
+    elif (
+        seed_state.get("path") != WORK_PACK_SEED_STATE
+        or seed_state.get("sha256") != seed_record.get("sha256")
+        or seed_state.get("size") != seed_record.get("size")
+    ):
+        errors.append("Work Pack manifest seed State binding is inconsistent")
     for item in records:
         if not isinstance(item, Mapping):
             errors.append("Work Pack manifest file record must be an object")
