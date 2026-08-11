@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -57,6 +58,26 @@ class ApplyMasterRuntimeConfigTests(unittest.TestCase):
         self.assertEqual(featured["per_category"]["llm_research"], {"target": 6, "hard_max": 10})
         self.assertEqual(featured["final_digest"], {"target": 20, "hard_max": 32})
         self.assertEqual(summary["ranking_pool"]["max_per_category"], 30)
+
+    def test_direct_cli_entrypoint_resolves_repo_package(self) -> None:
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "tools" / "apply_master_runtime_config.py"),
+                "--root",
+                str(ROOT),
+                "--profile",
+                "owner_daily",
+                "--check",
+            ],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        summary = json.loads(result.stdout)
+        self.assertEqual(summary["profile_id"], "owner_daily")
 
     def test_unimplemented_candidate_cap_fails_closed(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

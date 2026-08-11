@@ -11,10 +11,19 @@ from __future__ import annotations
 import argparse
 import copy
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
 import yaml
+
+# This file is both an importable module and a documented direct CLI. When
+# executed as ``python tools/apply_master_runtime_config.py``, Python places the
+# tools directory rather than the repository root on sys.path. Add the root
+# explicitly only for that direct-script mode so ``tools.radar_control`` keeps
+# one canonical import path in both execution surfaces.
+if __package__ in {None, ""}:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from tools.radar_control import RadarControlError, load_master
 
