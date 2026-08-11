@@ -55,6 +55,13 @@ REQUIRED_ENTRYPOINTS = (
     "tools/run_local_runtime.py",
     "tools/verify_runtime_release.py",
 )
+REQUIRED_RUNTIME_FILES = (
+    "config/radar_master.json",
+    "tools/featured_selection.py",
+    "tools/publisher_feed.py",
+    "tools/radar_control.py",
+    *REQUIRED_ENTRYPOINTS,
+)
 FORBIDDEN_PREFIXES = (
     ".git/",
     ".github/",
@@ -117,10 +124,10 @@ def _runtime_source_files(root: Path, spec_path: Path) -> tuple[list[tuple[str, 
         if relative.startswith(FORBIDDEN_PREFIXES):
             raise RuntimeReleaseError(f"forbidden Runtime package path selected: {relative}")
 
-    missing = sorted(set(REQUIRED_ENTRYPOINTS) - set(selected))
+    missing = sorted(set(REQUIRED_RUNTIME_FILES) - set(selected))
     if missing:
         raise RuntimeReleaseError(
-            "Runtime package omits required entrypoints: " + ", ".join(missing)
+            "Runtime package omits required producer files: " + ", ".join(missing)
         )
     return sorted(selected.items()), spec
 

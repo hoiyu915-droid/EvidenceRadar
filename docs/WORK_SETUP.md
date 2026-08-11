@@ -93,9 +93,10 @@ mix policy files from one mode with the recorded source commit of the other.
    visible rather than silently treated as a clean release.
 
 The pack includes `requirements.txt`, the current
-`tools/run_github_radar.py`, the V3 canonical renderer, validators, delivery
-packager and State merge tool. Create an isolated environment before using the
-renderer or active runner:
+`config/radar_master.json`, `tools/run_github_radar.py`, its master-control
+helpers, the V3 canonical renderer, validators, delivery packager and State
+merge tool. Create an isolated environment before using the renderer or active
+runner:
 
 ```sh
 python3 -m venv .venv
@@ -114,6 +115,7 @@ needs cross-run deduplication.
 Before searching, read the following files from the extracted pack:
 
 - `EVIDENCE_RADAR_PROTOCOL.md`
+- `config/radar_master.json`
 - `config/streams.yml`
 - `config/scoring.yml`
 - `config/output.yml`
@@ -122,6 +124,15 @@ Before searching, read the following files from the extracted pack:
 - `docs/SEMANTIC_CONTRACT_V3.md`
 - `docs/MIGRATION_DUAL_LANE_1.0.md` when moving an existing project
 - the latest `EvidenceRadar_State.json`, when available
+
+`config/radar_master.json` is authoritative for source routing, profiles and
+limits. Resolve one profile in memory and keep the extracted/checked-out files
+unchanged; `owner_daily` is the routine owner-delivery profile. A direct runner
+invocation must pass `--profile owner_daily` (or the explicitly selected
+profile). A missing master file, unknown profile or unavailable configured
+adapter is a hard error, never permission to fall back to the legacy source
+catalog. `streams.yml`, `output.yml` and `deployment.yml` remain compatibility
+inputs, not mutable pre-run materializations.
 
 Use one of the protocol modes:
 

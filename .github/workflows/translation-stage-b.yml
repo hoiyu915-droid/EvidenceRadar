@@ -137,6 +137,25 @@ jobs:
                   "handoff_issue_number",
               ):
                   output.write(f"{key}={summary[key]}\n")
+              request = json.loads(
+                  Path(
+                      os.environ["RUNNER_TEMP"]
+                      + "/EvidenceRadar_TranslationRequest.json"
+                  ).read_text(encoding="utf-8")
+              )
+              resume_context = request.get("resume_context")
+              profile_id = (
+                  resume_context.get("profile_id")
+                  if isinstance(resume_context, dict)
+                  else None
+              )
+              if profile_id is not None and (
+                  not isinstance(profile_id, str)
+                  or re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", profile_id)
+                  is None
+              ):
+                  raise SystemExit("translation request bound profile_id is invalid")
+              output.write(f"profile_id={profile_id or ''}\n")
           PY
 
       - name: Stop after PR validation
@@ -156,22 +175,64 @@ jobs:
         if: github.event_name == 'push'
         run: python -m pip install -r "$RUNNER_TEMP/evidenceradar-producer/requirements.txt"
 
+      - name: Resolve exact producer profile capability
+        if: github.event_name == 'push'
+        id: producer_capabilities
+        env:
+          PRODUCER_ROOT: ${{ runner.temp }}/evidenceradar-producer
+          BOUND_PROFILE: ${{ steps.validate.outputs.profile_id }}
+        run: |
+          set -euo pipefail
+          supports_profile=false
+          if PYTHONDONTWRITEBYTECODE=1 python "$PRODUCER_ROOT/tools/run_github_radar.py" --help \
+            | grep -q -- '--profile'; then
+            supports_profile=true
+          fi
+          if [ "$supports_profile" = true ] && [ -z "$BOUND_PROFILE" ]; then
+            echo "::error::modern translation producer requires a request-bound profile_id"
+            exit 1
+          fi
+          if [ "$supports_profile" = false ] && [ -n "$BOUND_PROFILE" ]; then
+            echo "::error::profile-bound translation request targets a legacy producer without --profile"
+            exit 1
+          fi
+          echo "supports_profile=$supports_profile" >> "$GITHUB_OUTPUT"
+
       - name: Resume Stage B without rediscovery
         if: github.event_name == 'push'
         id: stage_b
         env:
           PRODUCER_ROOT: ${{ runner.temp }}/evidenceradar-producer
           PRODUCER_COMMIT: ${{ steps.validate.outputs.protocol_commit }}
+          BOUND_PROFILE: ${{ steps.validate.outputs.profile_id }}
+          PRODUCER_SUPPORTS_PROFILE: ${{ steps.producer_capabilities.outputs.supports_profile }}
           RADAR_OUTPUT: ${{ runner.temp }}/evidenceradar-stage-b-output
         run: |
           set -euo pipefail
           mkdir -p "$RADAR_OUTPUT"
+          profile_args=()
+          if [ "$PRODUCER_SUPPORTS_PROFILE" = true ]; then
+            if [ -z "$BOUND_PROFILE" ]; then
+              echo "::error::modern translation producer lost its request-bound profile_id"
+              exit 1
+            fi
+            profile_args=(--profile "$BOUND_PROFILE")
+          elif [ "$PRODUCER_SUPPORTS_PROFILE" = false ]; then
+            if [ -n "$BOUND_PROFILE" ]; then
+              echo "::error::legacy translation producer cannot receive --profile"
+              exit 1
+            fi
+          else
+            echo "::error::exact producer profile capability was not resolved"
+            exit 1
+          fi
           result="$(PYTHONDONTWRITEBYTECODE=1 python "$PRODUCER_ROOT/tools/run_github_radar.py" \
             --root "$PRODUCER_ROOT" \
             --output-dir "$RADAR_OUTPUT" \
             --state "$GITHUB_WORKSPACE/state/current/EvidenceRadar_State.json" \
             --execution-lane github_actions \
             --protocol-commit "$PRODUCER_COMMIT" \
+            "${profile_args[@]}" \
             --translation-request "$RUNNER_TEMP/EvidenceRadar_TranslationRequest.json" \
             --translation-response "$RUNNER_TEMP/EvidenceRadar_TranslationResponse.json")"
           echo "$result"
@@ -184,6 +245,28 @@ jobs:
           result = json.loads(sys.argv[1])
           if result.get("run_status") == "TRANSLATION_REQUIRED":
               raise SystemExit("Stage B did not advance beyond TRANSLATION_REQUIRED")
+          bound_profile = os.environ["BOUND_PROFILE"]
+          supports_profile = os.environ["PRODUCER_SUPPORTS_PROFILE"]
+          if supports_profile == "true":
+              if not bound_profile:
+                  raise SystemExit("modern Stage B profile binding is missing")
+              for filename in (
+                  "EvidenceRadar_State.json",
+                  "EvidenceRadar_Evidence.json",
+                  "EvidenceRadar_Run.json",
+              ):
+                  document = json.loads(
+                      (Path(os.environ["RADAR_OUTPUT"]) / filename).read_text(
+                          encoding="utf-8"
+                      )
+                  )
+                  if document.get("profile_id") != bound_profile:
+                      raise SystemExit(f"Stage B output profile mismatch: {filename}")
+          elif supports_profile == "false":
+              if bound_profile:
+                  raise SystemExit("legacy Stage B unexpectedly received a profile")
+          else:
+              raise SystemExit("Stage B producer profile capability is invalid")
           with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
               output.write(f"run_id={result['run_id']}\n")
               output.write(f"run_status={result['run_status']}\n")

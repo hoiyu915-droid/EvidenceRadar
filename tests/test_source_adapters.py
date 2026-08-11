@@ -8,20 +8,27 @@ socket, and an empty provider response must remain an empty candidate list.
 from __future__ import annotations
 
 import unittest
+import xml.etree.ElementTree as ET
 from datetime import date, datetime, timezone
 from unittest import mock
+from zoneinfo import ZoneInfo
 
 from tools.run_github_radar import (
     Candidate,
+    _candidate_from_acl_atom,
     _arxiv_identifier,
     _arxiv_search_query,
     candidate_oa_status,
     _europe_pmc_query,
+    _parse_pmlr_atom,
     fetch_acl_anthology,
     fetch_arxiv,
     fetch_europe_pmc,
     fetch_openreview,
     fetch_pmlr,
+    fetch_rss_atom,
+    fulltext_metadata,
+    qualifying_event,
 )
 
 
@@ -121,6 +128,8 @@ class SourceAdapterFieldParsingTests(unittest.TestCase):
         self.assertEqual("fixture_stream", item.stream)
         self.assertEqual("llm_research", item.category)
         self.assertTrue(item.source)
+
+    def _assert_event_contract(self, item: Candidate) -> None:
         self.assertTrue(item.events)
         for event in item.events:
             for field in (
@@ -205,9 +214,17 @@ class SourceAdapterFieldParsingTests(unittest.TestCase):
         self.assertEqual("2026-08-08", item.publication_date)
         self.assertIn("A. Lee", item.authors)
         self._assert_common_candidate_contract(item)
-        self.assertTrue(item.events)
-        self.assertEqual("2026-08-08", item.events[0]["occurred_at"][:10])
-        self.assertEqual("atom:published", item.events[0]["source_field"])
+        self.assertTrue(item.is_preprint)
+        self.assertEqual("preprint", item.document_type)
+        self.assertEqual([], item.events)
+        self.assertIsNone(
+            qualifying_event(
+                item,
+                datetime(2026, 8, 6, tzinfo=ZoneInfo("Asia/Tokyo")),
+                datetime(2026, 8, 9, 23, 59, tzinfo=ZoneInfo("Asia/Tokyo")),
+                ZoneInfo("Asia/Tokyo"),
+            )
+        )
         self.assertIn("arxiv.org", item.landing_url)
         self.assertEqual("YES", candidate_oa_status(item))
         self.assertEqual(
@@ -217,7 +234,7 @@ class SourceAdapterFieldParsingTests(unittest.TestCase):
         self.assertIn("https://arxiv.org/abs/2608.12345", item.discovery_urls())
         self.assertIn("https://arxiv.org/pdf/2608.12345", item.discovery_urls())
 
-    def test_openreview_parses_content_values_doi_and_event(self) -> None:
+    def test_openreview_is_discovery_only_even_with_venue_and_doi(self) -> None:
         response = _response(
             payload={
                 "notes": [
@@ -246,8 +263,9 @@ class SourceAdapterFieldParsingTests(unittest.TestCase):
         self.assertEqual(["A. Lee", "B. Wong"], item.authors)
         self.assertEqual("Fixture Workshop", item.venue)
         self._assert_common_candidate_contract(item)
-        self.assertTrue(item.events)
-        self.assertIn("openreview", item.events[0]["source_url"])
+        self.assertTrue(item.is_preprint)
+        self.assertEqual("preprint", item.document_type)
+        self.assertEqual([], item.events)
 
     def test_openreview_normalizes_numeric_content_publication_date(self) -> None:
         published_ms = int(
@@ -268,8 +286,7 @@ class SourceAdapterFieldParsingTests(unittest.TestCase):
         )
         item = _call(fetch_openreview, _session(response))[0]
         self.assertEqual("2026-08-08", item.publication_date)
-        self.assertEqual("2026-08-08", item.events[0]["occurred_at"])
-        self.assertEqual("content.date", item.events[0]["source_field"])
+        self.assertEqual([], item.events)
 
     def test_acl_anthology_parses_anthology_id_doi_and_event(self) -> None:
         response = _response(
@@ -297,9 +314,36 @@ class SourceAdapterFieldParsingTests(unittest.TestCase):
         self.assertEqual("10.1000/acl.1", item.doi)
         self.assertEqual("2026-08-08", item.publication_date)
         self._assert_common_candidate_contract(item)
+        self._assert_event_contract(item)
         self.assertTrue(item.events)
         self.assertEqual("atom:published", item.events[0]["source_field"])
         self.assertIn("aclanthology.org", item.events[0]["source_url"])
+
+    def test_acl_updated_only_atom_entry_has_no_formal_event_and_is_excluded(self) -> None:
+        feed_text = (
+            '<?xml version="1.0" encoding="UTF-8"?>'
+            '<feed xmlns="http://www.w3.org/2005/Atom">'
+            "<entry>"
+            "<id>https://aclanthology.org/2026.acl-long.2/</id>"
+            "<title>ACL updated-only fixture query</title>"
+            "<updated>2026-08-08T00:00:00Z</updated>"
+            '<link rel="alternate" href="https://aclanthology.org/2026.acl-long.2/" />'
+            "</entry>"
+            "</feed>"
+        )
+        root = ET.fromstring(feed_text)
+        entry = root.find("{http://www.w3.org/2005/Atom}entry")
+        self.assertIsNotNone(entry)
+        candidate = _candidate_from_acl_atom(
+            entry, stream="fixture_stream", category="llm_research"
+        )
+        self.assertIsNotNone(candidate)
+        self.assertEqual("", candidate.publication_date)
+        self.assertEqual([], candidate.events)
+
+        self.assertEqual(
+            [], _call(fetch_acl_anthology, _session(_response(text=feed_text)))
+        )
 
     def test_pmlr_parses_listing_identity_and_event(self) -> None:
         response = _response(
@@ -320,8 +364,125 @@ class SourceAdapterFieldParsingTests(unittest.TestCase):
         self.assertIn("A. Lee", item.authors)
         self.assertTrue(item.landing_url.endswith("/v250/fixture.html"))
         self._assert_common_candidate_contract(item)
+        self._assert_event_contract(item)
         self.assertTrue(item.events)
         self.assertEqual("2026-08-08", item.events[0]["occurred_at"])
+
+    def test_pmlr_updated_only_atom_entry_has_no_formal_event_and_is_excluded(self) -> None:
+        atom_text = (
+            '<?xml version="1.0" encoding="UTF-8"?>'
+            '<feed xmlns="http://www.w3.org/2005/Atom">'
+            "<entry>"
+            "<id>https://proceedings.mlr.press/v250/fixture-updated.html</id>"
+            "<title>PMLR updated-only fixture query</title>"
+            "<updated>2026-08-08T00:00:00Z</updated>"
+            '<link rel="alternate" href="https://proceedings.mlr.press/v250/fixture-updated.html" />'
+            "</entry>"
+            "</feed>"
+        )
+        candidates = _parse_pmlr_atom(
+            ET.fromstring(atom_text),
+            stream="fixture_stream",
+            category="llm_research",
+        )
+        self.assertEqual(1, len(candidates))
+        self.assertEqual("", candidates[0].publication_date)
+        self.assertEqual([], candidates[0].events)
+
+        index_response = _response(
+            text='<html><body><a href="v250">Volume 250</a></body></html>'
+        )
+        atom_response = _response(text=atom_text)
+        session = mock.Mock()
+        session.get.side_effect = [index_response, atom_response]
+        self.assertEqual([], _call(fetch_pmlr, session))
+
+
+class SourceCatalogOATests(unittest.TestCase):
+    @staticmethod
+    def _record() -> dict[str, object]:
+        return {
+            "title": "Publisher feed fixture query",
+            "publication_date": "2026-08-08",
+            "landing_url": "https://publisher.example/articles/fixture",
+            "feed_url": "https://publisher.example/feed.xml",
+            "source_field": "atom:published",
+            "authors": ["A. Lee"],
+            "venue": "Fixture Journal",
+            "doi": "10.1000/feed.1",
+        }
+
+    def _fetch(self, oa_mode: str) -> Candidate:
+        with mock.patch(
+            "tools.run_github_radar.fetch_feed_records",
+            return_value=[self._record()],
+        ):
+            candidates = fetch_rss_atom(
+                mock.Mock(),
+                "fixture query",
+                "fixture_stream",
+                "llm_research",
+                START,
+                END,
+                10,
+                source_id="fixture_journal",
+                source_config={"oa_mode": oa_mode},
+                cache={},
+            )
+        self.assertEqual(1, len(candidates))
+        return candidates[0]
+
+    def test_fully_oa_source_projects_oa_yes_without_claiming_access(self) -> None:
+        candidate = self._fetch("fully_oa")
+        self.assertTrue(candidate.open_access)
+        self.assertEqual("YES", candidate_oa_status(candidate))
+        self.assertEqual("publisher_verified", candidate.events[0]["confidence"])
+        self.assertIn(
+            {
+                "source": "fixture_journal",
+                "evidence_type": "source_catalog_oa_mode",
+                "value": "fully_oa",
+                "url": "https://publisher.example/feed.xml",
+            },
+            candidate.oa_evidence,
+        )
+        self.assertNotIn(
+            "provider_open_access_flag",
+            {item["evidence_type"] for item in candidate.oa_evidence},
+        )
+        metadata = fulltext_metadata(candidate)
+        self.assertEqual("YES", metadata["oa_status"])
+        self.assertEqual("NOT_CHECKED", metadata["access_status"])
+
+    def test_mixed_oa_source_remains_unknown(self) -> None:
+        candidate = self._fetch("mixed")
+        self.assertIsNone(candidate.open_access)
+        self.assertEqual("UNKNOWN", candidate_oa_status(candidate))
+        self.assertEqual([], candidate.oa_evidence)
+
+    def test_crossref_print_date_does_not_claim_first_online_event(self) -> None:
+        record = self._record()
+        record["source_field"] = "crossref:published-print"
+        record["event_confidence"] = "publisher_supplied_citation"
+        with mock.patch(
+            "tools.run_github_radar.fetch_feed_records", return_value=[record]
+        ):
+            [candidate] = fetch_rss_atom(
+                mock.Mock(),
+                "fixture query",
+                "fixture_stream",
+                "llm_research",
+                START,
+                END,
+                10,
+                source_id="fixture_journal",
+                source_config={"oa_mode": "fully_oa"},
+                cache={},
+            )
+        self.assertEqual("formal_version_verified", candidate.events[0]["event_type"])
+        self.assertEqual(
+            "publisher_supplied_citation", candidate.events[0]["confidence"]
+        )
 
 
 if __name__ == "__main__":  # pragma: no cover

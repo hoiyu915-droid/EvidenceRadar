@@ -10,7 +10,12 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 
-from radar_control import RadarControlError, compile_runtime, load_master  # noqa: E402
+from radar_control import (  # noqa: E402
+    RadarControlError,
+    compile_runtime,
+    load_master,
+    project_runtime_limits,
+)
 
 
 class RadarControlTests(unittest.TestCase):
@@ -69,6 +74,19 @@ class RadarControlTests(unittest.TestCase):
             self.assertTrue(sources[source_id]["enabled"])
             self.assertEqual(sources[source_id]["status"], "active")
             self.assertTrue(sources[source_id]["feeds"])
+        self.assertEqual("2574-3805", sources["jama_network_open"]["crossref_issn"])
+        self.assertEqual(
+            "2041-1723", sources["nature_communications"]["crossref_issn"]
+        )
+        runtime = self.runtime("owner_daily")
+        self.assertEqual(
+            "2574-3805",
+            runtime.streams["source_catalog"]["jama_network_open"]["crossref_issn"],
+        )
+        self.assertEqual(
+            "2041-1723",
+            runtime.streams["source_catalog"]["nature_communications"]["crossref_issn"],
+        )
 
     def test_unverified_or_semantically_blocked_oa_sources_remain_planned(self) -> None:
         sources = self.master["sources"]
@@ -172,6 +190,26 @@ class RadarControlTests(unittest.TestCase):
             runtime.limits["selection"]["per_category"]["llm_research"],
             {"target": 6, "hard_max": 10},
         )
+
+    def test_runtime_limit_projection_is_pure_and_owner_bound(self) -> None:
+        runtime = self.runtime("owner_daily")
+        output = {"selection": {"ranking_pool": {}, "featured": {}}}
+        deployment = {"publisher_output": {}}
+        projected_output, projected_deployment = project_runtime_limits(
+            output, deployment, runtime.limits
+        )
+        self.assertEqual(
+            {"target": 20, "hard_max": 32},
+            projected_output["selection"]["featured"]["final_digest"],
+        )
+        self.assertEqual(
+            15,
+            projected_deployment["publisher_output"]["hard_max_per_run"],
+        )
+        self.assertEqual(
+            {"selection": {"ranking_pool": {}, "featured": {}}}, output
+        )
+        self.assertEqual({"publisher_output": {}}, deployment)
 
     def test_llm_prestige_catalog_is_known_but_not_silently_active(self) -> None:
         sources = self.master["sources"]

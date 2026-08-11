@@ -44,6 +44,9 @@ def _work(
     fulltext_kind: str | None = None,
     download_urls: list[str] | None = None,
     fulltext_locations: list[dict] | None = None,
+    event_class: str | None = None,
+    provider_publication_types: list[str] | None = None,
+    study_designs: list[str] | None = None,
 ) -> dict:
     return {
         "work_id": work_id,
@@ -63,6 +66,13 @@ def _work(
         **({"fulltext_kind": fulltext_kind} if fulltext_kind is not None else {}),
         **({"download_urls": download_urls} if download_urls is not None else {}),
         **({"fulltext_locations": fulltext_locations} if fulltext_locations is not None else {}),
+        **({"event_class": event_class} if event_class is not None else {}),
+        **(
+            {"provider_publication_types": provider_publication_types}
+            if provider_publication_types is not None
+            else {}
+        ),
+        **({"study_designs": study_designs} if study_designs is not None else {}),
     }
 
 
@@ -393,7 +403,7 @@ class StateMergeTests(unittest.TestCase):
         source_url = "https://example.org/stable-source"
         source_id = stable_id("src", source_url)
         claim_id = "claim-stable"
-        base_gap_id = stable_id("gap", "CONTENT_INACCESSIBLE", "title-only")
+        base_gap_id = stable_id("gap", "CONTENT_INACCESSIBLE", "legacy-alias")
         incoming_gap_id = stable_id("gap", "CONTENT_INACCESSIBLE", "pmid:2")
 
         def v3_extra(work_id: str, run_id: str, gap_id: str, status: str) -> dict:
@@ -405,7 +415,7 @@ class StateMergeTests(unittest.TestCase):
                         "canonical_url": source_url,
                         "source_type": "publisher",
                         "source_role": "FORMAL_PUBLICATION",
-                        "identifiers": {"pmid": "2"} if work_id == "pmid:2" else {},
+                        "identifiers": {"pmid": "2"},
                         "first_seen_run": run_id,
                         "last_seen_run": run_id,
                     }
@@ -448,9 +458,9 @@ class StateMergeTests(unittest.TestCase):
         base = _state(
             generated="2026-08-01T00:00:00+00:00",
             run_id="run-a",
-            works=[_work("title-only", identifiers={})],
+            works=[_work("legacy-alias", identifiers={"pmid": "2"})],
             events=[],
-            **v3_extra("title-only", "run-a", base_gap_id, "SUPPORTED"),
+            **v3_extra("legacy-alias", "run-a", base_gap_id, "SUPPORTED"),
         )
         incoming = _state(
             generated="2026-08-02T00:00:00+00:00",
@@ -527,7 +537,7 @@ class StateMergeTests(unittest.TestCase):
         self.assertEqual([event["event_id"] for event in merged["notified_events"]], ["event-1", "event-2"])
         self.assertTrue(all(event["work_id"] == work["work_id"] for event in merged["notified_events"]))
         self.assertEqual(merged["base_state_sha256"], state_sha256(base))
-        self.assertEqual(merged["parent_run_ids"], ["run-base", "run-incoming"])
+        self.assertEqual(merged["parent_run_ids"], ["run-incoming"])
 
         # Applying the same stale branch again is a no-op, including byte
         # ordering and provenance, which is the key concurrency guarantee.
@@ -538,7 +548,231 @@ class StateMergeTests(unittest.TestCase):
         self.assertEqual(repeated["notified_events"], merged["notified_events"])
         self.assertEqual(repeated["parent_run_ids"], merged["parent_run_ids"])
 
-    def test_title_fallback_is_unambiguous_but_conflicting_identifiers_stay_separate(self) -> None:
+    def test_default_provenance_follows_the_state_that_supplies_last_run(self) -> None:
+        base = _state(
+            generated="2026-08-02T00:00:00+00:00",
+            run_id="run-newer",
+            works=[],
+            events=[],
+            execution_lane="github_actions",
+            protocol_commit="newer-commit",
+        )
+        incoming = _state(
+            generated="2026-08-01T00:00:00+00:00",
+            run_id="run-stale",
+            works=[],
+            events=[],
+            execution_lane="chatgpt_work",
+            protocol_commit="stale-commit",
+        )
+        merged = merge_states(base, incoming)
+        self.assertEqual("run-newer", merged["last_run_id"])
+        self.assertEqual("github_actions", merged["execution_lane"])
+        self.assertEqual("newer-commit", merged["protocol_commit"])
+
+    def test_formal_state_observation_clears_historical_preprint_flag(self) -> None:
+        preprint = _work(
+            "doi:10.1000/versioned",
+            identifiers={"doi": "10.1000/versioned", "arxiv_id": "2608.1"},
+            provider_publication_types=["preprint"],
+            first="2025-01-01T00:00:00+00:00",
+            last="2025-01-01T00:00:00+00:00",
+        )
+        preprint.update(
+            {
+                "is_preprint": True,
+                "document_type": "preprint",
+                "document_type_basis": "SOURCE_CLASS",
+                "study_design_basis": "UNKNOWN",
+            }
+        )
+        formal = _work(
+            "doi:10.1000/versioned",
+            identifiers={"doi": "10.1000/versioned", "pmid": "123"},
+            provider_publication_types=["Journal Article"],
+            first="2026-08-10T00:00:00+00:00",
+            last="2026-08-10T00:00:00+00:00",
+        )
+        formal.update(
+            {
+                "is_preprint": False,
+                "document_type": "journal_article",
+                "document_type_basis": "PROVIDER_METADATA",
+                "study_design_basis": "UNKNOWN",
+            }
+        )
+        merged = merge_states(
+            _state(
+                generated="2025-01-01T00:00:00+00:00",
+                run_id="run-preprint",
+                works=[preprint],
+                events=[],
+            ),
+            _state(
+                generated="2026-08-10T00:00:00+00:00",
+                run_id="run-formal",
+                works=[formal],
+                events=[],
+            ),
+        )
+        self.assertFalse(merged["works"][0]["is_preprint"])
+        self.assertEqual("journal_article", merged["works"][0]["document_type"])
+
+    def test_latest_event_class_and_empty_classification_lists_survive_merge(self) -> None:
+        base = _state(
+            generated="2026-08-01T00:00:00+00:00",
+            run_id="run-base",
+            works=[
+                _work(
+                    "pmid:classification",
+                    identifiers={"pmid": "classification"},
+                    last="2026-08-01T01:00:00+00:00",
+                    event_class="BACKFILL_INDEXING",
+                    provider_publication_types=[],
+                    study_designs=[],
+                )
+            ],
+            events=[],
+        )
+        incoming = _state(
+            generated="2026-08-02T00:00:00+00:00",
+            run_id="run-incoming",
+            works=[
+                _work(
+                    "pmid:classification",
+                    identifiers={"pmid": "classification"},
+                    last="2026-08-02T01:00:00+00:00",
+                    event_class="NEW_PUBLICATION",
+                    provider_publication_types=[],
+                    study_designs=[],
+                )
+            ],
+            events=[],
+        )
+
+        work = merge_states(base, incoming)["works"][0]
+        self.assertEqual("NEW_PUBLICATION", work["event_class"])
+        self.assertEqual([], work["provider_publication_types"])
+        self.assertEqual([], work["study_designs"])
+
+    def test_latest_complete_master_control_bindings_are_preserved(self) -> None:
+        older_bindings = {
+            "profile_id": "medicine_reader",
+            "resolved_stream_ids": ["clinical_medicine"],
+            "resolved_source_ids": ["pubmed"],
+            "master_control_sha256": "1" * 64,
+            "runtime_request_sha256": None,
+        }
+        newer_bindings = {
+            "profile_id": "owner_daily",
+            "resolved_stream_ids": ["clinical_medicine", "sport_science"],
+            "resolved_source_ids": ["pubmed", "publisher"],
+            "master_control_sha256": "2" * 64,
+            "runtime_request_sha256": "3" * 64,
+        }
+        base = _state(
+            generated="2026-08-01T00:00:00+00:00",
+            run_id="run-base",
+            works=[],
+            events=[],
+            **older_bindings,
+        )
+        incoming = _state(
+            generated="2026-08-02T00:00:00+00:00",
+            run_id="run-incoming",
+            works=[],
+            events=[],
+            **newer_bindings,
+        )
+
+        merged = merge_states(base, incoming)
+        for field, expected in newer_bindings.items():
+            self.assertEqual(expected, merged[field])
+        self.assertNotIn("run-incoming", merged["parent_run_ids"])
+        self.assertEqual(["run-base"], merged["parent_run_ids"])
+
+    def test_newer_legacy_state_does_not_inherit_stale_master_bindings(self) -> None:
+        bindings = {
+            "profile_id": "owner_daily",
+            "resolved_stream_ids": ["clinical_medicine"],
+            "resolved_source_ids": ["pubmed"],
+            "master_control_sha256": "2" * 64,
+            "runtime_request_sha256": "3" * 64,
+        }
+        modern = _state(
+            generated="2026-08-01T00:00:00+00:00",
+            run_id="run-modern",
+            works=[],
+            events=[],
+            execution_lane="chatgpt_work",
+            protocol_commit="modern-commit",
+            **bindings,
+        )
+        legacy = _state(
+            generated="2026-08-02T00:00:00+00:00",
+            run_id="run-legacy",
+            works=[],
+            events=[],
+            execution_lane="github_actions",
+            protocol_commit="legacy-commit",
+        )
+
+        merged = merge_states(modern, legacy)
+        self.assertEqual("run-legacy", merged["last_run_id"])
+        self.assertEqual("github_actions", merged["execution_lane"])
+        self.assertEqual("legacy-commit", merged["protocol_commit"])
+        for field in bindings:
+            self.assertNotIn(field, merged)
+
+    def test_incomplete_master_control_bindings_fail_closed(self) -> None:
+        base = _state(
+            generated="2026-08-01T00:00:00+00:00",
+            run_id="run-base",
+            works=[],
+            events=[],
+            profile_id="owner_daily",
+        )
+        incoming = _state(
+            generated="2026-08-02T00:00:00+00:00",
+            run_id="run-incoming",
+            works=[],
+            events=[],
+        )
+        with self.assertRaisesRegex(StateMergeError, "incomplete master-control"):
+            merge_states(base, incoming)
+
+    def test_disjoint_work_and_notification_union_never_drops_an_input(self) -> None:
+        shared = _work("pmid:shared", identifiers={"pmid": "shared"})
+        base = _state(
+            generated="2026-08-01T00:00:00+00:00",
+            run_id="run-base",
+            works=[shared, _work("pmid:base", identifiers={"pmid": "base"})],
+            events=[
+                _event("event-shared", "pmid:shared"),
+                _event("event-base", "pmid:base"),
+            ],
+        )
+        incoming = _state(
+            generated="2026-08-02T00:00:00+00:00",
+            run_id="run-incoming",
+            works=[shared, _work("pmid:incoming", identifiers={"pmid": "incoming"})],
+            events=[
+                _event("event-shared", "pmid:shared"),
+                _event("event-incoming", "pmid:incoming"),
+            ],
+        )
+
+        merged = merge_states(base, incoming)
+        self.assertEqual(
+            {"pmid:base", "pmid:incoming", "pmid:shared"},
+            {work["work_id"] for work in merged["works"]},
+        )
+        self.assertEqual(
+            {"event-base", "event-incoming", "event-shared"},
+            {event["event_id"] for event in merged["notified_events"]},
+        )
+
+    def test_title_only_records_never_bridge_distinct_work_ids(self) -> None:
         base = _state(
             generated="2026-08-01T00:00:00+00:00",
             run_id="run-a",
@@ -552,7 +786,7 @@ class StateMergeTests(unittest.TestCase):
             events=[],
         )
         merged = merge_states(base, title_only)
-        self.assertEqual(len(merged["works"]), 1)
+        self.assertEqual(len(merged["works"]), 2)
 
         conflicting = _state(
             generated="2026-08-01T00:00:00+00:00",
@@ -561,6 +795,34 @@ class StateMergeTests(unittest.TestCase):
             events=[],
         )
         self.assertEqual(len(merge_states(base, conflicting)["works"]), 2)
+
+        generic_a = _state(
+            generated="2026-08-01T00:00:00+00:00",
+            run_id="run-editorial-a",
+            works=[
+                _work(
+                    "editorial-a",
+                    title="Editorial",
+                    normalized_title="editorial",
+                    identifiers={},
+                )
+            ],
+            events=[],
+        )
+        generic_b = _state(
+            generated="2026-08-02T00:00:00+00:00",
+            run_id="run-editorial-b",
+            works=[
+                _work(
+                    "editorial-b",
+                    title="Editorial",
+                    normalized_title="editorial",
+                    identifiers={},
+                )
+            ],
+            events=[],
+        )
+        self.assertEqual(2, len(merge_states(generic_a, generic_b)["works"]))
 
     def test_conflicting_identifier_bridge_fails_closed(self) -> None:
         base = _state(
@@ -802,6 +1064,11 @@ class StateMergeTests(unittest.TestCase):
                 "protocol_commit": "b05d565",
                 "base_state_sha256": "0" * 64,
                 "parent_run_ids": ["run-parent"],
+                "profile_id": "owner_daily",
+                "resolved_stream_ids": ["clinical_medicine"],
+                "resolved_source_ids": ["pubmed"],
+                "master_control_sha256": "1" * 64,
+                "runtime_request_sha256": None,
             }
         )
         schema = load_json(ROOT / "schemas" / "evidence-radar-state.schema.json")

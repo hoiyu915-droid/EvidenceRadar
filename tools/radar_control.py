@@ -203,6 +203,75 @@ def _resolved_limits(master: dict[str, Any], profile: dict[str, Any], profile_id
     return merged
 
 
+def project_runtime_limits(
+    output: dict[str, Any],
+    deployment: dict[str, Any],
+    limits: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Return config copies with one resolved master limit set projected.
+
+    Both the canonical runner and the legacy inspection CLI use this pure
+    function so profile limits cannot drift between an in-memory execution and
+    the compatibility projection.  Caller-owned mappings are never mutated.
+    """
+
+    _validate_limit_block(limits, path="resolved runtime limits")
+    ranking_limits = limits.get("ranking_pool")
+    selection_limits = limits.get("selection")
+    verification_limits = limits.get("verification")
+    if not all(
+        isinstance(value, dict)
+        for value in (ranking_limits, selection_limits, verification_limits)
+    ):
+        raise RadarControlError(
+            "resolved runtime limits require ranking_pool, selection and verification objects"
+        )
+
+    projected_output = copy.deepcopy(output)
+    projected_deployment = copy.deepcopy(deployment)
+    selection_runtime = projected_output.setdefault("selection", {})
+    if not isinstance(selection_runtime, dict):
+        raise RadarControlError("output.selection must be a mapping")
+    ranking_runtime = selection_runtime.setdefault("ranking_pool", {})
+    featured_runtime = selection_runtime.setdefault("featured", {})
+    if not isinstance(ranking_runtime, dict) or not isinstance(featured_runtime, dict):
+        raise RadarControlError(
+            "output selection ranking_pool/featured must be mappings"
+        )
+    try:
+        ranking_runtime["max_per_category"] = ranking_limits.get("max_per_category")
+        featured_runtime["target_min"] = int(
+            selection_limits["featured_target_per_category"]
+        )
+        featured_runtime["hard_max"] = int(
+            selection_limits["featured_hard_max_per_category"]
+        )
+        featured_runtime["per_category"] = copy.deepcopy(
+            selection_limits.get("per_category", {})
+        )
+        featured_runtime["final_digest"] = copy.deepcopy(
+            selection_limits.get(
+                "final_digest", {"target": None, "hard_max": None}
+            )
+        )
+
+        publisher_runtime = projected_deployment.setdefault("publisher_output", {})
+        if not isinstance(publisher_runtime, dict):
+            raise RadarControlError("deployment.publisher_output must be a mapping")
+        publisher_runtime["target_min_per_run"] = int(
+            verification_limits["publisher_target_per_run"]
+        )
+        publisher_runtime["hard_max_per_run"] = int(
+            verification_limits["publisher_hard_max_per_run"]
+        )
+        publisher_runtime["per_domain_hard_max"] = int(
+            verification_limits["publisher_per_domain_hard_max"]
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise RadarControlError("resolved runtime limits are incomplete") from exc
+    return projected_output, projected_deployment
+
+
 def validate_master(master: dict[str, Any]) -> None:
     if master.get("artifact_type") != "EvidenceRadar_MasterControl":
         raise RadarControlError("artifact_type must be EvidenceRadar_MasterControl")
@@ -349,7 +418,12 @@ def compile_runtime(
     stage_by_source: dict[str, str] = {}
     verification_sources: list[str] = []
     passthrough_fields = (
-        "oa_mode", "quality_tier", "journal", "publisher", "activation_blocker"
+        "oa_mode",
+        "quality_tier",
+        "journal",
+        "publisher",
+        "activation_blocker",
+        "crossref_issn",
     )
     for source_id in sorted(requested_source_ids):
         config = sources[source_id]

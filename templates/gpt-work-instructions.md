@@ -73,15 +73,12 @@ supplied, use `control_plane.default_profile`. Scheduled owner delivery uses
 broad integration/stress profile and must not be substituted for routine daily
 delivery unless broad coverage is explicitly requested.
 
-Before executing the legacy-compatible runtime, materialize the selected
-profile's limits into the disposable runtime checkout:
-
-```sh
-python3 tools/apply_master_runtime_config.py \
-  --root "$WORK_SOURCE_DIR/EvidenceRadar" --profile "$RADAR_PROFILE" --check
-python3 tools/apply_master_runtime_config.py \
-  --root "$WORK_SOURCE_DIR/EvidenceRadar" --profile "$RADAR_PROFILE"
-```
+The canonical producer resolves routing and limits from the selected profile in
+memory. Do not rewrite `streams.yml`, `output.yml`, `deployment.yml`, or the
+producer before execution. Any invocation of `tools/run_github_radar.py` must
+pass `--profile "$RADAR_PROFILE"`; a missing `radar_master.json`, unknown
+profile, partial adapter map, or profile mismatch at translation resume is a
+hard failure.
 
 Use live web search and open the actual authoritative pages. Memory, old reports
 and search snippets are navigation aids only. Never present them as proof of the

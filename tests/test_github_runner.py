@@ -15,12 +15,14 @@ from tools.run_github_radar import (
     Candidate,
     DiscoveryResult,
     RadarRuntimeError,
+    _RequestTelemetrySession,
     _request,
     candidate_content_summary,
     candidate_source_excerpt,
     build_retrieval_ledger,
     build_gap_backlog,
     build_state,
+    derive_work_relations,
     event_class,
     fulltext_metadata,
     select_featured_work_ids,
@@ -33,6 +35,7 @@ from tools.run_github_radar import (
     load_prior_state,
     load_prior_state_snapshot,
     probe_publisher_pages,
+    score_candidate,
     state_sha256,
     translate_candidate_summaries_zh_tw,
     write_state_atomic,
@@ -91,6 +94,98 @@ class FakeSession:
 
 
 class GithubRunnerTests(unittest.TestCase):
+    def test_discovery_http_telemetry_counts_automatic_redirect_history(self) -> None:
+        response = FakeResponse("https://example.test/final")
+        response.history = [FakeResponse("https://example.test/original", 302)]
+
+        class RedirectSession:
+            def get(self, *_args: object, **_kwargs: object) -> FakeResponse:
+                return response
+
+        wrapped = _RequestTelemetrySession(RedirectSession())
+        self.assertIs(response, wrapped.get("https://example.test/original"))
+        self.assertEqual(2, wrapped.requests_attempted)
+        self.assertEqual(2, wrapped.responses_received)
+
+    def test_work_relations_require_unique_shared_strong_identity(self) -> None:
+        prior = {
+            "works": [
+                {
+                    "work_id": "arxiv:2608.00001",
+                    "title": "Editorial",
+                    "normalized_title": "editorial",
+                    "identifiers": {"arxiv_id": "2608.00001"},
+                }
+            ],
+            "work_relations": [],
+        }
+        unrelated = {
+            "work_id": "doi:10.1000/unrelated",
+            "title": "Editorial",
+            "identifiers": {"doi": "10.1000/unrelated"},
+            "is_preprint": False,
+        }
+        self.assertEqual(
+            [], derive_work_relations(prior, [unrelated], run_id="relation-run")
+        )
+
+        formal = {
+            "work_id": "doi:10.1000/formal",
+            "title": "A formal version of the repository study",
+            "identifiers": {
+                "doi": "10.1000/formal",
+                "arxiv_id": "2608.00001",
+            },
+            "is_preprint": False,
+        }
+        relations = derive_work_relations(prior, [formal], run_id="relation-run")
+        self.assertEqual(1, len(relations))
+        self.assertEqual("PREPRINT_TO_VOR", relations[0]["relation_type"])
+        self.assertIn("arxiv_id", relations[0]["comparison_basis"])
+
+        conflicting = dict(
+            formal,
+            identifiers={
+                "doi": "10.1000/formal",
+                "arxiv_id": "2608.00001",
+            },
+        )
+        prior_with_conflict = {
+            **prior,
+            "works": [
+                {
+                    **prior["works"][0],
+                    "identifiers": {
+                        "arxiv_id": "2608.00001",
+                        "doi": "10.1000/old",
+                    },
+                }
+            ],
+        }
+        self.assertEqual(
+            [],
+            derive_work_relations(
+                prior_with_conflict, [conflicting], run_id="relation-run"
+            ),
+        )
+    def test_short_ai_term_does_not_match_inside_unrelated_words(self) -> None:
+        unrelated = Candidate(
+            title="Paired copper sites in a protein domain",
+            stream="llm",
+            category="llm_research",
+            source="Nature Communications",
+            publication_date="2026-08-10",
+        )
+        relevant = Candidate(
+            title="Trust calibration in human-AI interaction",
+            stream="llm",
+            category="llm_research",
+            source="Nature Communications",
+            publication_date="2026-08-10",
+        )
+        self.assertEqual(40, score_candidate(unrelated, ["AI"]))
+        self.assertGreater(score_candidate(relevant, ["AI"]), 40)
+
     def test_not_attempted_access_receipt_has_bounded_error_class(self) -> None:
         observed_at = datetime(2026, 8, 9, 12, 0, tzinfo=TZ)
         attempts, _expansions = build_retrieval_ledger(
@@ -113,6 +208,41 @@ class GithubRunnerTests(unittest.TestCase):
             per_query_limit=40,
         )
         self.assertEqual("REQUEST_NOT_ATTEMPTED", attempts[0]["error_class"])
+
+    def test_inventory_url_is_the_recorded_retrieval_endpoint(self) -> None:
+        observed_at = datetime(2026, 8, 9, 12, 0, tzinfo=TZ)
+        crossref_url = "https://api.crossref.org/journals/2041-1723/works"
+        attempts, _expansions = build_retrieval_ledger(
+            run_id="inventory-endpoint-fixture",
+            queries=[
+                {
+                    "query_id": "query-001",
+                    "category": "human_ai",
+                    "query": "human AI",
+                    "searched_at": observed_at.isoformat(),
+                    "source_ids": ["nature_communications"],
+                    "status": "NO_RESULTS",
+                    "result_count": 0,
+                }
+            ],
+            source_access=[
+                {
+                    "source_id": "query-001-nature_communications",
+                    "provider": "nature_communications",
+                    "url": "https://www.nature.com/ncomms.rss",
+                    "inventory_url": crossref_url,
+                    "accessed_at": observed_at.isoformat(),
+                    "status": "NO_RESULTS",
+                    "result_count": 0,
+                }
+            ],
+            source_coverage={"checks": []},
+            candidate_records=[],
+            start=observed_at - timedelta(hours=72),
+            end=observed_at,
+            per_query_limit=40,
+        )
+        self.assertEqual(crossref_url, attempts[0]["endpoint"])
 
     def test_discovery_checks_every_configured_discovery_source(self) -> None:
         configured = {
@@ -651,8 +781,8 @@ class GithubRunnerTests(unittest.TestCase):
             }
             self.assertEqual(
                 {
-                    "formal_proceedings_or_publisher": "NOT_ATTEMPTED",
-                    "publisher": "NOT_ATTEMPTED",
+                    "formal_proceedings_or_publisher": "NO_RESULTS",
+                    "publisher": "NO_RESULTS",
                 },
                 verification_checks,
             )
@@ -973,6 +1103,166 @@ class GithubRunnerTests(unittest.TestCase):
         self.assertEqual("LOWER_PRIORITY", result.all_candidates[0].triage_status)
         self.assertEqual(["query-001", "query-002"], result.all_candidates[0].query_ids)
 
+    def test_incomplete_cached_inventory_uses_partial_zero_io_replay_receipt(self) -> None:
+        streams = {
+            "candidate_guidance": {"suggested_max_per_query": 2},
+            "source_catalog": {
+                "nature_communications": {
+                    "adapter": "rss_atom",
+                    "feeds": ["https://example.test/feed.xml"],
+                }
+            },
+            "streams": {
+                "journal": {
+                    "sources": ["nature_communications"],
+                    "queries": ["first", "second", "missing"],
+                    "relevance_terms": [],
+                }
+            },
+        }
+        scoring = {
+            "categories": {"journal": {"streams": ["journal"]}},
+            "category_min_relevance": {"journal": 0},
+        }
+        item = Candidate(
+            title="Cached partial inventory candidate",
+            stream="journal",
+            category="journal",
+            source="nature_communications",
+            publication_date="2026-08-08",
+            doi="10.1000/cached-partial",
+            provider_publication_types=["Journal Article"],
+        )
+
+        def fake_fetch(session, query, *_args, cache, **_kwargs):
+            observation_key = "source_observation:nature_communications"
+            if observation_key not in cache:
+                session.get("https://example.test/feed.xml")
+                cache[observation_key] = {
+                    "retrieval_complete": False,
+                    "retrieval_backend": "rss_atom",
+                    "feed_entry_count": 2,
+                    "registry_record_count": 0,
+                    "unusable_record_count": 1,
+                    "window_record_count": 1,
+                    "inventory_url": "https://example.test/feed.xml",
+                    "inventory_pages_requested": 1,
+                    "inventory_pages_received": 1,
+                    "errors": ["one entry lacked a publication date"],
+                }
+            return [] if query == "missing" else [item]
+
+        session = FakeSession()
+        with mock.patch(
+            "tools.run_github_radar.fetch_rss_atom", side_effect=fake_fetch
+        ):
+            result = discover_candidates(
+                streams,
+                scoring,
+                datetime(2026, 8, 6, 12, 0, tzinfo=TZ),
+                datetime(2026, 8, 9, 12, 0, tzinfo=TZ),
+                session=session,
+            )
+        self.assertEqual(
+            ["PARTIAL", "PARTIAL", "FAILED"],
+            [q["status"] for q in result.queries],
+        )
+        self.assertEqual(
+            [False, True, True],
+            [a["cache_reused"] for a in result.source_access],
+        )
+        self.assertEqual(
+            [(1, 1), (0, 0), (0, 0)],
+            [
+                (a["http_requests_attempted"], a["http_responses_received"])
+                for a in result.source_access
+            ],
+        )
+        attempts, _ = build_retrieval_ledger(
+            run_id="partial-cache-run",
+            queries=result.queries,
+            source_access=result.source_access,
+            source_coverage={"checks": []},
+            candidate_records=[],
+            start=datetime(2026, 8, 6, 12, 0, tzinfo=TZ),
+            end=datetime(2026, 8, 9, 12, 0, tzinfo=TZ),
+            per_query_limit=2,
+        )
+        pagination_by_query = {
+            attempt["query_id"]: attempt["pagination"] for attempt in attempts
+        }
+        self.assertEqual(
+            {"pages_requested": 1, "pages_received": 1},
+            pagination_by_query["query-001"],
+        )
+        self.assertEqual(
+            {"pages_requested": 0, "pages_received": 0},
+            pagination_by_query["query-002"],
+        )
+        self.assertEqual(
+            {"pages_requested": 0, "pages_received": 0},
+            pagination_by_query["query-003"],
+        )
+
+    def test_circuit_open_query_does_not_restate_failed_inventory_snapshot(self) -> None:
+        streams = {
+            "candidate_guidance": {"suggested_max_per_query": 2},
+            "source_catalog": {
+                "nature_communications": {
+                    "adapter": "rss_atom",
+                    "feeds": ["https://example.test/feed.xml"],
+                }
+            },
+            "streams": {
+                "journal": {
+                    "sources": ["nature_communications"],
+                    "queries": ["first", "second"],
+                    "relevance_terms": [],
+                }
+            },
+        }
+        scoring = {
+            "categories": {"journal": {"streams": ["journal"]}},
+            "category_min_relevance": {"journal": 0},
+        }
+
+        def failed_fetch(session, *_args, cache, **_kwargs):
+            session.get("https://example.test/feed.xml")
+            cache["source_observation:nature_communications"] = {
+                "retrieval_complete": False,
+                "retrieval_backend": "rss_atom",
+                "feed_entry_count": 0,
+                "registry_record_count": 0,
+                "unusable_record_count": 0,
+                "window_record_count": 0,
+                "inventory_url": "https://example.test/feed.xml",
+                "inventory_pages_requested": 1,
+                "inventory_pages_received": 1,
+                "errors": ["HTTP 503"],
+            }
+            raise RadarRuntimeError("HTTP 503")
+
+        with mock.patch(
+            "tools.run_github_radar.fetch_rss_atom", side_effect=failed_fetch
+        ):
+            result = discover_candidates(
+                streams,
+                scoring,
+                datetime(2026, 8, 6, 12, 0, tzinfo=TZ),
+                datetime(2026, 8, 9, 12, 0, tzinfo=TZ),
+                session=FakeSession(),
+            )
+        self.assertEqual(
+            ["FAILED", "NOT_ATTEMPTED"],
+            [query["status"] for query in result.queries],
+        )
+        first, circuit = result.source_access
+        self.assertEqual((1, 1), (first["http_requests_attempted"], first["http_responses_received"]))
+        self.assertIn("retrieval_complete", first)
+        self.assertEqual((0, 0), (circuit["http_requests_attempted"], circuit["http_responses_received"]))
+        self.assertNotIn("retrieval_complete", circuit)
+        self.assertNotIn("inventory_pages_requested", circuit)
+
     def test_publisher_probe_enforces_hard_maximum(self) -> None:
         session = FakeSession()
         successes, access, warnings = probe_publisher_pages(
@@ -990,6 +1280,48 @@ class GithubRunnerTests(unittest.TestCase):
         self.assertEqual(15, len(successes))
         self.assertEqual(15, len(access))
         self.assertEqual([], warnings)
+
+    def test_publisher_redirect_receipt_reports_every_http_response(self) -> None:
+        class RedirectSession(FakeSession):
+            def get(self, url: str, **_kwargs: object) -> FakeResponse:
+                self.calls.append(url)
+                if url.startswith("https://doi.org/"):
+                    return FakeResponse(
+                        url, 302, "https://publisher.example/article/final"
+                    )
+                return FakeResponse(url, 200)
+
+        item = candidate(1)
+        successes, access, _warnings = probe_publisher_pages(
+            [item],
+            {
+                "target_min_per_run": 1,
+                "hard_max_per_run": 1,
+                "per_domain_hard_max": 2,
+                "request_delay_seconds": 0,
+            },
+            session=RedirectSession(),
+            accessed_at=datetime(2026, 8, 9, 12, 0, tzinfo=TZ),
+        )
+        self.assertEqual(1, len(successes))
+        self.assertEqual(2, access[0]["http_requests_attempted"])
+        self.assertEqual(2, access[0]["http_responses_received"])
+        self.assertFalse(access[0]["cache_reused"])
+
+        attempts, _ = build_retrieval_ledger(
+            run_id="publisher-redirect-run",
+            queries=[],
+            source_access=access,
+            source_coverage={"checks": []},
+            candidate_records=[],
+            start=datetime(2026, 8, 6, 12, 0, tzinfo=TZ),
+            end=datetime(2026, 8, 9, 12, 0, tzinfo=TZ),
+            per_query_limit=2,
+        )
+        self.assertEqual(
+            {"pages_requested": 2, "pages_received": 2},
+            attempts[0]["pagination"],
+        )
 
     def test_publisher_probe_rejects_unsafe_budget(self) -> None:
         with self.assertRaisesRegex(RadarRuntimeError, "target_min_per_run"):

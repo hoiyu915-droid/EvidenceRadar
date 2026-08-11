@@ -18,17 +18,34 @@ from tools.build_runtime_release import (
 )
 from tools.run_local_runtime import LocalRuntimeError, _outside_runtime, build_runner_command
 from tools.verify_runtime_release import RuntimeVerificationError, verify_archive, verify_extracted_root
+from tools.verify_runtime_release import _validated_records
 
 
 ROOT = Path(__file__).resolve().parents[1]
+CLEAN_GIT_STATE = {
+    "git_commit": "c" * 40,
+    "source_commit": "c" * 40,
+    "git_dirty": False,
+    "git_state": "clean",
+}
+
+
+def build_clean_runtime(*args, **kwargs):
+    """Build from the intentionally dirty development tree as a clean release fixture."""
+
+    with mock.patch(
+        "tools.build_runtime_release._git_state",
+        return_value=CLEAN_GIT_STATE,
+    ):
+        return build_runtime_release(*args, **kwargs)
 
 
 class RuntimeReleaseTests(unittest.TestCase):
     def test_runtime_build_is_byte_reproducible_and_binds_clean_commit(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             temporary = Path(directory)
-            first = build_runtime_release(ROOT, temporary / "first", source_date_epoch=0)
-            second = build_runtime_release(ROOT, temporary / "second", source_date_epoch=0)
+            first = build_clean_runtime(ROOT, temporary / "first", source_date_epoch=0)
+            second = build_clean_runtime(ROOT, temporary / "second", source_date_epoch=0)
             first_bytes = first.archive_path.read_bytes()
             second_bytes = second.archive_path.read_bytes()
             self.assertEqual(first_bytes, second_bytes)
@@ -36,7 +53,7 @@ class RuntimeReleaseTests(unittest.TestCase):
             self.assertEqual(first.archive_sha256, second.archive_sha256)
             manifest = first.manifest
             self.assertEqual("evidenceradar-runtime-release", manifest["format"])
-            self.assertEqual("1.0.3", manifest["runtime_version"])
+            self.assertEqual("1.0.4", manifest["runtime_version"])
             self.assertRegex(manifest["source_commit"], r"^[0-9a-f]{40}$")
             self.assertEqual(manifest["source_commit"], manifest["git_commit"])
             self.assertFalse(manifest["git_dirty"])
@@ -54,7 +71,7 @@ class RuntimeReleaseTests(unittest.TestCase):
     def test_archive_and_fresh_extraction_verify(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             temporary = Path(directory)
-            result = build_runtime_release(ROOT, temporary / "dist", source_date_epoch=0)
+            result = build_clean_runtime(ROOT, temporary / "dist", source_date_epoch=0)
             verified = verify_archive(result.archive_path, result.checksum_path)
             self.assertEqual(result.archive_sha256, verified["archive_sha256"])
             extracted = temporary / "runtime"
@@ -74,10 +91,14 @@ class RuntimeReleaseTests(unittest.TestCase):
             ):
                 self.assertFalse(any(name.startswith(forbidden_prefix) for name in names))
             self.assertIn("RUNTIME_MANIFEST.json", names)
+            self.assertIn("config/radar_master.json", names)
+            self.assertIn("tools/featured_selection.py", names)
+            self.assertIn("tools/publisher_feed.py", names)
+            self.assertIn("tools/radar_control.py", names)
             self.assertIn("tools/run_local_runtime.py", names)
             self.assertIn("tools/verify_runtime_release.py", names)
             root_result = verify_extracted_root(extracted)
-            self.assertEqual("1.0.3", root_result["manifest"]["runtime_version"])
+            self.assertEqual("1.0.4", root_result["manifest"]["runtime_version"])
 
             verifier = subprocess.run(
                 [sys.executable, "tools/verify_runtime_release.py", "--root", "."],
@@ -99,11 +120,39 @@ class RuntimeReleaseTests(unittest.TestCase):
                 check=False,
             )
             self.assertEqual(0, local_help.returncode, local_help.stdout)
+            runner_help = subprocess.run(
+                [sys.executable, "tools/run_github_radar.py", "--help"],
+                cwd=extracted,
+                env={**__import__("os").environ, "PYTHONDONTWRITEBYTECODE": "1"},
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                check=False,
+            )
+            self.assertEqual(0, runner_help.returncode, runner_help.stdout)
+            self.assertIn("--profile", runner_help.stdout)
+
+    def test_verifier_rejects_manifest_missing_runtime_helper(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            result = build_clean_runtime(
+                ROOT, Path(directory) / "dist", source_date_epoch=0
+            )
+            manifest = dict(result.manifest)
+            manifest["files"] = [
+                record
+                for record in manifest["files"]
+                if record["path"] != "config/radar_master.json"
+            ]
+            manifest["file_count"] = len(manifest["files"])
+            with self.assertRaisesRegex(
+                RuntimeVerificationError, "omits required Runtime files"
+            ):
+                _validated_records(manifest)
 
     def test_extracted_verifier_rejects_runtime_source_tampering(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             temporary = Path(directory)
-            result = build_runtime_release(ROOT, temporary / "dist", source_date_epoch=0)
+            result = build_clean_runtime(ROOT, temporary / "dist", source_date_epoch=0)
             extracted = temporary / "runtime"
             extracted.mkdir()
             with ZipFile(result.archive_path) as archive:
@@ -142,6 +191,7 @@ class RuntimeReleaseTests(unittest.TestCase):
             output_dir=output,
             runs_dir=runs,
             protocol_commit="b" * 40,
+            profile="owner_daily",
             end_at="2026-08-10T05:00:00+09:00",
             run_id="local-runtime-smoke",
             publisher_target_min=0,
@@ -152,6 +202,8 @@ class RuntimeReleaseTests(unittest.TestCase):
         self.assertEqual("github_actions", command[lane_index + 1])
         commit_index = command.index("--protocol-commit")
         self.assertEqual("b" * 40, command[commit_index + 1])
+        profile_index = command.index("--profile")
+        self.assertEqual("owner_daily", command[profile_index + 1])
         self.assertIn("--runs-dir", command)
 
     def test_runtime_docs_define_release_state_and_output_separation(self) -> None:
@@ -164,6 +216,12 @@ class RuntimeReleaseTests(unittest.TestCase):
             self.assertIn("local_runtime", document)
         self.assertIn("GitHub Release", guide)
         self.assertIn("runtime/VERSION", guide)
+
+    def test_runtime_release_triggers_when_alias_materializer_changes(self) -> None:
+        workflow = (ROOT / ".github" / "workflows" / "runtime-release.yml").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('"tools/materialize_delivery_aliases.py"', workflow)
 
 
 if __name__ == "__main__":

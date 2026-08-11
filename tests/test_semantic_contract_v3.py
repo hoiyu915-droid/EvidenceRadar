@@ -8,13 +8,29 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from tests.test_delivery_bundle import ROOT, create_bundle
 from tools.run_github_radar import render_report_from_documents
-from tools.validate_delivery_bundle import validate_delivery_bundle
+from tools.validate_delivery_bundle import (
+    _configured_streams_for_run,
+    _producer_requires_http_telemetry,
+    _producer_requires_master_control,
+    validate_delivery_bundle,
+)
 
 
 class SemanticContractV3Tests(unittest.TestCase):
+    def test_gitless_packaged_runner_preserves_modern_capabilities(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            runner = root / "tools" / "run_github_radar.py"
+            runner.parent.mkdir(parents=True)
+            runner.write_bytes((ROOT / "tools" / "run_github_radar.py").read_bytes())
+            run = {"protocol_commit": "f" * 40}
+            self.assertTrue(_producer_requires_master_control(root, run))
+            self.assertTrue(_producer_requires_http_telemetry(root, run))
+
     """Mutations that must fail the cross-artifact V3 validator."""
 
     def _load(self, bundle: Path, name: str) -> dict:
@@ -501,6 +517,179 @@ class SemanticContractV3Tests(unittest.TestCase):
                 errors,
             )
 
+    def test_inventory_observation_fields_are_all_or_none(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            bundle, canonical = create_bundle(Path(directory))
+            run = self._load(bundle, "EvidenceRadar_Run.json")
+            access = next(
+                item for item in run["source_access"] if item["provider"] == "pubmed"
+            )
+            access["retrieval_complete"] = True
+            self._save(bundle, "EvidenceRadar_Run.json", run)
+
+            errors = self._validate(bundle, canonical)
+            self.assertTrue(
+                any("incomplete inventory observation" in error for error in errors),
+                errors,
+            )
+
+    def test_inventory_retrieval_status_must_fail_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            bundle, canonical = create_bundle(Path(directory))
+            run = self._load(bundle, "EvidenceRadar_Run.json")
+            access = next(
+                item for item in run["source_access"] if item["provider"] == "pubmed"
+            )
+            access.update(
+                {
+                    "retrieval_complete": False,
+                    "retrieval_backend": "rss_atom",
+                    "feed_entry_count": 1,
+                    "registry_record_count": 0,
+                    "window_record_count": 1,
+                    "inventory_url": "https://example.test/pubmed/feed.xml",
+                }
+            )
+            self._save(bundle, "EvidenceRadar_Run.json", run)
+
+            errors = self._validate(bundle, canonical)
+            self.assertTrue(
+                any(
+                    "incomplete inventory retrieval must be FAILED or PARTIAL" in error
+                    for error in errors
+                ),
+                errors,
+            )
+
+    def test_inventory_observation_must_agree_across_provider_queries(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            bundle, canonical = create_bundle(Path(directory))
+            run = self._load(bundle, "EvidenceRadar_Run.json")
+            pubmed = next(
+                item for item in run["source_access"] if item["provider"] == "pubmed"
+            )
+            second = next(
+                item
+                for item in run["source_access"]
+                if item["provider"] == "europe_pmc"
+            )
+            common = {
+                "retrieval_complete": True,
+                "retrieval_backend": "rss_atom",
+                "feed_entry_count": 2,
+                "registry_record_count": 0,
+                "window_record_count": 1,
+                "inventory_url": "https://example.test/pubmed/feed.xml",
+            }
+            pubmed.update(common)
+            second.update(common)
+            second["provider"] = "pubmed"
+            second["window_record_count"] = 2
+            self._save(bundle, "EvidenceRadar_Run.json", run)
+
+            errors = self._validate(bundle, canonical)
+            self.assertTrue(
+                any(
+                    "inventory observation disagrees across 'pubmed' queries" in error
+                    for error in errors
+                ),
+                errors,
+            )
+
+    def test_inventory_window_count_must_equal_source_check(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            bundle, canonical = create_bundle(Path(directory))
+            run = self._load(bundle, "EvidenceRadar_Run.json")
+            access = next(
+                item for item in run["source_access"] if item["provider"] == "pubmed"
+            )
+            access.update(
+                {
+                    "retrieval_complete": True,
+                    "retrieval_backend": "rss_atom",
+                    "feed_entry_count": 2,
+                    "registry_record_count": 0,
+                    "window_record_count": 2,
+                    "inventory_url": "https://example.test/pubmed/feed.xml",
+                }
+            )
+            self._save(bundle, "EvidenceRadar_Run.json", run)
+
+            errors = self._validate(bundle, canonical)
+            self.assertTrue(
+                any(
+                    "source CHECK 'pubmed' result_count disagrees with complete window inventory"
+                    in error
+                    for error in errors
+                ),
+                errors,
+            )
+
+    def test_inventory_window_count_is_authoritative_for_aggregate_check(self) -> None:
+        """Repeated query receipts must not multiply one provider inventory."""
+
+        with tempfile.TemporaryDirectory() as directory:
+            bundle, canonical = create_bundle(Path(directory))
+            run = self._load(bundle, "EvidenceRadar_Run.json")
+            evidence = self._load(bundle, "EvidenceRadar_Evidence.json")
+            first_query = run["queries"][0]
+            second_query = copy.deepcopy(first_query)
+            second_query["query_id"] = "fixture-query-2"
+            run["queries"].append(second_query)
+            run["counts"]["queries"] = 2
+            run["counts"]["raw_candidates"] = 2
+
+            first_access = next(
+                item for item in run["source_access"] if item["provider"] == "pubmed"
+            )
+            inventory = {
+                "retrieval_complete": True,
+                "retrieval_backend": "rss_atom",
+                "feed_entry_count": 1,
+                "registry_record_count": 0,
+                "window_record_count": 1,
+                "inventory_url": "https://example.test/pubmed/feed.xml",
+            }
+            first_access.update(inventory)
+            second_access = copy.deepcopy(first_access)
+            second_access["source_id"] = "pubmed-fixture-2"
+            run["source_access"].append(second_access)
+            run["source_access"].sort(key=lambda item: item["source_id"])
+
+            first_attempt = next(
+                item
+                for item in run["retrieval_attempts"]
+                if item.get("query_id") == "fixture-query"
+            )
+            second_attempt = copy.deepcopy(first_attempt)
+            second_attempt["query_id"] = second_query["query_id"]
+            second_attempt["source_access_id"] = second_access["source_id"]
+            second_attempt["attempt_id"] = self._stable_id(
+                "attempt",
+                run["run_id"],
+                second_attempt["stage"],
+                second_query["query_id"],
+                "pubmed",
+            )
+            run["retrieval_attempts"].append(second_attempt)
+            run["retrieval_attempts"].sort(key=lambda item: item["attempt_id"])
+            pubmed_check = next(
+                item
+                for item in run["source_coverage"]["checks"]
+                if item["source_id"] == "pubmed"
+            )
+            self.assertEqual(1, pubmed_check["result_count"])
+            pubmed_check["url"] = inventory["inventory_url"]
+            evidence["coverage"]["checks"] = copy.deepcopy(
+                run["source_coverage"]["checks"]
+            )
+            self._save(bundle, "EvidenceRadar_Run.json", run)
+            self._save(bundle, "EvidenceRadar_Evidence.json", evidence)
+            self._refresh_report(bundle)
+
+            errors = self._validate(bundle, canonical)
+            self.assertEqual([], errors)
+
     def test_requested_sources_must_equal_configured_registry(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             bundle, canonical = create_bundle(Path(directory))
@@ -942,6 +1131,433 @@ class SemanticContractV3Tests(unittest.TestCase):
                     in error
                     for error in errors
                 ),
+                errors,
+            )
+
+    def test_master_bindings_are_required_in_all_three_json_artifacts(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            bundle, canonical = create_bundle(Path(directory))
+            evidence = self._load(bundle, "EvidenceRadar_Evidence.json")
+            evidence.pop("profile_id")
+            self._save(bundle, "EvidenceRadar_Evidence.json", evidence)
+
+            errors = self._validate(bundle, canonical)
+            self.assertTrue(
+                any(
+                    "Evidence has incomplete master-control bindings" in error
+                    for error in errors
+                ),
+                errors,
+            )
+
+    def test_master_bindings_must_be_identical_across_artifacts(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            bundle, canonical = create_bundle(Path(directory))
+            evidence = self._load(bundle, "EvidenceRadar_Evidence.json")
+            evidence["runtime_request_sha256"] = "0" * 64
+            self._save(bundle, "EvidenceRadar_Evidence.json", evidence)
+
+            errors = self._validate(bundle, canonical)
+            self.assertTrue(
+                any(
+                    "Evidence.runtime_request_sha256 must be JSON-identical to Run.runtime_request_sha256"
+                    in error
+                    for error in errors
+                ),
+                errors,
+            )
+
+    def test_chatbot_translation_requires_request_digest_in_all_artifacts(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            bundle, canonical = create_bundle(Path(directory))
+            documents = {
+                name: self._load(bundle, f"EvidenceRadar_{name}.json")
+                for name in ("Run", "State", "Evidence")
+            }
+            documents["Run"]["notes"].append("CHATBOT_TRANSLATION_HANDOFF_V1")
+            for document in documents.values():
+                document["runtime_request_sha256"] = None
+            for name, document in documents.items():
+                self._save(bundle, f"EvidenceRadar_{name}.json", document)
+            canonical.write_text(
+                json.dumps(documents["State"], ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+
+            errors = self._validate(bundle, canonical)
+            for label in ("Run", "State", "Evidence"):
+                self.assertTrue(
+                    any(
+                        f"{label}.runtime_request_sha256 must be a lowercase 64-hex digest"
+                        in error
+                        for error in errors
+                    ),
+                    errors,
+                )
+
+    def test_translation_request_binding_cannot_drop_handoff_marker(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            bundle, canonical = create_bundle(Path(directory))
+            documents = {
+                name: self._load(bundle, f"EvidenceRadar_{name}.json")
+                for name in ("Run", "State", "Evidence")
+            }
+            for document in documents.values():
+                document["runtime_request_sha256"] = "1" * 64
+            documents["Run"]["notes"] = [
+                note
+                for note in documents["Run"]["notes"]
+                if note != "CHATBOT_TRANSLATION_HANDOFF_V1"
+            ]
+            for name, document in documents.items():
+                self._save(bundle, f"EvidenceRadar_{name}.json", document)
+            canonical.write_text(
+                json.dumps(documents["State"], ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+
+            errors = self._validate(bundle, canonical)
+            self.assertTrue(
+                any(
+                    "runtime request or chatbot summary evidence requires exactly one "
+                    "CHATBOT_TRANSLATION_HANDOFF_V1 marker"
+                    in error
+                    for error in errors
+                ),
+                errors,
+            )
+
+    def test_state_study_classification_values_must_equal_run(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            bundle, canonical = create_bundle(Path(directory))
+            state = self._load(bundle, "EvidenceRadar_State.json")
+            state["works"][0]["study_designs"] = ["review"]
+            self._save(bundle, "EvidenceRadar_State.json", state)
+            canonical.write_text(
+                json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+
+            errors = self._validate(bundle, canonical)
+            self.assertTrue(
+                any(
+                    ".study_designs must equal Run.candidates[0].study_designs"
+                    in error
+                    for error in errors
+                ),
+                errors,
+            )
+
+    def test_state_preprint_flag_cannot_drift_from_run(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            bundle, canonical = create_bundle(Path(directory))
+            run = self._load(bundle, "EvidenceRadar_Run.json")
+            state = self._load(bundle, "EvidenceRadar_State.json")
+            for item in (run["candidates"][0], state["works"][0]):
+                item["document_type"] = "preprint"
+                item["document_type_basis"] = "SOURCE_CLASS"
+                item["provider_publication_types"] = ["preprint"]
+            run["candidates"][0]["is_preprint"] = True
+            state["works"][0]["is_preprint"] = False
+            self._save(bundle, "EvidenceRadar_Run.json", run)
+            self._save(bundle, "EvidenceRadar_State.json", state)
+            canonical.write_text(
+                json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+            self._refresh_report(bundle)
+
+            errors = self._validate(bundle, canonical)
+            self.assertTrue(
+                any(
+                    ".is_preprint must equal or monotonically strengthen Run.candidates"
+                    in error
+                    for error in errors
+                ),
+                errors,
+            )
+
+    def test_chatbot_title_must_match_state_projection(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            bundle, canonical = create_bundle(Path(directory))
+            run = self._load(bundle, "EvidenceRadar_Run.json")
+            state = self._load(bundle, "EvidenceRadar_State.json")
+            evidence = self._load(bundle, "EvidenceRadar_Evidence.json")
+            run["notes"].append("CHATBOT_TRANSLATION_HANDOFF_V1")
+            run["runtime_request_sha256"] = "4" * 64
+            state["runtime_request_sha256"] = "4" * 64
+            evidence["runtime_request_sha256"] = "4" * 64
+            run["candidates"][0]["title_zh_tw"] = "一致性測試標題"
+            run["candidates"][0]["summary_basis"] = "CHATBOT_TITLE_ZH_TW"
+            state["works"][0]["title_zh_tw"] = "遭竄改的不同標題"
+            self._save(bundle, "EvidenceRadar_Run.json", run)
+            self._save(bundle, "EvidenceRadar_State.json", state)
+            self._save(bundle, "EvidenceRadar_Evidence.json", evidence)
+            canonical.write_text(
+                json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+            self._refresh_report(bundle)
+
+            errors = self._validate(bundle, canonical)
+            self.assertTrue(
+                any(
+                    ".title_zh_tw must equal Run.candidates[0].title_zh_tw" in error
+                    for error in errors
+                ),
+                errors,
+            )
+
+    def test_master_note_markers_must_match_run_bindings(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            bundle, canonical = create_bundle(Path(directory))
+            run = self._load(bundle, "EvidenceRadar_Run.json")
+            marker_index = next(
+                index
+                for index, note in enumerate(run["notes"])
+                if note.startswith("RADAR_SOURCES_JSON:")
+            )
+            run["notes"][marker_index] = "RADAR_SOURCES_JSON:[\"pubmed\"]"
+            self._save(bundle, "EvidenceRadar_Run.json", run)
+
+            errors = self._validate(bundle, canonical)
+            self.assertTrue(
+                any(
+                    "Run.resolved_source_ids must equal RADAR_SOURCES_JSON" in error
+                    for error in errors
+                ),
+                errors,
+            )
+
+    def test_master_note_markers_are_all_required(self) -> None:
+        for prefix in (
+            "RADAR_PROFILE:",
+            "RADAR_STREAMS_JSON:",
+            "RADAR_SOURCES_JSON:",
+        ):
+            with self.subTest(prefix=prefix), tempfile.TemporaryDirectory() as directory:
+                bundle, canonical = create_bundle(Path(directory))
+                run = self._load(bundle, "EvidenceRadar_Run.json")
+                run["notes"] = [
+                    note for note in run["notes"] if not note.startswith(prefix)
+                ]
+                self._save(bundle, "EvidenceRadar_Run.json", run)
+
+                errors = self._validate(bundle, canonical)
+                self.assertTrue(
+                    any(
+                        f"exactly one non-empty {prefix[:-1]}" in error
+                        for error in errors
+                    ),
+                    errors,
+                )
+
+    def test_master_resolution_cannot_be_self_consistently_narrowed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            bundle, canonical = create_bundle(Path(directory))
+            documents = {
+                name: self._load(bundle, f"EvidenceRadar_{name}.json")
+                for name in ("Run", "State", "Evidence")
+            }
+            removed_source = documents["Run"]["resolved_source_ids"][0]
+            narrowed = [
+                source_id
+                for source_id in documents["Run"]["resolved_source_ids"]
+                if source_id != removed_source
+            ]
+            for document in documents.values():
+                document["resolved_source_ids"] = list(narrowed)
+            documents["Run"]["notes"] = [
+                (
+                    "RADAR_SOURCES_JSON:"
+                    + json.dumps(narrowed, separators=(",", ":"))
+                    if note.startswith("RADAR_SOURCES_JSON:")
+                    else note
+                )
+                for note in documents["Run"]["notes"]
+            ]
+            for name, document in documents.items():
+                self._save(bundle, f"EvidenceRadar_{name}.json", document)
+            canonical.write_text(
+                json.dumps(documents["State"], ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+
+            errors = self._validate(bundle, canonical)
+            self.assertTrue(
+                any(
+                    "Run.resolved_source_ids must exactly equal load_master_runtime resolution"
+                    in error
+                    for error in errors
+                ),
+                errors,
+            )
+
+    def test_legacy_v3_without_master_markers_uses_legacy_catalog(self) -> None:
+        streams, errors = _configured_streams_for_run(
+            ROOT,
+            {"notes": ["SEMANTIC_CONTRACT_V3"]},
+            {},
+            {},
+        )
+        self.assertEqual([], errors)
+        self.assertIsNotNone(streams)
+        self.assertEqual(
+            sorted((streams or {}).get("source_catalog", {})),
+            [
+                "acl_anthology",
+                "arxiv",
+                "europe_pmc",
+                "formal_proceedings_or_publisher",
+                "openalex",
+                "openreview",
+                "pmlr",
+                "publisher",
+                "pubmed",
+            ],
+        )
+
+    def test_master_capable_producer_cannot_strip_every_master_binding(self) -> None:
+        with mock.patch(
+            "tools.validate_delivery_bundle._producer_requires_master_control",
+            return_value=True,
+        ):
+            streams, errors = _configured_streams_for_run(
+                ROOT,
+                {
+                    "notes": ["SEMANTIC_CONTRACT_V3"],
+                    "protocol_commit": "f" * 40,
+                },
+                {},
+                {},
+            )
+        self.assertIsNone(streams)
+        self.assertTrue(
+            any("cannot omit all master bindings" in error for error in errors),
+            errors,
+        )
+
+    def test_http_telemetry_capable_producer_rejects_strip_all_downgrade(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            bundle, canonical = create_bundle(Path(directory))
+            run = self._load(bundle, "EvidenceRadar_Run.json")
+            run["notes"].append("EXECUTOR_HTTP_TELEMETRY_V1")
+            attempt = next(
+                item for item in run["retrieval_attempts"] if item.get("query_id")
+            )
+            access = next(
+                item
+                for item in run["source_access"]
+                if item["source_id"] == attempt["source_access_id"]
+            )
+            access.update(
+                {
+                    "http_requests_attempted": 3,
+                    "http_responses_received": 3,
+                    "cache_reused": False,
+                }
+            )
+            attempt["pagination"] = {"pages_requested": 3, "pages_received": 3}
+            for field in (
+                "http_requests_attempted",
+                "http_responses_received",
+                "cache_reused",
+            ):
+                access.pop(field)
+            attempt["pagination"] = {"pages_requested": 1, "pages_received": 1}
+            self._save(bundle, "EvidenceRadar_Run.json", run)
+            self._refresh_report(bundle)
+
+            with mock.patch(
+                "tools.validate_delivery_bundle._producer_requires_http_telemetry",
+                return_value=True,
+            ):
+                errors = self._validate(bundle, canonical)
+            self.assertTrue(
+                any(
+                    "modern query receipt requires HTTP telemetry" in error
+                    or "modern executor receipt requires HTTP telemetry" in error
+                    for error in errors
+                ),
+                errors,
+            )
+
+    def test_modern_inventory_cannot_strip_unusable_and_pagination_fields(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            bundle, canonical = create_bundle(Path(directory))
+            run = self._load(bundle, "EvidenceRadar_Run.json")
+            evidence = self._load(bundle, "EvidenceRadar_Evidence.json")
+            run["notes"].append("EXECUTOR_HTTP_TELEMETRY_V1")
+            provider = "jama_network_open"
+            access_id = "jama-inventory-fixture"
+            endpoint = "https://api.crossref.org/journals/2574-3805/works"
+            accessed_at = run["finished_at"]
+            run["source_access"].append(
+                {
+                    "source_id": access_id,
+                    "provider": provider,
+                    "url": endpoint,
+                    "accessed_at": accessed_at,
+                    "status": "NO_RESULTS",
+                    "result_count": 0,
+                    "retrieval_complete": True,
+                    "retrieval_backend": "rss_atom+crossref_journal_window",
+                    "feed_entry_count": 0,
+                    "registry_record_count": 0,
+                    "window_record_count": 0,
+                    "inventory_url": endpoint,
+                }
+            )
+            run["source_access"].sort(key=lambda item: item["source_id"])
+            canonical_value = lambda value: json.dumps(
+                value,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            run["retrieval_attempts"].append(
+                {
+                    "attempt_id": self._stable_id(
+                        "attempt", run["run_id"], "DISCOVERY", access_id
+                    ),
+                    "stage": "DISCOVERY",
+                    "source_id": provider,
+                    "source_access_id": access_id,
+                    "attempted_at": accessed_at,
+                    "status": "NO_RESULTS",
+                    "endpoint": endpoint,
+                    "request_fingerprint": hashlib.sha256(
+                        canonical_value(
+                            {"url": endpoint, "provider": provider, "work_id": ""}
+                        ).encode("utf-8")
+                    ).hexdigest(),
+                    "receipt_origin": "EXECUTOR",
+                    "result_count": 0,
+                    "result_ids_sha256": hashlib.sha256(
+                        canonical_value([]).encode("utf-8")
+                    ).hexdigest(),
+                    "pagination": {"pages_requested": 1, "pages_received": 1},
+                    "limit_reached": False,
+                }
+            )
+            run["retrieval_attempts"].sort(key=lambda item: item["attempt_id"])
+            check = next(
+                item
+                for item in run["source_coverage"]["checks"]
+                if item["source_id"] == provider
+            )
+            check["url"] = endpoint
+            evidence["coverage"]["checks"] = copy.deepcopy(
+                run["source_coverage"]["checks"]
+            )
+            self._save(bundle, "EvidenceRadar_Run.json", run)
+            self._save(bundle, "EvidenceRadar_Evidence.json", evidence)
+            self._refresh_report(bundle)
+
+            with mock.patch(
+                "tools.validate_delivery_bundle._producer_requires_http_telemetry",
+                return_value=True,
+            ):
+                errors = self._validate(bundle, canonical)
+            self.assertTrue(
+                any("modern inventory telemetry is incomplete" in error for error in errors),
                 errors,
             )
 

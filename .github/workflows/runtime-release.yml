@@ -22,8 +22,12 @@ on:
       - "tools/build_runtime_release.py"
       - "tools/build_work_pack.py"
       - "tools/delivery_contract.py"
+      - "tools/featured_selection.py"
       - "tools/merge_radar_state.py"
+      - "tools/materialize_delivery_aliases.py"
       - "tools/package_work_delivery.py"
+      - "tools/publisher_feed.py"
+      - "tools/radar_control.py"
       - "tools/render_report_from_artifacts.py"
       - "tools/run_github_radar.py"
       - "tools/run_local_runtime.py"
@@ -117,6 +121,7 @@ jobs:
           PYTHONDONTWRITEBYTECODE=1 python "$RUNNER_TEMP/runtime-extracted/tools/verify_runtime_release.py" \
             --root "$RUNNER_TEMP/runtime-extracted"
           PYTHONDONTWRITEBYTECODE=1 python "$RUNNER_TEMP/runtime-extracted/tools/run_local_runtime.py" --help >/dev/null
+          PYTHONDONTWRITEBYTECODE=1 python "$RUNNER_TEMP/runtime-extracted/tools/run_github_radar.py" --help >/dev/null
         env:
           ARCHIVE: ${{ steps.build.outputs.archive }}
 
