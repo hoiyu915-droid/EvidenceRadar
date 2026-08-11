@@ -1,6 +1,10 @@
 name: EvidenceRadar daily (GitHub Actions lane)
 
 on:
+  # Connector-controlled operational entrypoint. Only a repository-owner issue
+  # carrying the exact run-request marker is allowed to start Stage A.
+  issues:
+    types: [opened]
   # Producer/schema changes should immediately produce a fresh handoff request.
   push:
     branches: [main]
@@ -57,7 +61,16 @@ jobs:
   daily-radar:
     # A reviewed control-plane-only merge may carry this exact marker to avoid
     # re-running discovery while an immutable Stage A request is still queued.
-    if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message, '[skip-evidenceradar-stage-a]') }}
+    # Issue-triggered runs are fail-closed: only the repository owner with the
+    # exact v1 marker can enter the producer. Handoff issues cannot recurse.
+    if: >-
+      ${{
+        (github.event_name != 'push' ||
+         !contains(github.event.head_commit.message, '[skip-evidenceradar-stage-a]')) &&
+        (github.event_name != 'issues' ||
+         (github.event.issue.user.login == github.repository_owner &&
+          contains(github.event.issue.body, '<!-- evidenceradar-run-request:v1 -->')))
+      }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -143,6 +156,7 @@ jobs:
           path: ${{ runner.temp }}/EvidenceRadar_TranslationRequest.json
 
       - name: Queue checkpointed ChatGPT Work continuation
+        id: queue_request
         if: steps.radar.outputs.status == 'TRANSLATION_REQUIRED'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -206,8 +220,33 @@ jobs:
             gh issue edit "$existing" --body-file "$queue_dir/body.md"
             gh issue reopen "$existing" >/dev/null 2>&1 || true
           else
-            gh issue create \
+            created_url="$(gh issue create \
               --title "$title" \
               --body-file "$queue_dir/body.md" \
-              --label evidenceradar-handoff
+              --label evidenceradar-handoff)"
+            existing="${created_url##*/}"
           fi
+          test -n "$existing"
+          echo "handoff_number=$existing" >> "$GITHUB_OUTPUT"
+
+      - name: Complete owner run request
+        if: ${{ github.event_name == 'issues' && steps.queue_request.outputs.handoff_number != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUEST_ISSUE_NUMBER: ${{ github.event.issue.number }}
+          HANDOFF_NUMBER: ${{ steps.queue_request.outputs.handoff_number }}
+        run: |
+          set -euo pipefail
+          gh issue comment "$REQUEST_ISSUE_NUMBER" \
+            --body "owner_daily Stage A created handoff #${HANDOFF_NUMBER} from producer ${GITHUB_SHA}. Workflow run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          gh issue close "$REQUEST_ISSUE_NUMBER" --reason completed
+
+      - name: Report owner run request failure
+        if: ${{ always() && github.event_name == 'issues' && steps.queue_request.outputs.handoff_number == '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUEST_ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          set -euo pipefail
+          gh issue comment "$REQUEST_ISSUE_NUMBER" \
+            --body "owner_daily Stage A did not create a handoff. Producer: ${GITHUB_SHA}. Workflow run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}. This request is intentionally left open for inspection or retry."
