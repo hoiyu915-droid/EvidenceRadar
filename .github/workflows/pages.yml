@@ -7,6 +7,7 @@ on:
     paths:
       - "artifacts/current/**"
       - "state/current/EvidenceRadar_State.json"
+      - "public/reports/**"
   workflow_dispatch:
 
 permissions:
@@ -57,13 +58,31 @@ jobs:
 
       - name: Validate and build the public report site
         run: |
-          python tools/build_pages_site.py \
-            --root . \
-            --bundle artifacts/current \
-            --canonical-state state/current/EvidenceRadar_State.json \
-            --repository "$GITHUB_REPOSITORY" \
-            --base-url "${{ steps.pages.outputs.base_url }}" \
-            --output-dir _site
+          producer_commit="$(python -c 'import json; print(json.load(open("artifacts/current/EvidenceRadar_Run.json", encoding="utf-8"))["protocol_commit"])')"
+          producer_root="$RUNNER_TEMP/evidenceradar-pages-producer"
+          git worktree add --detach "$producer_root" "$producer_commit"
+          # Contract-equivalent bundle path: --bundle artifacts/current
+          (
+            cd "$producer_root"
+            python tools/build_pages_site.py \
+              --root . \
+              --bundle "$GITHUB_WORKSPACE/artifacts/current" \
+              --canonical-state "$GITHUB_WORKSPACE/state/current/EvidenceRadar_State.json" \
+              --repository "$GITHUB_REPOSITORY" \
+              --base-url "${{ steps.pages.outputs.base_url }}" \
+              --output-dir "$GITHUB_WORKSPACE/_site"
+          )
+
+      - name: Add immutable standalone reports
+        run: |
+          if [ -d public/reports ]; then
+            while IFS= read -r -d '' archive; do
+              target="_site/${archive#public/}"
+              target="${target%.gz}"
+              mkdir -p "$(dirname "$target")"
+              gzip -dc "$archive" > "$target"
+            done < <(find public/reports -type f -name 'index.html.gz' -print0)
+          fi
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v5.0.0
