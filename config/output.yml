@@ -4,6 +4,10 @@ execution:
     chatgpt_work:
       method: live_web_search_and_direct_source_read
       trigger: user_launched
+      package_source: github_release_download_once
+      translation: native_chatgpt_work
+      terminal_delivery: html_and_three_json
+      post_download_github_access: false
       repository_writeback: false
     github_actions:
       method: automated_discovery_source_audit_and_translation_request
@@ -123,7 +127,9 @@ rendering:
   candidate_summary_max_chars: 320
   summary_translation:
     enabled: true
-    provider: ordinary_chatgpt_manual_handoff
+    provider_by_lane:
+      chatgpt_work: native_chatgpt_work
+      github_actions: ordinary_chatgpt_manual_handoff
     request_artifact: EvidenceRadar_TranslationRequest.json
     response_artifact: EvidenceRadar_TranslationResponse.json
     request_sha256_binding: required

@@ -4,7 +4,7 @@ execution_lanes:
   chatgpt_work:
     enabled: true
     verification_scope: full_source_and_claim_review
-    state_handoff: user_carried_or_imported_artifact
+    state_handoff: embedded_seed_or_newer_user_artifact
   github_actions:
     enabled: true
     verification_scope: automated_discovery_and_source_access_audit
@@ -68,5 +68,10 @@ provider_credentials:
 
 work_pack:
   enabled: true
-  state_required_after_first_run: true
+  release_asset: EvidenceRadar-WorkPack-current.zip
+  checksum_asset: EvidenceRadar-WorkPack-current.zip.sha256
+  embedded_seed_state: state/current/EvidenceRadar_State.json
+  entrypoint: WORK_ENTRY.md
+  terminal_four_artifact_delivery: true
+  post_download_github_access: false
   repository_writeback_required: false

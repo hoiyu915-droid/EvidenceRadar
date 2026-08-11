@@ -64,7 +64,12 @@ def main() -> int:
             errors.append(f"missing required marker in {relative}")
 
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    for marker in ("GitHub Actions and ChatGPT Work are the two supported EvidenceRadar execution lanes", "Codex is **not** part of the radar runtime", "## License"):
+    for marker in (
+        "## 唯一用家執行路徑",
+        "GitHub 在這條路徑只負責原始碼與版本化 ZIP 儲存",
+        "Codex is **not** part of the radar runtime",
+        "## License",
+    ):
         if marker not in readme:
             errors.append(f"README boundary missing: {marker}")
 

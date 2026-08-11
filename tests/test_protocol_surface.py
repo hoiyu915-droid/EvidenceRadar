@@ -29,6 +29,7 @@ class ProtocolSurfaceTests(unittest.TestCase):
                 "public-release.yml",
                 "runtime-release.yml",
                 "translation-stage-b.yml",
+                "work-pack-release.yml",
             ],
             sorted(path.name for path in workflows),
         )
@@ -67,6 +68,15 @@ class ProtocolSurfaceTests(unittest.TestCase):
         self.assertIn("python tools/verify_runtime_release.py", runtime_release)
         self.assertIn("immutable Runtime tag already exists", runtime_release)
         self.assertIn("gh release create", runtime_release)
+
+        work_pack_release = (workflow_dir / "work-pack-release.yml").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("workflow_dispatch:", work_pack_release)
+        self.assertNotIn("schedule:", work_pack_release)
+        self.assertIn("python tools/build_work_pack.py", work_pack_release)
+        self.assertIn("python tools/verify_work_pack.py", work_pack_release)
+        self.assertIn("EvidenceRadar-WorkPack-current.zip", work_pack_release)
 
     def test_new_runner_is_separate_from_archived_runtime(self) -> None:
         self.assertFalse((ROOT / "src").exists())
@@ -110,6 +120,7 @@ class ProtocolSurfaceTests(unittest.TestCase):
         self.assertIn("interactive_candidate_filters: true", output)
         self.assertIn("candidate_summary_max_chars: 320", output)
         self.assertIn("candidate_summary_language: zh-TW", output)
+        self.assertIn("chatgpt_work: native_chatgpt_work", output)
         self.assertIn("ordinary_chatgpt_manual_handoff", output)
         self.assertIn("EvidenceRadar_TranslationRequest.json", output)
         self.assertIn("CHATBOT_TITLE_AND_ABSTRACT_ZH_TW", protocol)

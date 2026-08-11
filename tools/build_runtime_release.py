@@ -46,9 +46,20 @@ RUNTIME_EXTRA_PATHS = (
     "runtime/README.md",
     "runtime/VERSION",
     "runtime/runtime-manifest.schema.json",
+    "schemas/evidence-radar-translation-checkpoint.schema.json",
+    "schemas/evidence-radar-translation-request.schema.json",
+    "schemas/evidence-radar-translation-response.schema.json",
+    "schemas/evidence-radar-translation-submission.schema.json",
+    "templates/work-stage-b-automation.md",
+    "tools/run_github_radar.py",
     "tools/run_local_runtime.py",
+    "tools/translation_handoff.py",
     "tools/verify_runtime_release.py",
 )
+WORK_ONLY_PATHS = {
+    "WORK_ENTRY.md",
+    "tools/verify_work_pack.py",
+}
 REQUIRED_ENTRYPOINTS = (
     "tools/run_github_radar.py",
     "tools/validate_delivery_bundle.py",
@@ -103,7 +114,11 @@ def _read_runtime_version(root: Path) -> str:
 def _runtime_source_files(root: Path, spec_path: Path) -> tuple[list[tuple[str, Path]], dict[str, Any]]:
     try:
         spec = load_pack_spec(spec_path)
-        base_files = collect_source_files(root, spec)
+        base_files = [
+            (relative, source)
+            for relative, source in collect_source_files(root, spec)
+            if relative not in WORK_ONLY_PATHS and not relative.startswith("state/")
+        ]
     except WorkPackError as exc:
         raise RuntimeReleaseError(str(exc)) from exc
 

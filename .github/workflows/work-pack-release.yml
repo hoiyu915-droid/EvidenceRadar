@@ -1,0 +1,200 @@
+name: ChatGPT Work Pack release
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/work-pack-release.yml"
+      - "WORK_ENTRY.md"
+      - "README.md"
+      - "EVIDENCE_RADAR_PROTOCOL.md"
+      - "requirements.txt"
+      - "config/**"
+      - "docs/MIGRATION_DUAL_LANE_1.0.md"
+      - "docs/SEMANTIC_CONTRACT_V3.md"
+      - "docs/WORK_SETUP.md"
+      - "docs/research_taxonomy.md"
+      - "examples/EvidenceRadar_Evidence.json"
+      - "examples/EvidenceRadar_Run.json"
+      - "examples/EvidenceRadar_State.json"
+      - "release/work-pack-manifest.json"
+      - "schemas/evidence-radar-evidence.schema.json"
+      - "schemas/evidence-radar-run.schema.json"
+      - "schemas/evidence-radar-state.schema.json"
+      - "state/current/EvidenceRadar_State.json"
+      - "templates/daily-radar.md"
+      - "templates/gpt-work-instructions.md"
+      - "tools/build_work_pack.py"
+      - "tools/delivery_contract.py"
+      - "tools/featured_selection.py"
+      - "tools/materialize_delivery_aliases.py"
+      - "tools/merge_radar_state.py"
+      - "tools/package_work_delivery.py"
+      - "tools/publisher_feed.py"
+      - "tools/radar_control.py"
+      - "tools/render_report_from_artifacts.py"
+      - "tools/run_github_radar.py"
+      - "tools/validate_delivery_bundle.py"
+      - "tools/validate_gpt_work_artifacts.py"
+      - "tools/verify_work_pack.py"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: evidenceradar-work-pack-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Require exact clean main checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF_NAME}" != "main" ]]; then
+            echo "::error::Work Pack releases must run from main"
+            exit 1
+          fi
+          git fetch --no-tags origin main
+          if [[ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]]; then
+            echo "::error::Work Pack checkout is not current origin/main"
+            exit 1
+          fi
+          if [[ -n "$(git status --porcelain --untracked-files=all)" ]]; then
+            echo "::error::Work Pack checkout is dirty"
+            exit 1
+          fi
+
+      - uses: actions/setup-python@v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install validation dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Validate Work Pack source surface
+        run: |
+          python tools/validate_public_release.py
+          python tools/validate_gpt_work_artifacts.py --root . state/current/EvidenceRadar_State.json
+          python -m unittest -v \
+            tests.test_work_pack \
+            tests.test_work_delivery \
+            tests.test_package_work_delivery_naming \
+            tests.test_delivery_bundle \
+            tests.test_semantic_contract_v3
+
+      - name: Build deterministic Work Pack
+        id: build
+        shell: bash
+        run: |
+          set -euo pipefail
+          base_version="$(python -c 'import json; print(json.load(open("release/work-pack-manifest.json"))["pack_version"])')"
+          short_sha="${GITHUB_SHA:0:12}"
+          release_version="${base_version}+${short_sha}"
+          python tools/build_work_pack.py \
+            --version "$release_version" \
+            --output-dir dist > "$RUNNER_TEMP/work-pack-build.json"
+          python -m json.tool "$RUNNER_TEMP/work-pack-build.json"
+          archive="EvidenceRadar-WorkPack-v${release_version}.zip"
+          checksum="${archive}.sha256"
+          echo "version=$release_version" >> "$GITHUB_OUTPUT"
+          echo "archive=$archive" >> "$GITHUB_OUTPUT"
+          echo "checksum=$checksum" >> "$GITHUB_OUTPUT"
+
+      - name: Verify archive and fresh extraction
+        shell: bash
+        env:
+          ARCHIVE: ${{ steps.build.outputs.archive }}
+          CHECKSUM: ${{ steps.build.outputs.checksum }}
+        run: |
+          set -euo pipefail
+          python tools/verify_work_pack.py \
+            --archive "dist/$ARCHIVE" \
+            --checksum "dist/$CHECKSUM"
+          mkdir "$RUNNER_TEMP/work-pack-extracted"
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          from zipfile import ZipFile
+          archive = Path("dist") / os.environ["ARCHIVE"]
+          target = Path(os.environ["RUNNER_TEMP"]) / "work-pack-extracted"
+          with ZipFile(archive) as value:
+              value.extractall(target)
+          PY
+          PYTHONDONTWRITEBYTECODE=1 python \
+            "$RUNNER_TEMP/work-pack-extracted/tools/verify_work_pack.py" \
+            --root "$RUNNER_TEMP/work-pack-extracted"
+          PYTHONDONTWRITEBYTECODE=1 python \
+            "$RUNNER_TEMP/work-pack-extracted/tools/validate_gpt_work_artifacts.py" \
+            --root "$RUNNER_TEMP/work-pack-extracted" \
+            "$RUNNER_TEMP/work-pack-extracted/state/current/EvidenceRadar_State.json"
+          if PYTHONDONTWRITEBYTECODE=1 python \
+            "$RUNNER_TEMP/work-pack-extracted/tools/run_github_radar.py" --help \
+            > "$RUNNER_TEMP/work-pack-runner.txt" 2>&1; then
+            echo "::error::Work Pack unexpectedly enabled the GitHub runner CLI"
+            exit 1
+          fi
+          grep -F "GitHub runner CLI is disabled in the ChatGPT Work Pack" \
+            "$RUNNER_TEMP/work-pack-runner.txt"
+          test ! -e "$RUNNER_TEMP/work-pack-extracted/tools/run_local_runtime.py"
+          test ! -e "$RUNNER_TEMP/work-pack-extracted/templates/work-stage-b-automation.md"
+
+      - name: Materialize stable latest-download assets
+        shell: bash
+        env:
+          ARCHIVE: ${{ steps.build.outputs.archive }}
+        run: |
+          set -euo pipefail
+          cp "dist/$ARCHIVE" "dist/EvidenceRadar-WorkPack-current.zip"
+          cd dist
+          sha256sum EvidenceRadar-WorkPack-current.zip > EvidenceRadar-WorkPack-current.zip.sha256
+          cd ..
+          python tools/verify_work_pack.py \
+            --archive dist/EvidenceRadar-WorkPack-current.zip \
+            --checksum dist/EvidenceRadar-WorkPack-current.zip.sha256
+
+      - name: Refuse immutable release reuse
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="work-pack-${GITHUB_SHA}"
+          git fetch --tags origin
+          if git show-ref --verify --quiet "refs/tags/$tag"; then
+            echo "::error::immutable Work Pack tag already exists: $tag"
+            exit 1
+          fi
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "::error::immutable Work Pack release already exists: $tag"
+            exit 1
+          fi
+
+      - name: Publish Work Pack as latest GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="work-pack-${GITHUB_SHA}"
+          gh release create "$tag" \
+            "dist/${{ steps.build.outputs.archive }}" \
+            "dist/${{ steps.build.outputs.checksum }}" \
+            "dist/EvidenceRadar-WorkPack-current.zip" \
+            "dist/EvidenceRadar-WorkPack-current.zip.sha256" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "EvidenceRadar ChatGPT Work Pack ${{ steps.build.outputs.version }}" \
+            --notes "Immutable ChatGPT Work package for source commit $GITHUB_SHA. GitHub stores the package; after checksum verification, ChatGPT Work executes locally through terminal four-file delivery without Actions or Stage B." \
+            --latest

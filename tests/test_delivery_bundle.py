@@ -38,6 +38,7 @@ def create_bundle(
     protocol_commit: str = FIXTURE_PROTOCOL_COMMIT,
     run_id: str = "github-actions-delivery-fixture",
     doi: str = "10.1000/delivery.fixture",
+    execution_lane: str = "github_actions",
 ) -> tuple[Path, Path]:
     end_at = datetime(2026, 8, 9, 12, 0, tzinfo=TZ)
     fixture_url = f"https://example.test/{doi.rsplit('/', 1)[-1]}"
@@ -140,7 +141,7 @@ def create_bundle(
         state_path=canonical_state,
         end_at=end_at,
         run_id=run_id,
-        execution_lane="github_actions",
+        execution_lane=execution_lane,
         protocol_commit=protocol_commit,
         discoverer=discoverer,
         publisher_probe=publisher_probe,

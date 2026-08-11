@@ -23,6 +23,10 @@ from pathlib import Path
 from typing import Any
 from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 
+# Delivery runs against a verified, read-only Work Pack.  Local helper imports
+# must not mutate that package with bytecode cache files.
+sys.dont_write_bytecode = True
+
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -133,6 +137,7 @@ def package_work_delivery(
     run_id: str | None = None,
     source_date_epoch: int | str | None = None,
     validation_root: Path | None = None,
+    input_manifest: Path | None = None,
     expected_lane: str | None = "chatgpt_work",
     require_current_producer: bool = False,
 ) -> DeliveryResult:
@@ -180,6 +185,7 @@ def package_work_delivery(
         source_dir,
         expected_lane=expected_lane,
         expected_protocol_commit=protocol_commit,
+        manifest=Path(input_manifest).resolve() if input_manifest is not None else None,
         require_current_producer=require_current_producer,
         require_semantic_contract_v3=True,
     )
@@ -263,6 +269,11 @@ def main(argv: list[str] | None = None) -> int:
         help="execution lane required by the four-file validator",
     )
     parser.add_argument(
+        "--input-manifest",
+        type=Path,
+        help="extracted Work Pack manifest used to bind delivery validation",
+    )
+    parser.add_argument(
         "--require-current-producer",
         action="store_true",
         help="also require the protocol commit to be the current clean checkout commit",
@@ -275,6 +286,7 @@ def main(argv: list[str] | None = None) -> int:
             run_id=args.run_id,
             source_date_epoch=args.source_date_epoch,
             validation_root=args.validation_root,
+            input_manifest=args.input_manifest,
             expected_lane=args.expected_lane,
             require_current_producer=args.require_current_producer,
         )

@@ -17,13 +17,18 @@ invariants.
 | `chatgpt_work` | user-launched `daily`, `focused` or `deep_verify` run | live search, direct source reading, event and claim review | imported/exported JSON artifact |
 | `github_actions` | daily schedule or `workflow_dispatch` | automated discovery, event-metadata gate and bounded publisher-page access audit | repository canonical State |
 
-Both lanes may be enabled. Neither lane may present the other lane's prior
-output, memory, archived report, search snippet or metadata as current claim
-evidence. Codex is maintainer tooling and is not an EvidenceRadar runtime lane.
+`chatgpt_work` is the only user execution path. The `github_actions` producer
+is retained for maintainer regression and legacy deployment compatibility; it
+must never be selected, started or awaited in response to a user's request to
+run Radar. Neither lane may present the other lane's prior output, memory,
+archived report, search snippet or metadata as current claim evidence. Codex is
+maintainer tooling and is not an EvidenceRadar runtime lane.
 
-The repository is authoritative for the protocol and settings. GitHub Actions
-may write only generated artifacts, immutable run bundles and canonical State;
-ChatGPT Work has no implicit repository write access.
+The repository is authoritative for source and reviewed policy. The released
+Work Pack is the immutable execution input for `chatgpt_work`; GitHub has no
+execution role after that package is downloaded. GitHub Actions may write only
+generated artifacts, immutable run bundles and canonical State; ChatGPT Work
+has no implicit repository write access.
 
 ### ChatGPT Work terminal boundary
 
@@ -82,8 +87,9 @@ Read these files before discovery:
 - latest valid `EvidenceRadar_State.json`, when available
 
 The GitHub lane reads `state/current/EvidenceRadar_State.json`. A Work run uses
-the newest State explicitly supplied by the user. If State is absent or
-invalid, keep same-run deduplication and set `STATE_HISTORY_INCOMPLETE`.
+the embedded Work Pack State, or a newer validated State already retained in
+the user's Work project. If both are absent or invalid, keep same-run
+deduplication and set `STATE_HISTORY_INCOMPLETE`.
 
 Every new State and Run artifact records these direct provenance fields:
 
@@ -419,10 +425,9 @@ resolution receipt exists.
 
 - GitHub users create an independent repository from the template or fork,
   enable Actions and run the workflow manually once before relying on schedule.
-- ChatGPT Work may read a fixed commit of the public repository directly and
-  execute in a fresh Work-VM run-id directory. A versioned Work Pack with its
-  SHA-256 sidecar remains the offline/fallback route; State is carried
-  separately.
+- ChatGPT Work downloads the latest released Work Pack and SHA-256 sidecar once,
+  verifies the embedded clean source commit and State, then executes in a fresh
+  Work-VM run-id directory without another GitHub operation.
 - Every Work delivery is validated before packaging and returned as a unique
   `EvidenceRadar-WorkRun-<run_id>.zip`, manifest and checksum. A Work-VM path is
   not a public URL and Work has no implicit repository writeback.

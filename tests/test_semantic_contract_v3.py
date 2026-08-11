@@ -31,6 +31,30 @@ class SemanticContractV3Tests(unittest.TestCase):
             self.assertTrue(_producer_requires_master_control(root, run))
             self.assertTrue(_producer_requires_http_telemetry(root, run))
 
+    def test_gitless_work_pack_manifest_preserves_modern_capabilities_without_runner(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            commit = "f" * 40
+            (root / "manifest.json").write_text(
+                json.dumps(
+                    {
+                        "format": "evidenceradar-work-pack",
+                        "source_commit": commit,
+                        "execution_lane": "chatgpt_work",
+                        "capabilities": [
+                            "MASTER_CONTROL_V1",
+                            "EXECUTOR_HTTP_TELEMETRY_V1",
+                            "TERMINAL_FOUR_ARTIFACT_DELIVERY_V1",
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            run = {"protocol_commit": commit}
+            self.assertFalse((root / "tools" / "run_github_radar.py").exists())
+            self.assertTrue(_producer_requires_master_control(root, run))
+            self.assertTrue(_producer_requires_http_telemetry(root, run))
+
     """Mutations that must fail the cross-artifact V3 validator."""
 
     def _load(self, bundle: Path, name: str) -> dict:
@@ -925,6 +949,10 @@ class SemanticContractV3Tests(unittest.TestCase):
             )
             self.assertTrue(
                 any("manifest.files must not be empty" in error for error in errors),
+                errors,
+            )
+            self.assertTrue(
+                any("omits required execution capabilities" in error for error in errors),
                 errors,
             )
 

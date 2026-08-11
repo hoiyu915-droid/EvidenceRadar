@@ -36,6 +36,10 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
+# State merge is a Work Pack entrypoint; importing the packaged schema
+# validator must not write into the immutable package tree.
+sys.dont_write_bytecode = True
+
 
 JsonObject = dict[str, Any]
 

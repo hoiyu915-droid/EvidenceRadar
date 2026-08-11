@@ -14,6 +14,10 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+# The released Work Pack is an immutable input.  Prevent imports of packaged
+# helper modules from creating __pycache__ files inside the extracted tree.
+sys.dont_write_bytecode = True
+
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:

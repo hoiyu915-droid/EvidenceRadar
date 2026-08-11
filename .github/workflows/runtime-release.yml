@@ -156,4 +156,5 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
             --title "EvidenceRadar Runtime v${version}" \
-            --notes "Immutable local Runtime release for source commit $GITHUB_SHA. Verify the ZIP with the attached .sha256 sidecar before extraction. Runtime source is read-only; State and generated artifacts remain external. See docs/RUNTIME_RELEASE.md in this commit for the execution contract."
+            --notes "Immutable maintainer Runtime release for source commit $GITHUB_SHA. This is the GitHub automation lane, not the ChatGPT Work user entrypoint." \
+            --latest=false
