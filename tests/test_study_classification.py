@@ -154,6 +154,99 @@ class StudyClassificationTests(unittest.TestCase):
         )
         self.assertEqual(2, len(deduplicate([doi, pmid])))
 
+    def test_dedup_attaches_identifierless_publisher_feed_observation(self) -> None:
+        title = "Cancer Screening and Citizenship Status in the US"
+        identified = Candidate(
+            title=title,
+            stream="clinical_medicine",
+            category="clinical_medicine",
+            source="jama_network_open",
+            publication_date="2026-08-10",
+            authors=["Jenny S. Guadamuz"],
+            venue="JAMA Network Open",
+            doi="10.1001/jamanetworkopen.2026.28371",
+            pmid="42574011",
+            landing_url="https://doi.org/10.1001/jamanetworkopen.2026.28371",
+            observed_sources=["jama_network_open", "pubmed"],
+            provider_publication_types=["Journal Article"],
+        )
+        feed_only = Candidate(
+            title=title,
+            stream="oa_jama_network_open",
+            category="clinical_medicine",
+            source="jama_network_open",
+            publication_date="2026-08-10",
+            landing_url=(
+                "https://jamanetwork.com/journals/jamanetworkopen/"
+                "fullarticle/2852595"
+            ),
+            observed_sources=["jama_network_open"],
+            events=[
+                {
+                    "event_type": "version_of_record_first_online",
+                    "occurred_at": "2026-08-10",
+                    "source": "jama_network_open",
+                    "source_field": "rss:pubDate",
+                    "source_url": (
+                        "https://jamanetwork.com/journals/jamanetworkopen/"
+                        "fullarticle/2852595"
+                    ),
+                }
+            ],
+        )
+
+        forward = deduplicate([identified, feed_only])
+        reverse = deduplicate([feed_only, identified])
+
+        self.assertEqual(1, len(forward))
+        self.assertEqual("doi:10.1001/jamanetworkopen.2026.28371", forward[0].work_id)
+        self.assertEqual("42574011", forward[0].pmid)
+        self.assertEqual(
+            ["jama_network_open", "pubmed"], forward[0].observed_sources
+        )
+        self.assertEqual(forward[0].work_id, reverse[0].work_id)
+        self.assertEqual(forward[0].landing_url, reverse[0].landing_url)
+
+    def test_dedup_does_not_attach_identifierless_record_from_another_source(self) -> None:
+        identified = Candidate(
+            title="A sufficiently specific shared research article title",
+            stream="clinical",
+            category="clinical_medicine",
+            source="publisher_a",
+            publication_date="2026-08-10",
+            doi="10.1000/source-a",
+            observed_sources=["publisher_a"],
+        )
+        identifierless = Candidate(
+            title=identified.title,
+            stream="clinical",
+            category="clinical_medicine",
+            source="publisher_b",
+            publication_date="2026-08-10",
+            observed_sources=["publisher_b"],
+        )
+
+        self.assertEqual(2, len(deduplicate([identified, identifierless])))
+
+    def test_dedup_generic_publisher_label_is_not_positive_source_evidence(self) -> None:
+        identified = Candidate(
+            title="A sufficiently specific shared research article title",
+            stream="clinical",
+            category="clinical_medicine",
+            source="publisher",
+            publication_date="2026-08-10",
+            doi="10.1000/generic-publisher",
+        )
+        identifierless = Candidate(
+            title=identified.title,
+            stream="clinical",
+            category="clinical_medicine",
+            source="publisher",
+            publication_date="2026-08-10",
+        )
+
+        self.assertEqual(2, len(deduplicate([identified, identifierless])))
+
     def test_dedup_keeps_same_title_with_conflicting_dois_separate(self) -> None:
         first = Candidate(
             title="Shared short title",

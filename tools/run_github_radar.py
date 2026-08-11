@@ -2465,11 +2465,48 @@ def deduplicate(candidates: Iterable[Candidate]) -> list[Candidate]:
             }
             for group in grouped_candidates
         ]
+        generic_source_ids = {
+            "formal",
+            "formalproceedingsorpublisher",
+            "publisher",
+            "unknown",
+        }
+        source_sets = [
+            {
+                normalized
+                for candidate in group
+                for source_id in [
+                    candidate.source,
+                    *(candidate.observed_sources or []),
+                ]
+                if (
+                    normalized := re.sub(
+                        r"[^a-z0-9]+", "", str(source_id).casefold()
+                    )
+                )
+                and normalized not in generic_source_ids
+            }
+            for group in grouped_candidates
+        ]
         author_match = bool(
             all(author_sets) and set.intersection(*author_sets)
         )
         venue_match = bool(all(venue_sets) and set.intersection(*venue_sets))
-        return author_match or venue_match
+        # Publisher-native feeds may omit DOI, PMID, authors and venue even
+        # when another observation from that exact adapter was enriched by an
+        # index.  Exact title/date plus the same non-generic source is strong
+        # enough to attach only an identifierless component.  Conflicting
+        # identifiers are still rejected above before this bridge is reached.
+        has_identifierless_component = any(
+            all(not candidate.identifiers for candidate in group)
+            for group in grouped_candidates
+        )
+        source_match = bool(
+            has_identifierless_component
+            and all(source_sets)
+            and set.intersection(*source_sets)
+        )
+        return author_match or venue_match or source_match
 
     for title, indexes in sorted(by_title.items()):
         roots = sorted({find(index) for index in indexes})
