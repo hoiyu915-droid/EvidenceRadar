@@ -327,14 +327,32 @@ class WorkPackTests(unittest.TestCase):
             discovery_sources = (
                 "acl_anthology",
                 "arxiv",
+                "eclinicalmedicine",
                 "europe_pmc",
                 "jama_network_open",
+                "lancet",
+                "lancet_digital_health",
+                "lancet_global_health",
+                "lancet_healthy_longevity",
+                "lancet_regional_health_americas",
+                "lancet_regional_health_europe",
+                "lancet_regional_health_western_pacific",
                 "nature_communications",
                 "openalex",
                 "openreview",
                 "pmlr",
                 "pubmed",
             )
+            lancet_issns = {
+                "eclinicalmedicine": "2589-5370",
+                "lancet": "0140-6736",
+                "lancet_digital_health": "2589-7500",
+                "lancet_global_health": "2214-109X",
+                "lancet_healthy_longevity": "2666-7568",
+                "lancet_regional_health_americas": "2667-193X",
+                "lancet_regional_health_europe": "2666-7762",
+                "lancet_regional_health_western_pacific": "2666-6065",
+            }
             inventory_urls = {
                 "jama_network_open": (
                     "https://api.crossref.org/journals/2574-3805/works?"
@@ -346,6 +364,14 @@ class WorkPackTests(unittest.TestCase):
                     "filter=from-online-pub-date%3A2026-08-06%2Cuntil-online-pub-date%3A2026-08-09"
                     "&rows=1000&cursor=%2A"
                 ),
+                **{
+                    source: (
+                        f"https://api.crossref.org/journals/{issn}/works?"
+                        "filter=from-online-pub-date%3A2026-08-06%2Cuntil-online-pub-date%3A2026-08-09"
+                        "&rows=1000&cursor=%2A"
+                    )
+                    for source, issn in lancet_issns.items()
+                },
             }
             queries = [
                 {
@@ -365,7 +391,7 @@ class WorkPackTests(unittest.TestCase):
                     "provider": source,
                     "url": (
                         inventory_urls[source]
-                        if source in {"jama_network_open", "nature_communications"}
+                        if source in inventory_urls
                         else f"https://example.test/{source}"
                     ),
                     "accessed_at": end_at.isoformat(),
@@ -373,12 +399,12 @@ class WorkPackTests(unittest.TestCase):
                     "result_count": 1 if source == "pubmed" else 0,
                     "http_requests_attempted": (
                         2
-                        if source in {"jama_network_open", "nature_communications"}
+                        if source in inventory_urls
                         else 1
                     ),
                     "http_responses_received": (
                         2
-                        if source in {"jama_network_open", "nature_communications"}
+                        if source in inventory_urls
                         else 1
                     ),
                     "cache_reused": False,
@@ -394,7 +420,7 @@ class WorkPackTests(unittest.TestCase):
                             "inventory_pages_requested": 2,
                             "inventory_pages_received": 2,
                         }
-                        if source in {"jama_network_open", "nature_communications"}
+                        if source in inventory_urls
                         else {}
                     ),
                 }

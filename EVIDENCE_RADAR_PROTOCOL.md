@@ -119,10 +119,14 @@ For every enabled stream:
 
 Minimum source targets are defined in `config/streams.yml`. The GitHub lane
 implements discovery checks for PubMed, Europe PMC, OpenAlex, arXiv,
-OpenReview, ACL Anthology and PMLR. Publisher and formal-proceedings targets
-remain bounded verification-stage checks. A primary registry, repository,
-proceedings page or publisher page is still required at the verification level
-claimed by the report.
+OpenReview, ACL Anthology, PMLR and configured named `rss_atom` journals.
+The first Lancet batch keeps eight journal identities separate while reusing
+the shared adapter; each source binds its first-party ScienceDirect feed to an
+ISSN-specific Crossref journal-window fallback. A first-party feed failure
+remains a visible source gap even when Crossref retains candidates. Publisher
+and formal-proceedings targets remain bounded verification-stage checks. A
+primary registry, repository, proceedings page or publisher page is still
+required at the verification level claimed by the report.
 
 ### OA and full-text access semantics
 

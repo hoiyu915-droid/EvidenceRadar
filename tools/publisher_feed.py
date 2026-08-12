@@ -5,7 +5,7 @@ import re
 from datetime import date, datetime
 from email.utils import parsedate_to_datetime
 from typing import Any
-from urllib.parse import quote, urljoin
+from urllib.parse import parse_qsl, quote, urlencode, urljoin, urlsplit, urlunsplit
 
 from defusedxml import ElementTree as ET
 from defusedxml.common import DefusedXmlException
@@ -69,6 +69,63 @@ def _normalized_date(value: Any) -> str:
         return parsedate_to_datetime(text).date().isoformat()
     except (TypeError, ValueError, OverflowError):
         return ""
+
+
+def _sciencedirect_description_metadata(
+    description: str,
+) -> tuple[str, str, list[str]]:
+    """Extract citation metadata explicitly labelled by ScienceDirect RSS.
+
+    ScienceDirect items do not expose ``pubDate`` or PRISM date fields.  Their
+    description labels an exact ``Available online`` date, venue and authors.
+    Month-only issue dates are deliberately rejected because they cannot prove
+    a 72-hour first-online publication event.
+    """
+
+    text = _strip_markup(description)
+    date_match = re.search(
+        r"Publication date:\s*Available online\s+"
+        r"(\d{1,2}\s+[A-Za-z]+\s+\d{4})(?=\s+Source:|$)",
+        text,
+        flags=re.IGNORECASE,
+    )
+    publication_date = ""
+    if date_match:
+        try:
+            publication_date = datetime.strptime(
+                date_match.group(1), "%d %B %Y"
+            ).date().isoformat()
+        except ValueError:
+            publication_date = ""
+    venue_match = re.search(
+        r"Source:\s*(.+?)(?=\s+Author\(s\):|$)",
+        text,
+        flags=re.IGNORECASE,
+    )
+    venue = re.sub(
+        r",\s*Volume\s+.*$", "", venue_match.group(1), flags=re.IGNORECASE
+    ).strip() if venue_match else ""
+    author_match = re.search(
+        r"Author\(s\):\s*(.*)$", text, flags=re.IGNORECASE
+    )
+    authors = [
+        value.strip()
+        for value in (author_match.group(1).split(",") if author_match else [])
+        if value.strip()
+    ]
+    return publication_date, venue, authors
+
+
+def _canonical_feed_link(link: str) -> str:
+    """Remove ScienceDirect's RSS campaign parameter from article identity."""
+
+    parsed = urlsplit(link)
+    if parsed.hostname not in {"sciencedirect.com", "www.sciencedirect.com"}:
+        return link
+    query = urlencode(
+        [(key, value) for key, value in parse_qsl(parsed.query) if key != "dgcid"]
+    )
+    return urlunsplit((parsed.scheme, parsed.netloc, parsed.path, query, parsed.fragment))
 
 
 def _in_window(value: str, start_date: date, end_date: date) -> bool:
@@ -237,17 +294,52 @@ def parse_feed(
                 )
             continue
         link = _first_local(item, ["link"]) or _first_text(item, [f"{DC}identifier"])
-        published_raw = _first_text(item, [f"{DC}date", f"{PRISM_2}publicationDate", f"{PRISM_1}publicationDate"]) or _first_local(item, ["pubDate", "date", "publicationDate"])
+        link = _canonical_feed_link(link)
+        description = _first_text(item, [f"{DC}description"]) or _first_local(
+            item, ["description"]
+        )
+        published_raw = _first_text(
+            item,
+            [f"{DC}date", f"{PRISM_2}publicationDate", f"{PRISM_1}publicationDate"],
+        ) or _first_local(item, ["pubDate", "date", "publicationDate"])
+        publication_date = _normalized_date(published_raw)
+        venue = _first_text(
+            item, [f"{PRISM_2}publicationName", f"{PRISM_1}publicationName"]
+        )
+        authors = [
+            value
+            for value in [
+                _first_text(item, [f"{DC}creator"])
+                or _first_local(item, ["author", "creator"])
+            ]
+            if value
+        ]
+        source_field = (
+            "dc:date"
+            if item.find(f"{DC}date") is not None
+            else "rss:pubDate"
+            if published_raw
+            else ""
+        )
+        if not publication_date and urlsplit(feed_url).hostname == "rss.sciencedirect.com":
+            publication_date, description_venue, description_authors = (
+                _sciencedirect_description_metadata(description)
+            )
+            if publication_date:
+                published_raw = publication_date
+                source_field = "rss:description:available_online"
+            venue = venue or description_venue
+            authors = authors or description_authors
         records.append({
             "title": title,
             "landing_url": urljoin(feed_url, link),
-            "publication_date": _normalized_date(published_raw),
+            "publication_date": publication_date,
             "published_raw": published_raw,
-            "summary": _strip_markup(_first_text(item, [f"{DC}description"]) or _first_local(item, ["description"])),
-            "authors": [value for value in [_first_text(item, [f"{DC}creator"]) or _first_local(item, ["author", "creator"])] if value],
-            "venue": _first_text(item, [f"{PRISM_2}publicationName", f"{PRISM_1}publicationName"]),
+            "summary": _strip_markup(description),
+            "authors": authors,
+            "venue": venue,
             "doi": _doi(item),
-            "source_field": "dc:date" if item.find(f"{DC}date") is not None else "rss:pubDate",
+            "source_field": source_field,
             "feed_url": feed_url,
             "source_id": source_id,
         })

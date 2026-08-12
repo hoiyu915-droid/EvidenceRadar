@@ -134,6 +134,14 @@ from required telemetry, fail closed with incomplete retrieval and a visible
 source gap. Never downgrade a configured hybrid source to a single inventory
 surface while claiming complete coverage.
 
+ScienceDirect RSS items label exact first-online dates inside the description
+as `Publication date: Available online ...`; the shared parser records those
+as `rss:description:available_online`. A month-only issue label is not an exact
+publication event and must not be moved into the 72-hour window. RSS
+descriptions remain discovery metadata only: they may support navigation and
+bibliographic identity, but never scientific claims or observed full-text
+access.
+
 Use one of the protocol modes:
 
 - `daily`: the exact 72-hour rolling window and all configured categories;

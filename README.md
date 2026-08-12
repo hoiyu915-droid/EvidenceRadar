@@ -93,8 +93,10 @@ response。任何英文題名未成功翻譯、數字／年份／縮寫遺失，
 verification 沒有合資格候選。CHECK 狀態固定為：
 
 目前 discovery adapters 覆蓋 PubMed、Europe PMC、OpenAlex、arXiv、OpenReview、
-ACL Anthology 與 PMLR；publisher 與 formal proceedings 走後段 bounded
-verification check。
+ACL Anthology、PMLR，以及以共用 `rss_atom` 執行的 named journal sources。後者包括
+JAMA、Nature 與第一批 8 個 Lancet 家族來源；Lancet 批次同時查官方 ScienceDirect
+RSS 和 ISSN 綁定的 Crossref journal window。publisher 與 formal proceedings 走後段
+bounded verification check。
 
 | 狀態 | 意義 |
 |---|---|
