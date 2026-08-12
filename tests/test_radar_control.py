@@ -124,6 +124,48 @@ class RadarControlTests(unittest.TestCase):
                 "ScienceDirect", runtime_catalog[source_id]["platform"]
             )
 
+    def test_curated_elsevier_sources_are_verified_in_bounded_batches(self) -> None:
+        groups = [
+            "elsevier_sport_core",
+            "elsevier_nutrition_core",
+            "elsevier_llm_core",
+            "elsevier_human_ai_core",
+            "elsevier_clinical_methods_ai",
+        ]
+        expected = set().union(
+            *(set(self.master["source_groups"][group]) for group in groups)
+        )
+        self.assertEqual(30, len(expected))
+        batch_counts: dict[str, int] = {}
+        runtime_catalog = self.runtime("owner_daily").streams["source_catalog"]
+        for source_id in expected:
+            source = self.master["sources"][source_id]
+            self.assertEqual("Elsevier", source["publisher"])
+            self.assertEqual("ScienceDirect", source["platform"])
+            self.assertEqual("rss_atom", source["adapter"])
+            self.assertEqual("active", source["status"])
+            self.assertTrue(source["enabled"])
+            self.assertEqual([source["endpoint"]], source["feeds"])
+            self.assertTrue(source["endpoint"].startswith("https://rss.sciencedirect.com/"))
+            self.assertEqual("verify_per_work", source["oa_mode"])
+            self.assertEqual("verified_parseable", source["feed_endpoint_status"])
+            self.assertEqual("crossref_journal_window", source["fallback_backend"])
+            self.assertRegex(source["crossref_issn"], r"^\d{4}-[\dX]{4}$")
+            batch = source["activation_batch"]
+            batch_counts[batch] = batch_counts.get(batch, 0) + 1
+            self.assertEqual(
+                source["crossref_issn"], runtime_catalog[source_id]["crossref_issn"]
+            )
+        self.assertEqual(
+            {
+                "2026-08-13-elsevier-02": 8,
+                "2026-08-13-elsevier-03": 8,
+                "2026-08-13-elsevier-04": 8,
+                "2026-08-13-elsevier-05": 6,
+            },
+            batch_counts,
+        )
+
     def test_unverified_or_semantically_blocked_oa_sources_remain_planned(self) -> None:
         sources = self.master["sources"]
         for source_id in [
@@ -215,7 +257,7 @@ class RadarControlTests(unittest.TestCase):
             "llm_research",
             "human_ai",
         ])
-        self.assertEqual(len(requested), 19)
+        self.assertEqual(len(requested), 49)
         self.assertIn("jama_network_open", requested)
         self.assertIn("nature_communications", requested)
         self.assertEqual(
@@ -223,6 +265,13 @@ class RadarControlTests(unittest.TestCase):
             & requested,
             set(self.master["source_groups"]["lancet_clinical_core"]),
         )
+        elsevier = {
+            source_id
+            for source_id, source in self.master["sources"].items()
+            if source.get("publisher") == "Elsevier"
+        }
+        self.assertEqual(30, len(elsevier))
+        self.assertEqual(elsevier, elsevier & requested)
         self.assertNotIn("scientific_reports", requested)
         self.assertNotIn("nature_physics", requested)
         self.assertNotIn("communications_physics", requested)
@@ -266,6 +315,48 @@ class RadarControlTests(unittest.TestCase):
             self.assertNotIn(
                 "lancet_digital_health",
                 runtime.streams["streams"][stream_id]["sources"],
+            )
+
+    def test_elsevier_routes_match_the_five_curated_topic_lines(self) -> None:
+        runtime = self.runtime("owner_daily")
+        expected = {
+            "owner_elsevier_sport": ("sport_science", "elsevier_sport_core"),
+            "owner_elsevier_nutrition": (
+                "sport_nutrition_fitness",
+                "elsevier_nutrition_core",
+            ),
+            "owner_elsevier_llm": ("llm_research", "elsevier_llm_core"),
+            "owner_elsevier_human_ai": ("human_ai", "elsevier_human_ai_core"),
+            "owner_elsevier_clinical_ai": (
+                "clinical_medicine",
+                "elsevier_clinical_methods_ai",
+            ),
+        }
+        for stream_id, (category, group) in expected.items():
+            stream = runtime.streams["streams"][stream_id]
+            self.assertEqual(category, self.master["stream_routing"][stream_id]["category"])
+            self.assertEqual(
+                set(self.master["source_groups"][group]), set(stream["sources"])
+            )
+            [query] = stream["queries"]
+            self.assertTrue(query.startswith('"'), stream_id)
+            self.assertTrue(query.endswith('"'), stream_id)
+        for stream_id in (
+            "llm_l1_model_behavior",
+            "llm_l2_context_inference",
+            "llm_l3_retrieval_grounding",
+            "llm_l4_memory_personalization",
+            "llm_l5_agents_decision",
+            "llm_l6_multi_agent",
+            "llm_l7_systems_runtime",
+            "llm_l8_training_architecture",
+            "llm_l9_evaluation_measurement",
+        ):
+            self.assertFalse(
+                any(
+                    source.startswith("elsevier_")
+                    for source in runtime.streams["streams"][stream_id]["sources"]
+                )
             )
 
     def test_owner_nature_queries_use_explicit_phrase_alternatives(self) -> None:

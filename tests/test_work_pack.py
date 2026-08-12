@@ -18,6 +18,7 @@ from zoneinfo import ZoneInfo
 
 from tools.build_work_pack import build_work_pack, collect_source_files, load_pack_spec
 from tools.delivery_contract import WORK_PRODUCER_PATHS
+from tools.radar_control import load_master_runtime
 from tools.run_github_radar import Candidate, event_record
 from tools.verify_work_pack import (
     WorkPackVerificationError,
@@ -324,54 +325,30 @@ class WorkPackTests(unittest.TestCase):
                 triage_status="PRIORITY",
                 triage_reasons=["fixture"],
             )
-            discovery_sources = (
-                "acl_anthology",
-                "arxiv",
-                "eclinicalmedicine",
-                "europe_pmc",
-                "jama_network_open",
-                "lancet",
-                "lancet_digital_health",
-                "lancet_global_health",
-                "lancet_healthy_longevity",
-                "lancet_regional_health_americas",
-                "lancet_regional_health_europe",
-                "lancet_regional_health_western_pacific",
-                "nature_communications",
-                "openalex",
-                "openreview",
-                "pmlr",
-                "pubmed",
+            runtime = load_master_runtime(
+                ROOT / "config" / "radar_master.json", profile_id="owner_daily"
             )
-            lancet_issns = {
-                "eclinicalmedicine": "2589-5370",
-                "lancet": "0140-6736",
-                "lancet_digital_health": "2589-7500",
-                "lancet_global_health": "2214-109X",
-                "lancet_healthy_longevity": "2666-7568",
-                "lancet_regional_health_americas": "2667-193X",
-                "lancet_regional_health_europe": "2666-7762",
-                "lancet_regional_health_western_pacific": "2666-6065",
+            discovery_sources = tuple(
+                sorted(
+                    source
+                    for source, stage in runtime.streams["source_check_contract"][
+                        "stage_by_source"
+                    ].items()
+                    if stage == "discovery"
+                )
+            )
+            hybrid_issns = {
+                source: config["crossref_issn"]
+                for source, config in runtime.streams["source_catalog"].items()
+                if config.get("adapter") == "rss_atom" and config.get("crossref_issn")
             }
             inventory_urls = {
-                "jama_network_open": (
-                    "https://api.crossref.org/journals/2574-3805/works?"
+                source: (
+                    f"https://api.crossref.org/journals/{issn}/works?"
                     "filter=from-online-pub-date%3A2026-08-06%2Cuntil-online-pub-date%3A2026-08-09"
                     "&rows=1000&cursor=%2A"
-                ),
-                "nature_communications": (
-                    "https://api.crossref.org/journals/2041-1723/works?"
-                    "filter=from-online-pub-date%3A2026-08-06%2Cuntil-online-pub-date%3A2026-08-09"
-                    "&rows=1000&cursor=%2A"
-                ),
-                **{
-                    source: (
-                        f"https://api.crossref.org/journals/{issn}/works?"
-                        "filter=from-online-pub-date%3A2026-08-06%2Cuntil-online-pub-date%3A2026-08-09"
-                        "&rows=1000&cursor=%2A"
-                    )
-                    for source, issn in lancet_issns.items()
-                },
+                )
+                for source, issn in hybrid_issns.items()
             }
             queries = [
                 {

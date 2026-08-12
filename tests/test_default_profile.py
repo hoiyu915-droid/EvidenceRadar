@@ -52,6 +52,14 @@ class DefaultProfileTests(unittest.TestCase):
         self.assertIn(
             "owner_lancet_digital_health_llm", runtime.streams["streams"]
         )
+        for stream_id in (
+            "owner_elsevier_sport",
+            "owner_elsevier_nutrition",
+            "owner_elsevier_llm",
+            "owner_elsevier_human_ai",
+            "owner_elsevier_clinical_ai",
+        ):
+            self.assertIn(stream_id, runtime.streams["streams"])
 
     def test_checked_in_runner_accepts_profile_without_a_patch_step(self) -> None:
         args = parse_args(
