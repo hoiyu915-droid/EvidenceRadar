@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import re
 import sys
 import unittest
 from pathlib import Path
@@ -16,6 +17,7 @@ from radar_control import (  # noqa: E402
     load_master,
     project_runtime_limits,
 )
+from run_github_radar import Candidate, score_candidate  # noqa: E402
 
 
 class RadarControlTests(unittest.TestCase):
@@ -190,6 +192,44 @@ class RadarControlTests(unittest.TestCase):
             runtime.limits["selection"]["per_category"]["llm_research"],
             {"target": 6, "hard_max": 10},
         )
+
+    def test_owner_nature_queries_use_explicit_phrase_alternatives(self) -> None:
+        runtime = self.runtime("owner_daily")
+        stream_ids = [
+            "owner_ncomms_clinical",
+            "owner_ncomms_sport",
+            "owner_ncomms_sport_nutrition",
+            "owner_ncomms_llm",
+            "owner_ncomms_human_ai",
+        ]
+        for stream_id in stream_ids:
+            [query] = runtime.streams["streams"][stream_id]["queries"]
+            self.assertTrue(query.startswith('"'), stream_id)
+            self.assertTrue(query.endswith('"'), stream_id)
+
+    def test_every_owner_nature_query_phrase_can_meet_routing_threshold(self) -> None:
+        runtime = self.runtime("owner_daily")
+        scoring = runtime.scoring
+        for stream_id, stream in runtime.streams["streams"].items():
+            if not stream_id.startswith("owner_ncomms_"):
+                continue
+            category = self.master["stream_routing"][stream_id]["category"]
+            [query] = stream["queries"]
+            phrases = re.findall(r'"([^\"]+)"', query)
+            self.assertTrue(phrases, stream_id)
+            for phrase in phrases:
+                item = Candidate(
+                    title=phrase,
+                    stream=stream_id,
+                    category=category,
+                    source="nature_communications",
+                    publication_date="2026-08-12",
+                    doi="10.1038/s41467-026-fixture",
+                    open_access=True,
+                )
+                score = score_candidate(item, stream["relevance_terms"])
+                minimum = scoring["category_min_relevance"][category]
+                self.assertGreaterEqual(score, minimum, (stream_id, phrase, score))
 
     def test_runtime_limit_projection_is_pure_and_owner_bound(self) -> None:
         runtime = self.runtime("owner_daily")
