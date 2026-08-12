@@ -10,6 +10,7 @@ Pack.
 from __future__ import annotations
 
 import hashlib
+import re
 import subprocess
 from pathlib import Path
 
@@ -19,6 +20,12 @@ BUNDLE_FILENAMES = (
     "EvidenceRadar_Evidence.json",
     "EvidenceRadar_Run.json",
 )
+
+PUBLICATION_CURRENT_ROOT = "artifacts/current"
+PUBLICATION_RUNS_ROOT = "runs"
+PUBLICATION_STATE_PATH = "state/current/EvidenceRadar_State.json"
+PUBLICATION_HISTORY_PATH = "runs/pages-history.json"
+SAFE_RUN_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9+._-]{0,191}\Z")
 
 CORE_CONTRACT_PATHS = (
     "EVIDENCE_RADAR_PROTOCOL.md",
@@ -66,6 +73,7 @@ WORK_PRODUCER_PATHS = CORE_CONTRACT_PATHS + (
     "tools/materialize_delivery_aliases.py",
     "tools/package_work_delivery.py",
     "tools/publisher_feed.py",
+    "tools/publication_preflight.py",
     "tools/radar_control.py",
     "tools/render_report_from_artifacts.py",
     "tools/run_github_radar.py",
@@ -79,6 +87,23 @@ WORK_PRODUCER_PATHS = CORE_CONTRACT_PATHS + (
 
 def sha256_bytes(payload: bytes) -> str:
     return hashlib.sha256(payload).hexdigest()
+
+
+def publication_stage_paths(run_id: str) -> tuple[str, ...]:
+    """Return the only repository paths authorized for one publication.
+
+    The path set is derived from the canonical delivery contract instead of
+    copying artifact names into an automation prompt.  A malformed run ID is
+    rejected before any path is constructed.
+    """
+
+    if not SAFE_RUN_ID.fullmatch(run_id):
+        raise ValueError(f"unsafe EvidenceRadar run_id: {run_id!r}")
+    current = tuple(f"{PUBLICATION_CURRENT_ROOT}/{name}" for name in BUNDLE_FILENAMES)
+    immutable = tuple(
+        f"{PUBLICATION_RUNS_ROOT}/{run_id}/{name}" for name in BUNDLE_FILENAMES
+    )
+    return current + (PUBLICATION_STATE_PATH,) + immutable + (PUBLICATION_HISTORY_PATH,)
 
 
 def producer_paths(execution_lane: str) -> tuple[str, ...]:

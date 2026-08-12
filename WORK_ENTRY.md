@@ -113,3 +113,11 @@ The input, run and delivery paths must be outside the verified package and both
 output directories must be fresh. Success is the executor's `status: COMPLETE`
 with four `delivery_aliases`; its single command performs State advancement,
 canonical rendering, both validators, immutable packaging and alias creation.
+
+Before any scheduled publication performs live discovery, derive its exact
+repository stage plan from `tools/delivery_contract.py` and run
+`tools/publication_preflight.py --run-id <run-id>`. After packaging, run the
+same preflight with the WorkRun `manifest.json`, canonical source directory and
+every prospective staged path. A contract mismatch is
+`CONTRACT_PREFLIGHT_BLOCKED`; it blocks publication before expensive discovery
+when detectable, but it does not invalidate an already validated WorkRun.
