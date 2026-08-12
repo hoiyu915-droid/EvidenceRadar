@@ -35,8 +35,8 @@ from tools.delivery_contract import (
     WORK_PRODUCER_PATHS,
     current_producer_errors,
 )
+from tools.strict_json import loads as strict_json_loads
 from tools.validate_gpt_work_artifacts import load_json, validate_document
-
 
 PROVENANCE_FIELDS = (
     "execution_lane",
@@ -88,6 +88,7 @@ EXPECTED_ARTIFACT_MAP = {
     "run_json": "EvidenceRadar_Run.json",
 }
 WORK_PACK_CAPABILITIES = {
+    "DETERMINISTIC_WORK_EXECUTOR_V1",
     "EXECUTOR_HTTP_TELEMETRY_V1",
     "MASTER_CONTROL_V1",
     "TERMINAL_FOUR_ARTIFACT_DELIVERY_V1",
@@ -456,7 +457,7 @@ def _configured_streams_for_run(
             if payload is None:
                 continue
             try:
-                parsed = json.loads(payload)
+                parsed = strict_json_loads(payload)
             except json.JSONDecodeError as exc:
                 errors.append(f"Run.notes {label} is invalid JSON: {exc}")
                 continue
@@ -631,7 +632,7 @@ def _study_classification_errors(
 
 def _load_object(path: Path, errors: list[str]) -> dict[str, Any] | None:
     try:
-        value = json.loads(path.read_text(encoding="utf-8"))
+        value = strict_json_loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         errors.append(f"{path.name}: cannot load JSON: {exc}")
         return None
@@ -3169,6 +3170,8 @@ def _manifest_errors(
         errors.append("Work Pack manifest execution_lane must be chatgpt_work")
     if manifest.get("entrypoint") != WORK_PACK_ENTRYPOINT:
         errors.append(f"Work Pack manifest entrypoint must be {WORK_PACK_ENTRYPOINT}")
+    if manifest.get("executor") != "tools/run_work_radar.py":
+        errors.append("Work Pack manifest executor must be tools/run_work_radar.py")
     if manifest.get("terminal_delivery") is not True:
         errors.append("Work Pack manifest must require terminal delivery")
     if manifest.get("canonical_artifacts") != list(BUNDLE_FILENAMES):

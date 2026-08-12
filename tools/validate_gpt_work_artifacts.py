@@ -14,12 +14,20 @@ from __future__ import annotations
 import argparse
 import datetime as _datetime
 import json
+import math
 import re
 import sys
 from pathlib import Path
 from typing import Any, Iterable
 from urllib.parse import urlparse
 
+# This validator is shipped inside the read-only Work Pack.
+sys.dont_write_bytecode = True
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from tools.strict_json import load_path as strict_json_load_path
 
 JsonValue = Any
 
@@ -44,6 +52,7 @@ def _json_type_matches(value: JsonValue, expected: str) -> bool:
         return (
             isinstance(value, (int, float))
             and not isinstance(value, bool)
+            and (not isinstance(value, float) or math.isfinite(value))
         )
     return True
 
@@ -256,8 +265,7 @@ def validate_document(document: JsonValue, schema: dict[str, Any]) -> list[str]:
 
 
 def load_json(path: Path) -> Any:
-    with path.open("r", encoding="utf-8") as handle:
-        return json.load(handle)
+    return strict_json_load_path(path)
 
 
 def schema_for_artifact(artifact_path: Path, schema_dir: Path) -> Path:

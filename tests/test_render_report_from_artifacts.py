@@ -8,8 +8,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from tests.test_delivery_bundle import ROOT, create_bundle
 import tools.render_report_from_artifacts as renderer
+from tests.test_delivery_bundle import ROOT, create_bundle
 from tools.render_report_from_artifacts import render_bundle
 from tools.run_github_radar import RadarRuntimeError, render_report_from_documents
 from tools.validate_delivery_bundle import validate_delivery_bundle

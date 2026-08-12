@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-import re
 import unittest
 from pathlib import Path
-
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / "legacy" / "github-actions" / "daily-radar.yml"
@@ -69,7 +67,13 @@ class GithubDeploymentSurfaceTests(unittest.TestCase):
             self.assertIn(option, self.workflow)
 
     def test_maintenance_and_runtime_tests_are_run(self) -> None:
-        self.assertIn("pip install -r requirements.txt", self.workflow)
+        self.assertIn(
+            "pip install --require-hashes -r requirements.lock", self.workflow
+        )
+        self.assertIn(
+            "pip install --require-hashes -r legacy/python-runtime/requirements.lock",
+            self.workflow,
+        )
         self.assertIn("python tools/validate_public_release.py", self.workflow)
         self.assertIn("python -m unittest discover -s tests -v", self.workflow)
         self.assertIn("working-directory: legacy/python-runtime", self.workflow)
@@ -88,7 +92,10 @@ class GithubDeploymentSurfaceTests(unittest.TestCase):
         self.assertIn("EvidenceRadar_TranslationRequest.json", self.workflow)
         self.assertIn("TRANSLATION_REQUIRED", self.workflow)
         self.assertIn("--translation-request", self.workflow)
-        self.assertIn("uses: actions/upload-artifact@v7.0.1", self.workflow)
+        self.assertIn(
+            "uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1",
+            self.workflow,
+        )
         self.assertIn("if-no-files-found: error", self.workflow)
         self.assertNotIn("Verify four EvidenceRadar artifacts", self.workflow)
         self.assertNotIn("EvidenceRadar_Report.html", self.workflow)
@@ -206,7 +213,7 @@ class GithubDeploymentSurfaceTests(unittest.TestCase):
             "permissions:",
             "pages: write",
             "id-token: write",
-            "actions/configure-pages@v6.0.0",
+            "actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0",
             "Require exact main checkout",
             'GITHUB_REF_NAME" != "main',
             "git fetch --no-tags origin main",
@@ -227,13 +234,13 @@ class GithubDeploymentSurfaceTests(unittest.TestCase):
             "--history-manifest runs/pages-history.json",
             '--history-baseline-ref "${{ steps.history_baseline.outputs.ref }}"',
             "--skip-current-producer-check",
-            "actions/upload-pages-artifact@v5.0.0",
-            "actions/deploy-pages@v5.0.0",
+            "actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0",
+            "actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0",
             "links.json",
         ):
             self.assertIn(marker, self.pages_workflow)
         install_index = self.pages_workflow.index(
-            "python -m pip install -r requirements.txt"
+            "python -m pip install --require-hashes -r requirements.lock"
         )
         main_index = self.pages_workflow.index("Require exact main checkout")
         baseline_index = self.pages_workflow.index(
@@ -266,7 +273,7 @@ class GithubDeploymentSurfaceTests(unittest.TestCase):
         ):
             self.assertNotIn(forbidden, self.pages_workflow)
 
-    def test_pages_push_requires_a_canonical_artifact_change(self) -> None:
+    def test_pages_push_tracks_artifacts_and_site_builder_dependencies(self) -> None:
         push_paths = self.pages_workflow[
             self.pages_workflow.index("  push:\n") : self.pages_workflow.index(
                 "permissions:", self.pages_workflow.index("  push:\n")
@@ -275,6 +282,14 @@ class GithubDeploymentSurfaceTests(unittest.TestCase):
         self.assertIn('"artifacts/current/**"', push_paths)
         self.assertIn('"state/current/EvidenceRadar_State.json"', push_paths)
         self.assertIn('"runs/**"', push_paths)
+        for dependency in (
+            '".github/workflows/pages.yml"',
+            '"requirements.lock"',
+            '"tools/build_pages_site.py"',
+            '"tools/strict_json.py"',
+            '"tools/validate_delivery_bundle.py"',
+        ):
+            self.assertIn(dependency, push_paths)
         baseline = self.pages_workflow[
             self.pages_workflow.index("Resolve previous immutable history revision") :
             self.pages_workflow.index("Detect canonical byte changes")
@@ -293,13 +308,7 @@ class GithubDeploymentSurfaceTests(unittest.TestCase):
         self.assertIn('git diff --quiet "$HISTORY_BASELINE" "$GITHUB_SHA"', detection)
         self.assertIn("artifacts/current state/current/EvidenceRadar_State.json", detection)
         self.assertIn('echo "canonical_changed=$canonical_changed"', detection)
-        for forbidden in (
-            '"public/reports/**"',
-            '"schemas/**"',
-            '"config/**"',
-            '"tools/',
-            '".github/workflows/pages.yml"',
-        ):
+        for forbidden in ('"public/reports/**"', '"schemas/**"', '"config/**"'):
             self.assertNotIn(forbidden, push_paths)
 
     def test_documentation_covers_template_secrets_state_and_work_boundary(self) -> None:

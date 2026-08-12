@@ -35,15 +35,18 @@ successful execution.
 
 ## Source mode: released Work Pack
 
-When the user asks to execute Radar, download the current Work Pack and
-checksum exactly once:
+When the user asks to execute Radar, download the current Work Pack, checksum
+and signed provenance bundle exactly once:
 
 ```text
 https://github.com/hoiyu915-droid/EvidenceRadar/releases/latest/download/EvidenceRadar-WorkPack-current.zip
 https://github.com/hoiyu915-droid/EvidenceRadar/releases/latest/download/EvidenceRadar-WorkPack-current.zip.sha256
+https://github.com/hoiyu915-droid/EvidenceRadar/releases/latest/download/EvidenceRadar-WorkPack-current.sigstore.json
 ```
 
-Verify the checksum, extract the ZIP, then run
+Verify the SLSA provenance bundle against this repository's
+`.github/workflows/work-pack-release.yml` signer, verify the checksum, extract
+the ZIP, then run
 `python3 tools/verify_work_pack.py --root .`. Read `WORK_ENTRY.md` before any
 other packaged instruction. Record `manifest.json.source_commit` as the exact
 protocol commit for the whole run.
@@ -83,6 +86,15 @@ renderer imports its report projection; its CLI is manifest-disabled and must
 not be invoked. `run_local_runtime.py` and Stage B automation belong to the
 separate maintainer Runtime and are absent. A missing `radar_master.json`,
 unknown profile or partial source map is a hard failure.
+
+After the live searches and primary-page reads, bind their actual receipts,
+complete candidates and your source-grounded Traditional Chinese translations
+in one external `EvidenceRadar_WorkInput` JSON file. Invoke the packaged
+`tools/run_work_radar.py` once with fresh external run and delivery directories.
+The command must return `status: COMPLETE` and four `delivery_aliases`; it
+performs State advancement, render, validation, packaging and alias creation.
+Do not hand-assemble a prebuilt four-file fixture or substitute prose for the
+input operation ledger.
 
 Use live web search and open the actual authoritative pages. Memory, old reports
 and search snippets are navigation aids only. Never present them as proof of the

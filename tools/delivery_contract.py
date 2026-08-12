@@ -13,7 +13,6 @@ import hashlib
 import subprocess
 from pathlib import Path
 
-
 BUNDLE_FILENAMES = (
     "EvidenceRadar_Report.html",
     "EvidenceRadar_State.json",
@@ -24,6 +23,7 @@ BUNDLE_FILENAMES = (
 CORE_CONTRACT_PATHS = (
     "EVIDENCE_RADAR_PROTOCOL.md",
     "requirements.txt",
+    "requirements.lock",
     "config/deployment.yml",
     "config/radar_master.json",
     "config/output.yml",
@@ -43,14 +43,17 @@ GITHUB_TRANSLATION_CONTRACT_PATHS = (
 GITHUB_PRODUCER_PATHS = CORE_CONTRACT_PATHS + GITHUB_TRANSLATION_CONTRACT_PATHS + (
     "tools/delivery_contract.py",
     "tools/featured_selection.py",
+    "tools/network_safety.py",
     "tools/publisher_feed.py",
     "tools/radar_control.py",
     "tools/run_github_radar.py",
+    "tools/strict_json.py",
     "tools/translation_handoff.py",
     "tools/validate_delivery_bundle.py",
 )
 
 WORK_PRODUCER_PATHS = CORE_CONTRACT_PATHS + (
+    ".agents/skills/evidence-radar/SKILL.md",
     "WORK_ENTRY.md",
     "docs/MIGRATION_DUAL_LANE_1.0.md",
     "docs/WORK_SETUP.md",
@@ -59,12 +62,15 @@ WORK_PRODUCER_PATHS = CORE_CONTRACT_PATHS + (
     "tools/delivery_contract.py",
     "tools/featured_selection.py",
     "tools/merge_radar_state.py",
+    "tools/network_safety.py",
     "tools/materialize_delivery_aliases.py",
     "tools/package_work_delivery.py",
     "tools/publisher_feed.py",
     "tools/radar_control.py",
     "tools/render_report_from_artifacts.py",
     "tools/run_github_radar.py",
+    "tools/run_work_radar.py",
+    "tools/strict_json.py",
     "tools/validate_delivery_bundle.py",
     "tools/validate_gpt_work_artifacts.py",
     "tools/verify_work_pack.py",

@@ -4,7 +4,6 @@ from zoneinfo import ZoneInfo
 from src import events
 from src.radar import Paper
 
-
 JST = ZoneInfo("Asia/Tokyo")
 
 

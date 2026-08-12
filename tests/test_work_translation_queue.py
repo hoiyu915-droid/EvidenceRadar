@@ -24,7 +24,6 @@ from tools.work_translation_queue import (
     validate_submission,
 )
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 

@@ -18,10 +18,14 @@ translation handoff 僅保存在 `legacy/github-actions/`，不會在 `main` 啟
 2. 在自己的 repository 開啟 **Settings → Actions → General**。只有建立 release
    或 Pages publication 的 repository 才需要允許 Actions；使用者執行 Radar
    本身不需要 GitHub Actions 權限。
-3. 確認 default branch 已包含目前的 schema/config、Work Pack builder 與
-   validator。發布 `EvidenceRadar-WorkPack-current.zip` 及其 SHA-256 sidecar；
-   使用者只需讓 GPT 下載並驗證這個 package 一次。
-4. 在 **Settings → Pages → Build and deployment** 把 Source 設成
+3. 在 **Settings → General → Releases** 啟用 immutable releases。管理設定 API
+   需要 `Administration` 權限，Actions 的內建權杖無此權限；因此發布 workflow
+   會在發布後立即讀取 release 的公開 `immutable` 欄位。若不是 `true`，它會刪除
+   該 mutable release 與 tag 並 fail closed，不留下可變資產。
+4. 確認 default branch 已包含目前的 schema/config、Work Pack builder 與
+   validator。發布 `EvidenceRadar-WorkPack-current.zip`、SHA-256 sidecar 與
+   Sigstore/SLSA provenance bundle；使用者只需讓 GPT 下載並驗證一次。
+5. 在 **Settings → Pages → Build and deployment** 把 Source 設成
    **GitHub Actions**。`pages.yml` 只會發布通過四件套、provenance、候選
    ledger/HTML 數量與 producer-version 檢查的 current bundle。
 

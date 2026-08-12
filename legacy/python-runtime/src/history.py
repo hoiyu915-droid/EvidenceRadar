@@ -26,7 +26,11 @@ def _now() -> datetime:
 
 def _title_key(title: str) -> str:
     normalized = core.normalize_title(title)
-    return "title:" + hashlib.sha1(normalized.encode("utf-8")).hexdigest()
+    # Preserve legacy registry keys; this digest is an identity label, not a
+    # signature, MAC, password hash or other security primitive.
+    return "title:" + hashlib.sha1(
+        normalized.encode("utf-8"), usedforsecurity=False
+    ).hexdigest()
 
 
 def aliases_for(paper: core.Paper) -> list[str]:

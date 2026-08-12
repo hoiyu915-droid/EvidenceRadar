@@ -1534,12 +1534,13 @@ class SemanticContractV3Tests(unittest.TestCase):
                 }
             )
             run["source_access"].sort(key=lambda item: item["source_id"])
-            canonical_value = lambda value: json.dumps(
-                value,
-                ensure_ascii=False,
-                sort_keys=True,
-                separators=(",", ":"),
-            )
+            def canonical_value(value):
+                return json.dumps(
+                    value,
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                )
             run["retrieval_attempts"].append(
                 {
                     "attempt_id": self._stable_id(

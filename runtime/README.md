@@ -49,7 +49,7 @@ JSON files in one Work run.
    requirements into the chosen Python environment:
 
    ```sh
-   python3 -m pip install -r requirements.txt
+   python3 -m pip install --require-hashes -r requirements.lock
    ```
 
 4. Keep State and outputs outside the Runtime directory, for example:

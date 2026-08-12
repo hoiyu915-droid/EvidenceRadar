@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+import math
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -10,7 +13,6 @@ from tools.validate_gpt_work_artifacts import (
     main,
     validate_document,
 )
-
 
 ROOT = Path(__file__).resolve().parents[1]
 EXAMPLES = ROOT / "examples"
@@ -26,6 +28,19 @@ def _schema(name: str) -> dict:
 
 
 class GptWorkArtifactSchemaTests(unittest.TestCase):
+    def test_loader_rejects_duplicate_names_and_non_finite_numbers(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "ambiguous.json"
+            for payload in ('{"artifact_type":"first","artifact_type":"second"}', '{"value":NaN}'):
+                with self.subTest(payload=payload):
+                    path.write_text(payload, encoding="utf-8")
+                    with self.assertRaises(json.JSONDecodeError):
+                        load_json(path)
+
+    def test_in_memory_non_finite_number_is_not_a_json_schema_number(self) -> None:
+        errors = validate_document(math.nan, {"type": "number"})
+        self.assertTrue(any("expected type 'number'" in error for error in errors))
+
     def test_checked_in_minimal_examples_validate(self) -> None:
         for name in ("State", "Evidence", "Run"):
             with self.subTest(name=name):

@@ -15,12 +15,12 @@ from zoneinfo import ZoneInfo
 
 from tools.run_github_radar import (
     Candidate,
-    _candidate_from_acl_atom,
     _arxiv_identifier,
     _arxiv_search_query,
-    candidate_oa_status,
+    _candidate_from_acl_atom,
     _europe_pmc_query,
     _parse_pmlr_atom,
+    candidate_oa_status,
     fetch_acl_anthology,
     fetch_arxiv,
     fetch_europe_pmc,
@@ -30,7 +30,6 @@ from tools.run_github_radar import (
     fulltext_metadata,
     qualifying_event,
 )
-
 
 START = date(2026, 8, 6)
 END = date(2026, 8, 9)

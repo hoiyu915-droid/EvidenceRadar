@@ -11,6 +11,8 @@ on:
       - "README.md"
       - "EVIDENCE_RADAR_PROTOCOL.md"
       - "requirements.txt"
+      - "requirements.lock"
+      - ".agents/skills/evidence-radar/SKILL.md"
       - "config/**"
       - "docs/MIGRATION_DUAL_LANE_1.0.md"
       - "docs/SEMANTIC_CONTRACT_V3.md"
@@ -31,20 +33,27 @@ on:
       - "tools/featured_selection.py"
       - "tools/materialize_delivery_aliases.py"
       - "tools/merge_radar_state.py"
+      - "tools/network_safety.py"
       - "tools/package_work_delivery.py"
       - "tools/publisher_feed.py"
       - "tools/radar_control.py"
       - "tools/render_report_from_artifacts.py"
       - "tools/run_github_radar.py"
+      - "tools/run_work_radar.py"
+      - "tools/strict_json.py"
       - "tools/validate_delivery_bundle.py"
       - "tools/validate_gpt_work_artifacts.py"
+      - "tools/validate_public_release.py"
       - "tools/verify_work_pack.py"
 
 permissions:
   contents: write
+  id-token: write
+  attestations: write
+  artifact-metadata: write
 
 concurrency:
-  group: evidenceradar-work-pack-${{ github.sha }}
+  group: evidenceradar-work-pack-release
   cancel-in-progress: false
 
 jobs:
@@ -52,7 +61,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           fetch-tags: true
@@ -75,13 +84,13 @@ jobs:
             exit 1
           fi
 
-      - uses: actions/setup-python@v7.0.0
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
           cache: pip
 
       - name: Install validation dependencies
-        run: python -m pip install -r requirements.txt
+        run: python -m pip install --require-hashes -r requirements.lock
 
       - name: Validate Work Pack source surface
         run: |
@@ -181,6 +190,34 @@ jobs:
             exit 1
           fi
 
+      - name: Require newest main before publishing
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          if [[ "$GITHUB_SHA" != "$(git rev-parse origin/main)" ]]; then
+            echo "::error::A newer main commit exists; refusing to publish stale latest assets"
+            exit 1
+          fi
+
+      - name: Attest Work Pack build provenance
+        id: attest
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: |
+            dist/${{ steps.build.outputs.archive }}
+            dist/EvidenceRadar-WorkPack-current.zip
+
+      - name: Materialize provenance bundle
+        shell: bash
+        env:
+          BUNDLE_PATH: ${{ steps.attest.outputs.bundle-path }}
+        run: |
+          set -euo pipefail
+          cp "$BUNDLE_PATH" dist/EvidenceRadar-WorkPack-current.sigstore.json
+
       - name: Publish Work Pack as latest GitHub Release
         shell: bash
         env:
@@ -193,8 +230,23 @@ jobs:
             "dist/${{ steps.build.outputs.checksum }}" \
             "dist/EvidenceRadar-WorkPack-current.zip" \
             "dist/EvidenceRadar-WorkPack-current.zip.sha256" \
+            "dist/EvidenceRadar-WorkPack-current.sigstore.json" \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
             --title "EvidenceRadar ChatGPT Work Pack ${{ steps.build.outputs.version }}" \
             --notes "Immutable ChatGPT Work package for source commit $GITHUB_SHA. GitHub stores the package; after checksum verification, ChatGPT Work executes locally through terminal four-file delivery without Actions or Stage B." \
             --latest
+          immutable=""
+          if ! immutable="$(gh api \
+            -H "X-GitHub-Api-Version: 2026-03-10" \
+            "repos/${GITHUB_REPOSITORY}/releases/tags/${tag}" \
+            --jq '.immutable')"; then
+            gh release delete "$tag" --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes
+            echo "::error::Could not verify release immutability; removed the release and tag"
+            exit 1
+          fi
+          if [[ "$immutable" != "true" ]]; then
+            gh release delete "$tag" --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes
+            echo "::error::Repository release immutability is disabled; removed the mutable release and tag"
+            exit 1
+          fi

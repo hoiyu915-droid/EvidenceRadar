@@ -8,7 +8,6 @@ import textwrap
 import unittest
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / "legacy" / "github-actions" / "translation-stage-b.yml"
 PROMPT = ROOT / "templates" / "work-stage-b-automation.md"
@@ -220,7 +219,10 @@ class WorkAutomationSurfaceTests(unittest.TestCase):
         self.assertNotIn("contents: write", self.workflow)
 
     def test_publication_is_an_artifact_not_a_direct_state_write(self) -> None:
-        self.assertIn("actions/upload-artifact@v7.0.1", self.workflow)
+        self.assertIn(
+            "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1",
+            self.workflow,
+        )
         self.assertIn("evidenceradar-publication-", self.workflow)
         self.assertNotIn("git add", self.workflow)
         self.assertNotIn("git push", self.workflow)

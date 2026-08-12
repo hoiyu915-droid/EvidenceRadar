@@ -8,8 +8,8 @@ not verify claims, and PARTIAL claims never become VERIFIED works.
 
 from __future__ import annotations
 
-import json
 import hashlib
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -159,7 +159,7 @@ class DeliveryBundleSemanticTests(unittest.TestCase):
             report_path = bundle / "EvidenceRadar_Report.html"
             report = report_path.read_text(encoding="utf-8")
             featured_count = run["counts"]["featured_candidates"]
-            self.assertIn(f'data-featured="true"', report)
+            self.assertIn('data-featured="true"', report)
             report_path.write_text(
                 report.replace('data-featured="true"', 'data-featured="false"', 1),
                 encoding="utf-8",

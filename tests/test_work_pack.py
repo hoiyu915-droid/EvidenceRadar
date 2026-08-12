@@ -9,19 +9,21 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from dataclasses import asdict
+from datetime import datetime
 from pathlib import Path, PurePosixPath
 from unittest import mock
 from zipfile import ZipFile
+from zoneinfo import ZoneInfo
 
 from tools.build_work_pack import build_work_pack, collect_source_files, load_pack_spec
 from tools.delivery_contract import WORK_PRODUCER_PATHS
+from tools.run_github_radar import Candidate, event_record
 from tools.verify_work_pack import (
     WorkPackVerificationError,
     verify_archive,
     verify_extracted_root,
 )
-from tests.test_delivery_bundle import create_bundle
-
 
 ROOT = Path(__file__).resolve().parents[1]
 CLEAN_GIT_STATE = {
@@ -42,9 +44,11 @@ class WorkPackTests(unittest.TestCase):
         spec = load_pack_spec(ROOT / "release" / "work-pack-manifest.json")
         paths = {relative for relative, _source in collect_source_files(ROOT, spec)}
         for required in (
+            ".agents/skills/evidence-radar/SKILL.md",
             "WORK_ENTRY.md",
             "EVIDENCE_RADAR_PROTOCOL.md",
             "requirements.txt",
+            "requirements.lock",
             "config/deployment.yml",
             "config/radar_master.json",
             "docs/WORK_SETUP.md",
@@ -56,11 +60,14 @@ class WorkPackTests(unittest.TestCase):
             "tools/featured_selection.py",
             "tools/materialize_delivery_aliases.py",
             "tools/merge_radar_state.py",
+            "tools/network_safety.py",
             "tools/package_work_delivery.py",
             "tools/publisher_feed.py",
             "tools/radar_control.py",
             "tools/render_report_from_artifacts.py",
             "tools/run_github_radar.py",
+            "tools/run_work_radar.py",
+            "tools/strict_json.py",
             "tools/validate_delivery_bundle.py",
             "tools/validate_gpt_work_artifacts.py",
             "tools/verify_work_pack.py",
@@ -129,9 +136,10 @@ class WorkPackTests(unittest.TestCase):
                 self.assertEqual("manifest.json", names[-1])
                 manifest = json.loads(archive.read("manifest.json"))
                 self.assertEqual("evidenceradar-work-pack", manifest["format"])
-                self.assertEqual("1.5.0", manifest["pack_version"])
+                self.assertEqual("1.6.0", manifest["pack_version"])
                 self.assertEqual("chatgpt_work", manifest["execution_lane"])
                 self.assertEqual("WORK_ENTRY.md", manifest["entrypoint"])
+                self.assertEqual("tools/run_work_radar.py", manifest["executor"])
                 self.assertTrue(manifest["terminal_delivery"])
                 self.assertFalse(manifest["post_download_github_access"])
                 self.assertEqual(
@@ -222,6 +230,16 @@ class WorkPackTests(unittest.TestCase):
             )
             self.assertEqual(0, package_help.returncode, package_help.stdout)
             self.assertIn("--input-manifest", package_help.stdout)
+            executor_help = subprocess.run(
+                [sys.executable, "tools/run_work_radar.py", "--help"],
+                cwd=extracted,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                check=False,
+            )
+            self.assertEqual(0, executor_help.returncode, executor_help.stdout)
+            self.assertIn("--delivery-dir", executor_help.stdout)
 
     def test_extracted_verifier_rejects_tampering_and_control_plane_injection(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -241,8 +259,8 @@ class WorkPackTests(unittest.TestCase):
             with self.assertRaisesRegex(WorkPackVerificationError, "payload set mismatch"):
                 verify_extracted_root(extracted)
 
-    def test_fresh_extraction_renders_validates_and_delivers_four_actual_files(self) -> None:
-        """Prove the released pack reaches terminal delivery without GitHub control flow."""
+    def test_fresh_extraction_executes_from_work_observations_to_four_files(self) -> None:
+        """Prove a clean pack starts before artifacts and reaches terminal delivery."""
 
         with tempfile.TemporaryDirectory() as directory:
             temporary = Path(directory)
@@ -253,25 +271,142 @@ class WorkPackTests(unittest.TestCase):
             verify_extracted_root(extracted)
 
             run_id = "chatgpt-work-terminal-fixture"
-            bundle, _canonical = create_bundle(
-                temporary / "fixture",
-                protocol_commit="c" * 40,
-                run_id=run_id,
-                execution_lane="chatgpt_work",
+            end_at = datetime(2026, 8, 9, 12, 0, tzinfo=ZoneInfo("Asia/Tokyo"))
+            fixture_url = "https://example.test/work-executor"
+            candidate = Candidate(
+                title="Work executor controlled study fixture",
+                stream="clinical_medicine",
+                category="clinical_medicine",
+                source="pubmed",
+                publication_date="2026-08-08",
+                authors=["A. Example"],
+                venue="Fixture Journal",
+                abstract="A controlled fixture summary with 12 participants.",
+                doi="10.1000/work.executor",
+                landing_url=fixture_url,
+                events=[
+                    event_record(
+                        "version_of_record_first_online",
+                        "2026-08-08",
+                        "pubmed",
+                        "ArticleDate",
+                        fixture_url,
+                        "date",
+                        "provider_metadata",
+                    )
+                ],
+                score=90,
+                query_ids=["work-query-pubmed"],
+                observed_streams=["clinical_medicine"],
+                observed_sources=["pubmed"],
+                triage_status="PRIORITY",
+                triage_reasons=["fixture"],
             )
-            run_path = bundle / "EvidenceRadar_Run.json"
-            run = json.loads(run_path.read_text(encoding="utf-8"))
-            run["candidates"][0]["content_summary"] = (
-                "這項測試研究納入十二名參與者，用於驗證繁體中文摘要、"
-                "四檔一致性與終端交付。"
+            discovery_sources = (
+                "acl_anthology",
+                "arxiv",
+                "europe_pmc",
+                "jama_network_open",
+                "nature_communications",
+                "openalex",
+                "openreview",
+                "pmlr",
+                "pubmed",
             )
-            run["candidates"][0]["summary_basis"] = (
-                "TRANSLATED_ABSTRACT_EXCERPT_ZH_TW"
-            )
-            run["counts"]["summaries_translated_zh_tw"] = 1
-            run["counts"]["summaries_fallback_zh_tw"] = 0
-            run_path.write_text(
-                json.dumps(run, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+            queries = [
+                {
+                    "query_id": f"work-query-{source}",
+                    "category": "clinical_medicine",
+                    "query": "controlled study fixture",
+                    "searched_at": end_at.isoformat(),
+                    "source_ids": [source],
+                    "status": "SUCCESS" if source == "pubmed" else "NO_RESULTS",
+                    "result_count": 1 if source == "pubmed" else 0,
+                }
+                for source in discovery_sources
+            ]
+            source_access = [
+                {
+                    "source_id": f"work-{source}",
+                    "provider": source,
+                    "url": (
+                        f"https://example.test/{source}/feed.xml"
+                        if source in {"jama_network_open", "nature_communications"}
+                        else f"https://example.test/{source}"
+                    ),
+                    "accessed_at": end_at.isoformat(),
+                    "status": "SUCCESS" if source == "pubmed" else "NO_RESULTS",
+                    "result_count": 1 if source == "pubmed" else 0,
+                    "http_requests_attempted": 1,
+                    "http_responses_received": 1,
+                    "cache_reused": False,
+                    **(
+                        {
+                            "retrieval_complete": True,
+                            "retrieval_backend": "rss_atom+crossref_journal_window",
+                            "feed_entry_count": 0,
+                            "registry_record_count": 0,
+                            "unusable_record_count": 0,
+                            "window_record_count": 0,
+                            "inventory_url": f"https://example.test/{source}/feed.xml",
+                            "inventory_pages_requested": 1,
+                            "inventory_pages_received": 1,
+                        }
+                        if source in {"jama_network_open", "nature_communications"}
+                        else {}
+                    ),
+                }
+                for source in discovery_sources
+            ]
+            publisher_access = [
+                {
+                    "source_id": "work-publisher-001",
+                    "provider": "publisher",
+                    "work_id": candidate.work_id,
+                    "candidate_title": candidate.title,
+                    "category": candidate.category,
+                    "url": "https://doi.org/10.1000/work.executor",
+                    "accessed_at": end_at.isoformat(),
+                    "status": "SUCCESS",
+                    "result_count": 1,
+                    "http_status": 200,
+                    "http_requests_attempted": 1,
+                    "http_responses_received": 1,
+                    "cache_reused": False,
+                }
+            ]
+            work_input = {
+                "artifact_type": "EvidenceRadar_WorkInput",
+                "schema_version": "1.0",
+                "run_id": run_id,
+                "end_at": end_at.isoformat(),
+                "profile_id": "owner_daily",
+                "raw_candidate_count": 1,
+                "queries": queries,
+                "source_access": source_access,
+                "checked_sources": list(discovery_sources),
+                "searched_sources": list(discovery_sources),
+                "unavailable_sources": [],
+                "priority_candidate_ids": [candidate.work_id],
+                "publisher_access": publisher_access,
+                "publisher_warnings": [],
+                "candidates": [
+                    {
+                        "work_id": candidate.work_id,
+                        "candidate": asdict(candidate),
+                        "translation": {
+                            "title_zh_tw": "Work 執行器對照研究測試",
+                            "summary_zh_tw": (
+                                "這項對照研究測試納入十二名參與者，用於驗證繁體中文摘要、"
+                                "來源收據、四檔一致性與終端交付。"
+                            ),
+                        },
+                    }
+                ],
+            }
+            input_path = temporary / "EvidenceRadar_WorkInput.json"
+            input_path.write_text(
+                json.dumps(work_input, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
                 encoding="utf-8",
             )
 
@@ -291,50 +426,22 @@ class WorkPackTests(unittest.TestCase):
                 self.assertEqual(0, completed.returncode, completed.stdout)
                 return completed
 
-            run_packaged(
-                "tools/render_report_from_artifacts.py",
-                "--root",
-                str(extracted),
-                "--bundle",
-                str(bundle),
-            )
-            validation = run_packaged(
-                "tools/validate_delivery_bundle.py",
-                "--root",
-                str(extracted),
-                "--bundle",
-                str(bundle),
-                "--expected-lane",
-                "chatgpt_work",
-                "--manifest",
-                str(extracted / "manifest.json"),
-                "--require-semantic-contract-v3",
-            )
-            self.assertIn("PASS: EvidenceRadar delivery bundle", validation.stdout)
-
+            bundle = temporary / "work-run"
             delivery = temporary / "delivery"
-            run_packaged(
-                "tools/package_work_delivery.py",
-                "--source-dir",
-                str(bundle),
-                "--output-dir",
-                str(delivery),
-                "--run-id",
-                run_id,
-                "--validation-root",
+            execution = run_packaged(
+                "tools/run_work_radar.py",
+                "--root",
                 str(extracted),
-                "--input-manifest",
-                str(extracted / "manifest.json"),
-                "--expected-lane",
-                "chatgpt_work",
-            )
-            run_packaged(
-                "tools/materialize_delivery_aliases.py",
-                "--source-dir",
+                "--input",
+                str(input_path),
+                "--run-dir",
                 str(bundle),
-                "--output-dir",
+                "--delivery-dir",
                 str(delivery),
             )
+            summary = json.loads(execution.stdout.splitlines()[-1])
+            self.assertEqual("COMPLETE", summary["status"])
+            self.assertEqual(4, len(summary["delivery_aliases"]))
 
             direct_files = sorted(delivery.glob("*__EvidenceRadar_*"))
             self.assertEqual(4, len(direct_files))
@@ -373,6 +480,12 @@ class WorkPackTests(unittest.TestCase):
             "python tools/verify_work_pack.py",
             "EvidenceRadar-WorkPack-current.zip",
             "work-pack-${GITHUB_SHA}",
+            "evidenceradar-work-pack-release",
+            "A newer main commit exists",
+            "--cleanup-tag",
+            "'.immutable'",
+            "actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6",
+            "EvidenceRadar-WorkPack-current.sigstore.json",
             "gh release create",
             "--latest",
         ):
@@ -384,6 +497,13 @@ class WorkPackTests(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn("--latest=false", runtime_workflow)
+        self.assertIn("evidenceradar-runtime-release", runtime_workflow)
+        self.assertIn("--cleanup-tag", runtime_workflow)
+        self.assertIn("'.immutable'", runtime_workflow)
+        self.assertIn(
+            "actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6",
+            runtime_workflow,
+        )
 
 
 if __name__ == "__main__":

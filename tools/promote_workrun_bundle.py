@@ -15,7 +15,6 @@ import copy
 import hashlib
 import json
 import os
-from pathlib import Path, PurePosixPath, PureWindowsPath
 import re
 import shutil
 import socket
@@ -23,9 +22,10 @@ import stat
 import subprocess
 import sys
 import tempfile
-from dataclasses import dataclass
-from typing import Any, Mapping, Sequence
 import zipfile
+from dataclasses import dataclass
+from pathlib import Path, PurePosixPath, PureWindowsPath
+from typing import Any, Mapping, Sequence
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -42,6 +42,7 @@ try:
         render_report_from_documents,
         validate_documents,
     )
+    from tools.strict_json import loads as strict_json_loads
     from tools.validate_delivery_bundle import (
         validate_delivery_bundle,
         validate_delivery_payload,
@@ -57,6 +58,7 @@ except ModuleNotFoundError:  # pragma: no cover - direct script execution
         render_report_from_documents,
         validate_documents,
     )
+    from strict_json import loads as strict_json_loads  # type: ignore
     from validate_delivery_bundle import (  # type: ignore
         validate_delivery_bundle,
         validate_delivery_payload,
@@ -147,7 +149,7 @@ def _json_bytes(value: Any) -> bytes:
 
 def _load_json_bytes(payload: bytes, *, label: str) -> dict[str, Any]:
     try:
-        value = json.loads(payload.decode("utf-8"))
+        value = strict_json_loads(payload.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise PromotionError(f"{label} is not valid UTF-8 JSON: {exc}") from exc
     if not isinstance(value, dict):

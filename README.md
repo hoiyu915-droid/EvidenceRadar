@@ -11,8 +11,8 @@ EvidenceRadar 是一套可公開自行部署、可稽核的近期研究雷達。
 
 ## 用家入口：只要執行 Radar
 
-用家向 ChatGPT Work 說「執行文獻雷達」即可。GPT 下載一次正式 Work Pack 與
-checksum，之後在同一個 Work 對話內完成搜尋、核實、繁中翻譯、去重、State
+用家向 ChatGPT Work 說「執行文獻雷達」即可。GPT 下載一次正式 Work Pack、
+checksum 與簽署 provenance，之後在同一個 Work 對話內完成搜尋、核實、繁中翻譯、去重、State
 合併、HTML render 與四件套驗證，最後直接交付：
 
 ```text
@@ -33,14 +33,15 @@ source identity/access observation、citation binding、model inference、數字
 
 ## 唯一用家執行路徑
 
-GPT 從 GitHub latest Release 下載這兩個固定名稱：
+GPT 從 GitHub latest Release 下載這三個固定名稱：
 
 ```text
 EvidenceRadar-WorkPack-current.zip
 EvidenceRadar-WorkPack-current.zip.sha256
+EvidenceRadar-WorkPack-current.sigstore.json
 ```
 
-驗證 checksum 與 manifest 後，後續執行不再讀 GitHub。Work Pack 包含 protocol、
+驗證簽署 provenance、checksum 與 manifest 後，後續執行不再讀 GitHub。Work Pack 包含 protocol、
 設定、schema、template、基準 State、V3 canonical renderer、State merge、四件套
 validator、run-id delivery packager 與 requirements。renderer 所需的 GitHub
 projection module 只可 import，CLI 在 pack 內強制停用；不含 Stage B automation、

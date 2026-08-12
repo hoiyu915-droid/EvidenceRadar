@@ -4,8 +4,8 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import dataclass
 import hashlib
+import html
 import json
 import os
 import re
@@ -13,11 +13,11 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import zipfile
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 from urllib.parse import quote
-import zipfile
-
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -25,6 +25,7 @@ if str(ROOT) not in sys.path:
 
 from tools.delivery_contract import BUNDLE_FILENAMES
 from tools.promote_workrun_bundle import PromotionError, verify_workrun_archive
+from tools.strict_json import loads as strict_json_loads
 from tools.validate_delivery_bundle import validate_delivery_bundle
 
 
@@ -195,7 +196,7 @@ def _previous_history_manifest(
             f"{baseline_commit}"
         )
     try:
-        return json.loads(str(previous.stdout))
+        return strict_json_loads(str(previous.stdout))
     except json.JSONDecodeError as exc:
         raise PagesBuildError(
             "previous Pages history manifest is not valid JSON"
@@ -476,7 +477,7 @@ def _manifest_history_candidates(
     if manifest_path.stat().st_size > MAX_HISTORY_MANIFEST_BYTES:
         raise PagesBuildError("Pages history manifest exceeds the size limit")
     try:
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest = strict_json_loads(manifest_path.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise PagesBuildError(f"cannot read Pages history manifest: {exc}") from exc
     if not isinstance(manifest, dict) or set(manifest) != {
@@ -584,7 +585,7 @@ def _manifest_history_candidates(
             source = str(archive)
         _verify_manifest_payloads(payloads, records, source=source)
         try:
-            run = json.loads(payloads[RUN_FILE].decode("utf-8"))
+            run = strict_json_loads(payloads[RUN_FILE].decode("utf-8"))
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise PagesBuildError(f"history Run artifact is invalid: {run_id}") from exc
         if not isinstance(run, dict):
@@ -640,6 +641,53 @@ def _write_run_bundle(record: ValidatedRunBundle, destination: Path) -> None:
     for name in BUNDLE_FILENAMES:
         (destination / name).write_bytes(record.payloads[name])
     (destination / "index.html").write_bytes(record.payloads[REPORT_FILE])
+
+
+def _snapshot_landing_page(
+    *,
+    run_id: str,
+    finished_at: str,
+    protocol_commit: str,
+    report_url: str,
+    immutable_report_url: str,
+) -> str:
+    """Render an explicit snapshot notice instead of presenting history as live data."""
+
+    escaped = {
+        "run_id": html.escape(run_id),
+        "finished_at": html.escape(finished_at),
+        "protocol_commit": html.escape(protocol_commit),
+        "report_url": html.escape(report_url, quote=True),
+        "immutable_report_url": html.escape(immutable_report_url, quote=True),
+    }
+    return f"""<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EvidenceRadar published snapshot</title>
+  <style>
+    body {{ font: 16px/1.6 system-ui, sans-serif; margin: 0; color: #172033; background: #f5f7fb; }}
+    main {{ max-width: 760px; margin: 10vh auto; padding: 2rem; background: white; border-radius: 14px; box-shadow: 0 8px 30px #17203318; }}
+    .notice {{ border-left: 5px solid #b45309; padding: .8rem 1rem; background: #fff7ed; }}
+    dt {{ font-weight: 700; margin-top: .8rem; }}
+    dd {{ margin-left: 0; overflow-wrap: anywhere; }}
+    a.button {{ display: inline-block; margin: 1rem .6rem 0 0; padding: .65rem 1rem; border-radius: 8px; color: white; background: #1d4ed8; text-decoration: none; }}
+  </style>
+</head>
+<body><main>
+  <h1>EvidenceRadar 已發布快照</h1>
+  <p class="notice"><strong>這不是即時監測畫面。</strong>「latest」只代表目前已發布的最新快照，不表示資料更新到現在。</p>
+  <dl>
+    <dt>執行 ID</dt><dd>{escaped["run_id"]}</dd>
+    <dt>快照完成時間</dt><dd>{escaped["finished_at"]}</dd>
+    <dt>產製協定版本</dt><dd>{escaped["protocol_commit"]}</dd>
+  </dl>
+  <a class="button" href="{escaped["report_url"]}">開啟已發布報告</a>
+  <a href="{escaped["immutable_report_url"]}">永久快照連結</a>
+</main></body>
+</html>
+"""
 
 
 def _archive_inventory(archive: Mapping[str, ValidatedRunBundle]) -> dict[str, Any]:
@@ -775,9 +823,23 @@ def build_pages_site(
         json.dumps(inventory, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
-    shutil.copyfile(bundle / REPORT_FILE, output_dir / "index.html")
     shutil.copyfile(bundle / REPORT_FILE, latest_dir / "index.html")
     (output_dir / ".nojekyll").write_text("", encoding="utf-8")
+
+    finished_at = str(run.get("finished_at") or "")
+    protocol_commit = str(run.get("protocol_commit") or "")
+    latest_report_url = _url(base_url, "latest/EvidenceRadar_Report.html")
+    immutable_report_url = _url(base_url, f"runs/{encoded_run_id}/")
+    (output_dir / "index.html").write_text(
+        _snapshot_landing_page(
+            run_id=run_id,
+            finished_at=finished_at,
+            protocol_commit=protocol_commit,
+            report_url=latest_report_url,
+            immutable_report_url=immutable_report_url,
+        ),
+        encoding="utf-8",
+    )
 
     links = {
         "schema_version": "1.0",
@@ -785,17 +847,25 @@ def build_pages_site(
         "repository": repository,
         "run_id": run_id,
         "execution_lane": run.get("execution_lane"),
-        "protocol_commit": run.get("protocol_commit"),
+        "protocol_commit": protocol_commit,
+        "snapshot_finished_at": finished_at,
+        "publication_semantics": {
+            "status": "PUBLISHED_SNAPSHOT_NOT_LIVE",
+            "notice": (
+                "latest means the latest published snapshot; it does not imply "
+                "that monitoring is current to wall-clock time"
+            ),
+        },
         "report_url": _url(base_url),
         "links_json_url": _url(base_url, "links.json"),
         "latest": {
-            "report_html": _url(base_url, "latest/EvidenceRadar_Report.html"),
+            "report_html": latest_report_url,
             "state_json": _url(base_url, "latest/EvidenceRadar_State.json"),
             "evidence_json": _url(base_url, "latest/EvidenceRadar_Evidence.json"),
             "run_json": _url(base_url, "latest/EvidenceRadar_Run.json"),
         },
         "immutable_run": {
-            "report_html": _url(base_url, f"runs/{encoded_run_id}/"),
+            "report_html": immutable_report_url,
             "state_json": _url(base_url, f"runs/{encoded_run_id}/EvidenceRadar_State.json"),
             "evidence_json": _url(base_url, f"runs/{encoded_run_id}/EvidenceRadar_Evidence.json"),
             "run_json": _url(base_url, f"runs/{encoded_run_id}/EvidenceRadar_Run.json"),

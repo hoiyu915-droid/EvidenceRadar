@@ -19,7 +19,6 @@ from pathlib import Path
 from typing import Any
 from zipfile import ZIP_DEFLATED, ZipFile
 
-
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -36,7 +35,6 @@ from tools.build_work_pack import (
     collect_source_files,
     load_pack_spec,
 )
-
 
 VERSION_PATH = Path("runtime/VERSION")
 DEFAULT_WORK_PACK_SPEC = Path("release/work-pack-manifest.json")
@@ -57,7 +55,9 @@ RUNTIME_EXTRA_PATHS = (
     "tools/verify_runtime_release.py",
 )
 WORK_ONLY_PATHS = {
+    ".agents/skills/evidence-radar/SKILL.md",
     "WORK_ENTRY.md",
+    "tools/run_work_radar.py",
     "tools/verify_work_pack.py",
 }
 REQUIRED_ENTRYPOINTS = (
@@ -67,10 +67,13 @@ REQUIRED_ENTRYPOINTS = (
     "tools/verify_runtime_release.py",
 )
 REQUIRED_RUNTIME_FILES = (
+    "requirements.lock",
     "config/radar_master.json",
     "tools/featured_selection.py",
+    "tools/network_safety.py",
     "tools/publisher_feed.py",
     "tools/radar_control.py",
+    "tools/strict_json.py",
     *REQUIRED_ENTRYPOINTS,
 )
 FORBIDDEN_PREFIXES = (

@@ -8,10 +8,10 @@ import shutil
 import subprocess
 import tempfile
 import unittest
-from unittest import mock
 import zipfile
 from datetime import datetime
 from pathlib import Path
+from unittest import mock
 from zoneinfo import ZoneInfo
 
 from tools import build_pages_site as pages_builder
@@ -19,7 +19,6 @@ from tools.build_pages_site import PagesBuildError, build_pages_site, github_pag
 from tools.package_work_delivery import package_work_delivery
 from tools.run_github_radar import Candidate, DiscoveryResult, event_record, execute
 from tools.validate_delivery_bundle import validate_delivery_bundle
-
 
 ROOT = Path(__file__).resolve().parents[1]
 TZ = ZoneInfo("Asia/Tokyo")
@@ -257,6 +256,14 @@ class DeliveryBundleTests(unittest.TestCase):
             )
             self.assertTrue((output / "index.html").is_file())
             self.assertTrue((output / "links.json").is_file())
+            landing = (output / "index.html").read_text(encoding="utf-8")
+            self.assertIn("這不是即時監測畫面", landing)
+            self.assertIn("github-actions-delivery-fixture", landing)
+            self.assertEqual(
+                "PUBLISHED_SNAPSHOT_NOT_LIVE",
+                links["publication_semantics"]["status"],
+            )
+            self.assertIn("snapshot_finished_at", links)
             self.assertTrue(
                 (output / "runs" / "github-actions-delivery-fixture" / "index.html").is_file()
             )

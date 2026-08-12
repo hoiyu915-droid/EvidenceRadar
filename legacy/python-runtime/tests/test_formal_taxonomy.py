@@ -1,4 +1,5 @@
-from src import categories, formal_taxonomy as taxonomy
+from src import categories
+from src import formal_taxonomy as taxonomy
 from src.radar import Paper
 
 

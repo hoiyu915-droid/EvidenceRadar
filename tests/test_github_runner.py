@@ -11,39 +11,46 @@ from zoneinfo import ZoneInfo
 
 import requests
 
+from tools.network_safety import validate_public_http_url
 from tools.run_github_radar import (
     Candidate,
     DiscoveryResult,
     RadarRuntimeError,
-    _RequestTelemetrySession,
     _request,
+    _RequestTelemetrySession,
+    build_gap_backlog,
+    build_retrieval_ledger,
+    build_state,
     candidate_content_summary,
     candidate_source_excerpt,
-    build_retrieval_ledger,
-    build_gap_backlog,
-    build_state,
     derive_work_relations,
+    discover_candidates,
     event_class,
-    fulltext_metadata,
-    select_featured_work_ids,
     event_in_window,
     event_record,
     execute,
-    discover_candidates,
     fetch_openalex,
     fetch_pubmed,
+    fulltext_metadata,
     load_prior_state,
     load_prior_state_snapshot,
     probe_publisher_pages,
     score_candidate,
+    select_featured_work_ids,
     state_sha256,
     translate_candidate_summaries_zh_tw,
     write_state_atomic,
 )
 
-
 ROOT = Path(__file__).resolve().parents[1]
 TZ = ZoneInfo("Asia/Tokyo")
+
+
+def public_fixture_url(url: str) -> str:
+    return validate_public_http_url(
+        url,
+        resolver=lambda _hostname, _port: ["93.184.216.34"],
+    )
 
 
 def candidate(index: int, *, domain: str | None = None) -> Candidate:
@@ -376,6 +383,29 @@ class GithubRunnerTests(unittest.TestCase):
         self.assertNotIn("user@example.test", message)
         self.assertIn("api_key=[REDACTED]", message)
         self.assertIn("email=[REDACTED]", message)
+
+    def test_request_rejects_oversized_streamed_response(self) -> None:
+        class LargeResponse:
+            headers = {}
+
+            def raise_for_status(self) -> None:
+                return None
+
+            def iter_content(self, *, chunk_size: int):
+                self.assert_chunk = chunk_size
+                yield b"x" * 17
+
+        class LargeSession:
+            def get(self, _url: str, **_kwargs: object) -> LargeResponse:
+                return LargeResponse()
+
+        with self.assertRaisesRegex(RadarRuntimeError, "exceeds 16 bytes"):
+            _request(
+                LargeSession(),
+                "https://api.example/",
+                attempts=1,
+                max_response_bytes=16,
+            )
 
     def test_prior_state_hash_uses_canonical_json_not_file_formatting(self) -> None:
         state = {"artifact_type": "EvidenceRadar_State", "works": [], "label": "雷達"}
@@ -829,7 +859,13 @@ class GithubRunnerTests(unittest.TestCase):
             )
 
         def fast_publisher_probe(items, config, **kwargs):
-            return probe_publisher_pages(items, config, sleep=lambda _seconds: None, **kwargs)
+            return probe_publisher_pages(
+                items,
+                config,
+                sleep=lambda _seconds: None,
+                url_validator=public_fixture_url,
+                **kwargs,
+            )
 
         with tempfile.TemporaryDirectory() as directory:
             temporary = Path(directory)
@@ -921,7 +957,13 @@ class GithubRunnerTests(unittest.TestCase):
             )
 
         def blocked_probe(items, config, **kwargs):
-            return probe_publisher_pages(items, config, sleep=lambda _seconds: None, **kwargs)
+            return probe_publisher_pages(
+                items,
+                config,
+                sleep=lambda _seconds: None,
+                url_validator=public_fixture_url,
+                **kwargs,
+            )
 
         with tempfile.TemporaryDirectory() as directory:
             temporary = Path(directory)
@@ -1275,6 +1317,7 @@ class GithubRunnerTests(unittest.TestCase):
             },
             session=session,
             accessed_at=datetime(2026, 8, 9, 12, 0, tzinfo=TZ),
+            url_validator=public_fixture_url,
         )
         self.assertEqual(15, len(session.calls))
         self.assertEqual(15, len(successes))
@@ -1302,6 +1345,7 @@ class GithubRunnerTests(unittest.TestCase):
             },
             session=RedirectSession(),
             accessed_at=datetime(2026, 8, 9, 12, 0, tzinfo=TZ),
+            url_validator=public_fixture_url,
         )
         self.assertEqual(1, len(successes))
         self.assertEqual(2, access[0]["http_requests_attempted"])
@@ -1322,6 +1366,51 @@ class GithubRunnerTests(unittest.TestCase):
             {"pages_requested": 2, "pages_received": 2},
             attempts[0]["pagination"],
         )
+
+    def test_publisher_probe_blocks_private_target_before_request(self) -> None:
+        item = candidate(1)
+        item.doi = ""
+        item.landing_url = "http://169.254.169.254/latest/meta-data/"
+        session = FakeSession()
+        successes, access, _warnings = probe_publisher_pages(
+            [item],
+            {
+                "target_min_per_run": 1,
+                "hard_max_per_run": 1,
+                "per_domain_hard_max": 1,
+                "request_delay_seconds": 0,
+            },
+            session=session,
+            accessed_at=datetime(2026, 8, 9, 12, 0, tzinfo=TZ),
+        )
+        self.assertEqual([], session.calls)
+        self.assertEqual([], successes)
+        self.assertEqual(0, access[0]["http_requests_attempted"])
+        self.assertIn("not exclusively public", access[0]["error"])
+
+    def test_publisher_probe_blocks_private_redirect_before_second_request(self) -> None:
+        class RedirectSession(FakeSession):
+            def get(self, url: str, **_kwargs: object) -> FakeResponse:
+                self.calls.append(url)
+                return FakeResponse(url, 302, "http://127.0.0.1/admin")
+
+        session = RedirectSession()
+        successes, access, _warnings = probe_publisher_pages(
+            [candidate(1)],
+            {
+                "target_min_per_run": 1,
+                "hard_max_per_run": 1,
+                "per_domain_hard_max": 1,
+                "request_delay_seconds": 0,
+            },
+            session=session,
+            accessed_at=datetime(2026, 8, 9, 12, 0, tzinfo=TZ),
+            url_validator=public_fixture_url,
+        )
+        self.assertEqual(1, len(session.calls))
+        self.assertEqual([], successes)
+        self.assertEqual(1, access[0]["http_requests_attempted"])
+        self.assertIn("not exclusively public", access[0]["error"])
 
     def test_publisher_probe_rejects_unsafe_budget(self) -> None:
         with self.assertRaisesRegex(RadarRuntimeError, "target_min_per_run"):
@@ -1357,6 +1446,7 @@ class GithubRunnerTests(unittest.TestCase):
             },
             session=session,
             accessed_at=datetime(2026, 8, 9, 12, 0, tzinfo=TZ),
+            url_validator=public_fixture_url,
         )
         self.assertEqual([blocked, "https://open.example/article/5"], session.calls)
         self.assertEqual(1, len(successes))
@@ -1637,6 +1727,7 @@ class GithubRunnerTests(unittest.TestCase):
             },
             session=session,
             accessed_at=datetime(2026, 8, 9, 12, 0, tzinfo=TZ),
+            url_validator=public_fixture_url,
         )
         publisher_calls = [url for url in session.calls if "same.example" in url]
         self.assertEqual(2, len(publisher_calls))
