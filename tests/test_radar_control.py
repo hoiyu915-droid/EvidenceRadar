@@ -90,6 +90,40 @@ class RadarControlTests(unittest.TestCase):
             runtime.streams["source_catalog"]["nature_communications"]["crossref_issn"],
         )
 
+    def test_lancet_batch_is_named_first_party_and_crossref_backed(self) -> None:
+        expected = {
+            "lancet": "0140-6736",
+            "lancet_digital_health": "2589-7500",
+            "lancet_healthy_longevity": "2666-7568",
+            "lancet_global_health": "2214-109X",
+            "lancet_regional_health_western_pacific": "2666-6065",
+            "lancet_regional_health_europe": "2666-7762",
+            "lancet_regional_health_americas": "2667-193X",
+            "eclinicalmedicine": "2589-5370",
+        }
+        sources = self.master["sources"]
+        runtime_catalog = self.runtime("owner_daily").streams["source_catalog"]
+        self.assertEqual(
+            set(expected), set(self.master["source_groups"]["lancet_clinical_core"])
+        )
+        for source_id, issn in expected.items():
+            source = sources[source_id]
+            self.assertEqual("rss_atom", source["adapter"])
+            self.assertEqual("active", source["status"])
+            self.assertTrue(source["enabled"])
+            self.assertEqual([source["endpoint"]], source["feeds"])
+            self.assertTrue(source["endpoint"].startswith("https://rss.sciencedirect.com/"))
+            self.assertEqual(issn, source["crossref_issn"])
+            self.assertEqual("verify_per_work", source["oa_mode"])
+            self.assertEqual("2026-08-13-lancet-01", source["activation_batch"])
+            self.assertEqual("verified_parseable", source["feed_endpoint_status"])
+            self.assertEqual(
+                "crossref_journal_window", source["fallback_backend"]
+            )
+            self.assertEqual(
+                "ScienceDirect", runtime_catalog[source_id]["platform"]
+            )
+
     def test_unverified_or_semantically_blocked_oa_sources_remain_planned(self) -> None:
         sources = self.master["sources"]
         for source_id in [
@@ -181,9 +215,14 @@ class RadarControlTests(unittest.TestCase):
             "llm_research",
             "human_ai",
         ])
-        self.assertEqual(len(requested), 11)
+        self.assertEqual(len(requested), 19)
         self.assertIn("jama_network_open", requested)
         self.assertIn("nature_communications", requested)
+        self.assertEqual(
+            set(self.master["source_groups"]["lancet_clinical_core"])
+            & requested,
+            set(self.master["source_groups"]["lancet_clinical_core"]),
+        )
         self.assertNotIn("scientific_reports", requested)
         self.assertNotIn("nature_physics", requested)
         self.assertNotIn("communications_physics", requested)
@@ -192,6 +231,42 @@ class RadarControlTests(unittest.TestCase):
             runtime.limits["selection"]["per_category"]["llm_research"],
             {"target": 6, "hard_max": 10},
         )
+
+    def test_lancet_routes_are_family_specific(self) -> None:
+        runtime = self.runtime("owner_daily")
+        lancet_streams = {
+            stream_id: stream
+            for stream_id, stream in runtime.streams["streams"].items()
+            if stream_id.startswith("owner_lancet_")
+        }
+        self.assertEqual(
+            {
+                "owner_lancet_clinical",
+                "owner_lancet_digital_health_llm",
+                "owner_lancet_digital_health_human_ai",
+                "owner_lancet_healthy_longevity_sport",
+            },
+            set(lancet_streams),
+        )
+        self.assertEqual(
+            set(self.master["source_groups"]["lancet_general_clinical"]),
+            set(lancet_streams["owner_lancet_clinical"]["sources"]),
+        )
+        for stream_id in (
+            "llm_l1_model_behavior",
+            "llm_l2_context_inference",
+            "llm_l3_retrieval_grounding",
+            "llm_l4_memory_personalization",
+            "llm_l5_agents_decision",
+            "llm_l6_multi_agent",
+            "llm_l7_systems_runtime",
+            "llm_l8_training_architecture",
+            "llm_l9_evaluation_measurement",
+        ):
+            self.assertNotIn(
+                "lancet_digital_health",
+                runtime.streams["streams"][stream_id]["sources"],
+            )
 
     def test_owner_nature_queries_use_explicit_phrase_alternatives(self) -> None:
         runtime = self.runtime("owner_daily")

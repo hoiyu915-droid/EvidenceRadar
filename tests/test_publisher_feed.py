@@ -47,6 +47,32 @@ JAMA_RELATIVE_PRISM_RSS = '''<?xml version="1.0" encoding="UTF-8"?>
  </channel>
 </rss>'''
 
+SCIENCEDIRECT_RSS = '''<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+ <channel>
+  <title>ScienceDirect Publication: Fixture Journal</title>
+  <item>
+   <title>A governed journal discovery fixture</title>
+   <description><![CDATA[
+    <p>Publication date: Available online 11 August 2026</p>
+    <p><b>Source:</b> Fixture Journal</p>
+    <p>Author(s): Ada Example, Bo Researcher</p>
+   ]]></description>
+   <link>https://www.sciencedirect.com/science/article/pii/S000000000000001?dgcid=rss_sd_all</link>
+   <guid isPermaLink="false">https://www.sciencedirect.com/science/article/pii/S000000000000001</guid>
+  </item>
+  <item>
+   <title>A month-only issue fixture</title>
+   <description><![CDATA[
+    <p>Publication date: August 2026</p>
+    <p><b>Source:</b> Fixture Journal, Volume 8, Issue 8</p>
+    <p>Author(s): Casey Example</p>
+   ]]></description>
+   <link>https://www.sciencedirect.com/science/article/pii/S000000000000002?dgcid=rss_sd_all</link>
+  </item>
+ </channel>
+</rss>'''
+
 ATOM = '''<?xml version="1.0"?>
 <feed xmlns="http://www.w3.org/2005/Atom">
  <entry>
@@ -215,6 +241,27 @@ class PublisherFeedTests(unittest.TestCase):
             rows[0]["doi"],
         )
         self.assertEqual("2026-08-10", rows[0]["publication_date"])
+
+    def test_parse_sciencedirect_available_online_metadata(self) -> None:
+        rows = parse_feed(
+            SCIENCEDIRECT_RSS,
+            feed_url="https://rss.sciencedirect.com/publication/science/00000000",
+            source_id="fixture_journal",
+        )
+        self.assertEqual(2, len(rows))
+        self.assertEqual("2026-08-11", rows[0]["publication_date"])
+        self.assertEqual(
+            "rss:description:available_online", rows[0]["source_field"]
+        )
+        self.assertEqual("Fixture Journal", rows[0]["venue"])
+        self.assertEqual(["Ada Example", "Bo Researcher"], rows[0]["authors"])
+        self.assertEqual(
+            "https://www.sciencedirect.com/science/article/pii/S000000000000001",
+            rows[0]["landing_url"],
+        )
+        self.assertEqual("", rows[0]["doi"])
+        self.assertEqual("", rows[1]["publication_date"])
+        self.assertEqual("", rows[1]["source_field"])
 
     def test_jama_feed_and_crossref_dedupe_on_canonical_doi(self) -> None:
         [feed_record] = parse_feed(

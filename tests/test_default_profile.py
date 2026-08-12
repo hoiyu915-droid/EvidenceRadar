@@ -48,6 +48,10 @@ class DefaultProfileTests(unittest.TestCase):
         )
         self.assertIn("oa_jama_network_open", runtime.streams["streams"])
         self.assertIn("owner_ncomms_llm", runtime.streams["streams"])
+        self.assertIn("owner_lancet_clinical", runtime.streams["streams"])
+        self.assertIn(
+            "owner_lancet_digital_health_llm", runtime.streams["streams"]
+        )
 
     def test_checked_in_runner_accepts_profile_without_a_patch_step(self) -> None:
         args = parse_args(

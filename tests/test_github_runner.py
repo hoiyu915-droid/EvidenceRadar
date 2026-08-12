@@ -21,6 +21,7 @@ from tools.run_github_radar import (
     build_gap_backlog,
     build_retrieval_ledger,
     build_source_coverage,
+    build_source_registry,
     build_state,
     candidate_content_summary,
     candidate_source_excerpt,
@@ -1498,6 +1499,54 @@ class GithubRunnerTests(unittest.TestCase):
         self.assertEqual(1, len(successes))
         self.assertEqual(2, len(access))
         self.assertTrue(any("blocked.example" in warning for warning in warnings))
+
+    def test_sciencedirect_403_is_a_blocked_source_observation(self) -> None:
+        url = "https://www.sciencedirect.com/science/article/pii/S000000000000001"
+        source_access = [
+            {
+                "source_id": "publisher-001",
+                "provider": "publisher",
+                "work_id": "work-sciencedirect",
+                "url": url,
+                "accessed_at": "2026-08-13T08:00:00+09:00",
+                "status": "FAILED",
+                "result_count": 0,
+                "http_status": 403,
+                "http_requests_attempted": 1,
+                "http_responses_received": 1,
+                "cache_reused": False,
+            }
+        ]
+        retrieval_attempts = [
+            {
+                "attempt_id": "attempt-sciencedirect",
+                "source_access_id": "publisher-001",
+                "attempted_at": "2026-08-13T08:00:00+09:00",
+            }
+        ]
+        _registry, observations = build_source_registry(
+            candidate_records=[
+                {
+                    "work_id": "work-sciencedirect",
+                    "source_urls": [url],
+                    "identifiers": {},
+                    "fulltext_locations": [],
+                    "access_depth": "METADATA",
+                    "query_ids": ["query-sciencedirect"],
+                    "discovery_sources": ["lancet"],
+                }
+            ],
+            source_access=source_access,
+            retrieval_attempts=retrieval_attempts,
+            prior_state=None,
+            run_id="run-sciencedirect",
+            generated_at=datetime(2026, 8, 13, 8, 0, tzinfo=TZ),
+        )
+        self.assertEqual(1, len(observations))
+        self.assertEqual("BLOCKED", observations[0]["access_outcome"])
+        self.assertEqual("NONE", observations[0]["access_depth"])
+        self.assertEqual(403, observations[0]["http_status"])
+        self.assertFalse(any(item["status"] == "SUCCESS" for item in source_access))
 
     def test_publisher_url_prefers_formal_doi_over_discovery_landing_page(self) -> None:
         item = candidate(1, domain="repository.example")

@@ -424,6 +424,11 @@ def compile_runtime(
         "quality_tier",
         "journal",
         "publisher",
+        "platform",
+        "activation_batch",
+        "feed_endpoint_status",
+        "first_party_feed_verified_at",
+        "fallback_backend",
         "activation_blocker",
         "crossref_issn",
     )
