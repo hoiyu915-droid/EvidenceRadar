@@ -81,6 +81,7 @@ SOURCE_HTTP_TELEMETRY_FIELDS = (
     "http_responses_received",
     "cache_reused",
 )
+CROSSREF_INVENTORY_ROWS = "1000"
 EXPECTED_ARTIFACT_MAP = {
     "report_html": "EvidenceRadar_Report.html",
     "state_json": "EvidenceRadar_State.json",
@@ -1568,6 +1569,102 @@ def _v3_canonical_source_url(value: Any) -> str:
     return normalized
 
 
+def _crossref_journal_inventory_url_errors(
+    value: Any,
+    *,
+    expected_issn: str,
+    window: Mapping[str, Any],
+    require_window_filter: bool,
+) -> list[str]:
+    """Validate one hybrid inventory URL without dereferencing it.
+
+    The authoritative catalog binds the journal by ISSN.  A complete hybrid
+    observation must point at that journal's Crossref cursor request and bind
+    the same calendar window used by the executor.  Incomplete observations
+    may only have the base endpoint when the request failed before a response
+    URL existed, but they still have to bind the correct host/path/ISSN.
+    """
+
+    raw_url = str(value or "").strip()
+    errors: list[str] = []
+    expected_path = f"/journals/{expected_issn}/works"
+    try:
+        parsed = urlparse(raw_url)
+        hostname = (parsed.hostname or "").casefold()
+        username = parsed.username
+        password = parsed.password
+        port = parsed.port
+    except ValueError:
+        return ["inventory_url is not a safely parseable HTTPS URL"]
+    if (
+        parsed.scheme.casefold() != "https"
+        or hostname != "api.crossref.org"
+        or username is not None
+        or password is not None
+        or port not in {None, 443}
+        or parsed.fragment
+        or parsed.path.rstrip("/").casefold() != expected_path.casefold()
+    ):
+        errors.append(
+            "inventory_url must use the catalog-bound Crossref journal works "
+            f"endpoint https://api.crossref.org{expected_path}"
+        )
+        return errors
+    if not require_window_filter:
+        return errors
+
+    query_values: dict[str, list[str]] = {}
+    for key, item in parse_qsl(parsed.query, keep_blank_values=True):
+        query_values.setdefault(key.casefold(), []).append(item)
+    expected_query_keys = {"filter", "rows", "cursor"}
+    if set(query_values) != expected_query_keys or any(
+        len(query_values.get(key, [])) != 1 for key in expected_query_keys
+    ):
+        errors.append(
+            "complete Crossref inventory_url must contain exactly one each of "
+            "filter, rows, and cursor and no other query parameters"
+        )
+    if query_values.get("rows") != [CROSSREF_INVENTORY_ROWS]:
+        errors.append(
+            "complete Crossref inventory_url rows must equal "
+            f"{CROSSREF_INVENTORY_ROWS}"
+        )
+    if not query_values.get("cursor") or not query_values["cursor"][0]:
+        errors.append("complete Crossref inventory_url cursor must be non-empty")
+
+    filter_values = query_values.get("filter", [])
+    if len(filter_values) != 1:
+        return errors
+    filters: dict[str, list[str]] = {}
+    malformed_filter = False
+    for clause in filter_values[0].split(","):
+        key, separator, item = clause.partition(":")
+        if separator and key and item:
+            filters.setdefault(key.casefold(), []).append(item)
+        else:
+            malformed_filter = True
+    expected_filter_keys = {
+        "from-online-pub-date",
+        "until-online-pub-date",
+    }
+    if malformed_filter or set(filters) != expected_filter_keys:
+        errors.append(
+            "complete Crossref inventory_url filter must contain only the "
+            "from-online-pub-date and until-online-pub-date window clauses"
+        )
+    expected_dates = {
+        "from-online-pub-date": str(window.get("start") or "")[:10],
+        "until-online-pub-date": str(window.get("end") or "")[:10],
+    }
+    for key, expected_date in expected_dates.items():
+        if not expected_date or filters.get(key) != [expected_date]:
+            errors.append(
+                "complete Crossref inventory_url filter must bind "
+                f"{key}:{expected_date or '<missing run window>'}"
+            )
+    return errors
+
+
 def _v3_contract_errors(
     *,
     root: Path,
@@ -1622,11 +1719,16 @@ def _v3_contract_errors(
         str(source_id)
         for source_id in (streams_config.get("source_catalog") or {})
     }
-    inventory_required_sources = {
-        str(source_id)
+    source_catalog = {
+        str(source_id): source_config
         for source_id, source_config in (
             streams_config.get("source_catalog") or {}
         ).items()
+        if isinstance(source_config, Mapping)
+    }
+    inventory_required_sources = {
+        source_id
+        for source_id, source_config in source_catalog.items()
         if isinstance(source_config, Mapping)
         and str(source_config.get("adapter") or source_id) == "rss_atom"
     }
@@ -1767,6 +1869,38 @@ def _v3_contract_errors(
             errors.append(
                 f"Run.source_access[{position}] provider is not a configured source"
             )
+        source_config = source_catalog.get(provider)
+        if (
+            access_status != "NOT_ATTEMPTED"
+            and isinstance(source_config, Mapping)
+            and str(source_config.get("adapter") or provider) == "rss_atom"
+        ):
+            crossref_issn = str(source_config.get("crossref_issn") or "").strip()
+            expected_backend = (
+                "rss_atom+crossref_journal_window"
+                if crossref_issn
+                else "rss_atom"
+            )
+            if access.get("retrieval_backend") != expected_backend:
+                errors.append(
+                    f"Run.source_access[{position}] {provider!r} requires "
+                    f"retrieval_backend={expected_backend!r} from resolved source_catalog"
+                )
+            if crossref_issn:
+                inventory_url_errors = _crossref_journal_inventory_url_errors(
+                    access.get("inventory_url"),
+                    expected_issn=crossref_issn,
+                    window=(
+                        run.get("window")
+                        if isinstance(run.get("window"), Mapping)
+                        else {}
+                    ),
+                    require_window_filter=access.get("retrieval_complete") is True,
+                )
+                errors.extend(
+                    f"Run.source_access[{position}] {message}"
+                    for message in inventory_url_errors
+                )
         present_inventory_fields = inventory_fields.intersection(access)
         if (
             provider in inventory_required_sources
@@ -1877,6 +2011,26 @@ def _v3_contract_errors(
                 errors.append(
                     f"Run.source_access[{position}] complete inventory must receive every requested page"
                 )
+            if (
+                access.get("retrieval_complete") is True
+                and isinstance(source_config, Mapping)
+                and str(source_config.get("adapter") or provider) == "rss_atom"
+                and str(source_config.get("crossref_issn") or "").strip()
+                and isinstance(requested_pages, int)
+                and not isinstance(requested_pages, bool)
+            ):
+                configured_feeds = [
+                    str(value)
+                    for value in source_config.get("feeds", [])
+                    if str(value)
+                ]
+                minimum_hybrid_pages = len(configured_feeds) + 1
+                if requested_pages < minimum_hybrid_pages:
+                    errors.append(
+                        f"Run.source_access[{position}] complete hybrid inventory "
+                        f"requires at least {minimum_hybrid_pages} requested pages "
+                        "(every configured feed plus Crossref)"
+                    )
         present_http_fields = http_telemetry_fields.intersection(access)
         telemetry_required_for_access = (
             str(access.get("source_id") or "") in expected_query_access_ids
@@ -1995,10 +2149,6 @@ def _v3_contract_errors(
             )
     for provider, window_count in inventory_window_counts.items():
         check = coverage_check_by_source.get(provider)
-        if isinstance(check, Mapping) and check.get("result_count") != window_count:
-            errors.append(
-                f"source CHECK {provider!r} result_count disagrees with complete window inventory"
-            )
         expected_url = inventory_observations.get(provider, (None,) * 6)[5]
         if (
             isinstance(check, Mapping)
@@ -2262,12 +2412,11 @@ def _v3_contract_errors(
             errors.append(f"source CHECK {source_id!r} has no executor receipt")
             continue
         statuses = {str(item.get("status") or "NOT_ATTEMPTED") for item in matches}
+        # CHECK result_count is the total number of per-query matches.  The
+        # provider's complete, de-duplicated journal-window inventory is
+        # carried separately by source_access.window_record_count and may be
+        # non-zero even when every query receipt is NO_RESULTS.
         expected_count = sum(int(item.get("result_count") or 0) for item in matches)
-        # Query receipts count per-query matches.  A complete feed/registry
-        # inventory is one provider-level observation repeated on those query
-        # records, so summing the receipts would multiply the same window.
-        if source_id in inventory_window_counts:
-            expected_count = inventory_window_counts[source_id]
         if "FAILED" in statuses or "PARTIAL" in statuses:
             expected_status = "FAILED"
         elif "SUCCESS" in statuses:

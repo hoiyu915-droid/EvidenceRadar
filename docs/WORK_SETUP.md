@@ -118,6 +118,22 @@ permission to fall back to the legacy source catalog. `streams.yml`,
 `output.yml` and `deployment.yml` remain compatibility inputs, not mutable
 pre-run materializations.
 
+For an active `rss_atom` source, resolve the live endpoints only from its entry
+in the verified `config/radar_master.json` and use each URL in `feeds` exactly
+as configured. Do not reuse a remembered, copied, legacy, or search-discovered
+feed URL. When the source also declares `crossref_issn`, the feed and Crossref
+journal-window inventory are both required and the observation must report
+`retrieval_backend: rss_atom+crossref_journal_window`.
+
+Treat `result_count` as query/access matches and `window_record_count` as the
+complete de-duplicated in-window inventory before query filtering; neither is a
+substitute for the other. A complete inventory may be non-zero while a query
+correctly returns `result_count: 0`. If any configured feed or Crossref
+inventory surface is missing, inaccessible, incompletely paginated, or absent
+from required telemetry, fail closed with incomplete retrieval and a visible
+source gap. Never downgrade a configured hybrid source to a single inventory
+surface while claiming complete coverage.
+
 Use one of the protocol modes:
 
 - `daily`: the exact 72-hour rolling window and all configured categories;

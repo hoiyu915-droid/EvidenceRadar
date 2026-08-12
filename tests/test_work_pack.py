@@ -115,6 +115,28 @@ class WorkPackTests(unittest.TestCase):
         self.assertTrue((ROOT / "legacy/github-actions/translation-stage-b.yml").exists())
         self.assertIn("post_download_github_access: false", (ROOT / "config" / "deployment.yml").read_text(encoding="utf-8"))
 
+    def test_work_instructions_bind_rss_inventory_to_verified_master_config(self) -> None:
+        documents = (
+            (ROOT / "WORK_ENTRY.md").read_text(encoding="utf-8"),
+            (ROOT / "docs" / "WORK_SETUP.md").read_text(encoding="utf-8"),
+            (ROOT / "templates" / "gpt-work-instructions.md").read_text(
+                encoding="utf-8"
+            ),
+        )
+        for document in documents:
+            with self.subTest(document=document[:32]):
+                self.assertIn("config/radar_master.json", document)
+                self.assertIn("rss_atom", document)
+                self.assertIn("feeds", document)
+                self.assertIn("remembered", document)
+                self.assertIn("crossref_issn", document)
+                self.assertIn(
+                    "retrieval_backend: rss_atom+crossref_journal_window", document
+                )
+                self.assertIn("result_count", document)
+                self.assertIn("window_record_count", document)
+                self.assertIn("fail closed", document)
+
     def test_build_is_byte_reproducible_and_manifest_verifies_every_file(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -136,7 +158,7 @@ class WorkPackTests(unittest.TestCase):
                 self.assertEqual("manifest.json", names[-1])
                 manifest = json.loads(archive.read("manifest.json"))
                 self.assertEqual("evidenceradar-work-pack", manifest["format"])
-                self.assertEqual("1.6.0", manifest["pack_version"])
+                self.assertEqual("1.6.1", manifest["pack_version"])
                 self.assertEqual("chatgpt_work", manifest["execution_lane"])
                 self.assertEqual("WORK_ENTRY.md", manifest["entrypoint"])
                 self.assertEqual("tools/run_work_radar.py", manifest["executor"])
@@ -313,6 +335,18 @@ class WorkPackTests(unittest.TestCase):
                 "pmlr",
                 "pubmed",
             )
+            inventory_urls = {
+                "jama_network_open": (
+                    "https://api.crossref.org/journals/2574-3805/works?"
+                    "filter=from-online-pub-date%3A2026-08-06%2Cuntil-online-pub-date%3A2026-08-09"
+                    "&rows=1000&cursor=%2A"
+                ),
+                "nature_communications": (
+                    "https://api.crossref.org/journals/2041-1723/works?"
+                    "filter=from-online-pub-date%3A2026-08-06%2Cuntil-online-pub-date%3A2026-08-09"
+                    "&rows=1000&cursor=%2A"
+                ),
+            }
             queries = [
                 {
                     "query_id": f"work-query-{source}",
@@ -330,15 +364,23 @@ class WorkPackTests(unittest.TestCase):
                     "source_id": f"work-{source}",
                     "provider": source,
                     "url": (
-                        f"https://example.test/{source}/feed.xml"
+                        inventory_urls[source]
                         if source in {"jama_network_open", "nature_communications"}
                         else f"https://example.test/{source}"
                     ),
                     "accessed_at": end_at.isoformat(),
                     "status": "SUCCESS" if source == "pubmed" else "NO_RESULTS",
                     "result_count": 1 if source == "pubmed" else 0,
-                    "http_requests_attempted": 1,
-                    "http_responses_received": 1,
+                    "http_requests_attempted": (
+                        2
+                        if source in {"jama_network_open", "nature_communications"}
+                        else 1
+                    ),
+                    "http_responses_received": (
+                        2
+                        if source in {"jama_network_open", "nature_communications"}
+                        else 1
+                    ),
                     "cache_reused": False,
                     **(
                         {
@@ -348,9 +390,9 @@ class WorkPackTests(unittest.TestCase):
                             "registry_record_count": 0,
                             "unusable_record_count": 0,
                             "window_record_count": 0,
-                            "inventory_url": f"https://example.test/{source}/feed.xml",
-                            "inventory_pages_requested": 1,
-                            "inventory_pages_received": 1,
+                            "inventory_url": inventory_urls[source],
+                            "inventory_pages_requested": 2,
+                            "inventory_pages_received": 2,
                         }
                         if source in {"jama_network_open", "nature_communications"}
                         else {}

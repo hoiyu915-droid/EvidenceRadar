@@ -87,6 +87,24 @@ not be invoked. `run_local_runtime.py` and Stage B automation belong to the
 separate maintainer Runtime and are absent. A missing `radar_master.json`,
 unknown profile or partial source map is a hard failure.
 
+For every active source whose adapter is `rss_atom`, resolve request targets
+only from that source's entry in the verified `config/radar_master.json`. Use
+the configured `feeds` URLs exactly; a remembered, copied, legacy, or
+search-discovered URL is not an acceptable substitute. If the entry also has
+`crossref_issn`, request both the feed and the Crossref journal-window inventory
+and record `retrieval_backend: rss_atom+crossref_journal_window`. This is one
+mandatory hybrid retrieval, not permission to choose whichever surface works.
+
+Do not conflate filtering with inventory. `result_count` records the matches
+returned by a query/access receipt; `window_record_count` records the complete
+de-duplicated in-window provider inventory before query filtering. Therefore a
+complete non-empty inventory can correctly accompany `result_count: 0` and
+`NO_RESULTS`. If a configured feed or Crossref inventory surface is absent,
+unreachable, incompletely paginated, or missing required inventory telemetry,
+fail closed: mark retrieval incomplete, preserve the source gap, and do not
+claim `SUCCESS`, `NO_RESULTS`, or complete coverage by silently degrading to a
+single surface.
+
 After the live searches and primary-page reads, bind their actual receipts,
 complete candidates and your source-grounded Traditional Chinese translations
 in one external `EvidenceRadar_WorkInput` JSON file. Invoke the packaged

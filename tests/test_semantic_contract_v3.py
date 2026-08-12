@@ -14,6 +14,7 @@ from tests.test_delivery_bundle import ROOT, create_bundle
 from tools.run_github_radar import render_report_from_documents
 from tools.validate_delivery_bundle import (
     _configured_streams_for_run,
+    _crossref_journal_inventory_url_errors,
     _producer_requires_http_telemetry,
     _producer_requires_master_control,
     validate_delivery_bundle,
@@ -21,6 +22,47 @@ from tools.validate_delivery_bundle import (
 
 
 class SemanticContractV3Tests(unittest.TestCase):
+    def test_complete_crossref_inventory_url_is_exact_and_non_narrowing(self) -> None:
+        window = {
+            "start": "2026-08-06T00:00:00+09:00",
+            "end": "2026-08-09T00:00:00+09:00",
+        }
+        valid = (
+            "https://api.crossref.org/journals/2041-1723/works?"
+            "filter=from-online-pub-date%3A2026-08-06%2C"
+            "until-online-pub-date%3A2026-08-09&rows=1000&cursor=%2A"
+        )
+        self.assertEqual(
+            [],
+            _crossref_journal_inventory_url_errors(
+                valid,
+                expected_issn="2041-1723",
+                window=window,
+                require_window_filter=True,
+            ),
+        )
+        invalid_urls = {
+            "nonstandard port": valid.replace("api.crossref.org", "api.crossref.org:444"),
+            "missing cursor": valid.replace("&cursor=%2A", ""),
+            "blank cursor": valid.replace("cursor=%2A", "cursor="),
+            "narrow rows": valid.replace("rows=1000", "rows=1"),
+            "extra query": f"{valid}&query=clinical",
+            "extra filter": valid.replace(
+                "%2Cuntil-online-pub-date",
+                "%2Ctype%3Ajournal-article%2Cuntil-online-pub-date",
+            ),
+        }
+        for label, invalid in invalid_urls.items():
+            with self.subTest(label=label):
+                self.assertTrue(
+                    _crossref_journal_inventory_url_errors(
+                        invalid,
+                        expected_issn="2041-1723",
+                        window=window,
+                        require_window_filter=True,
+                    )
+                )
+
     def test_gitless_packaged_runner_preserves_modern_capabilities(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -620,37 +662,46 @@ class SemanticContractV3Tests(unittest.TestCase):
                 errors,
             )
 
-    def test_inventory_window_count_must_equal_source_check(self) -> None:
+    def test_nonzero_inventory_can_have_zero_query_matches_and_no_results(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             bundle, canonical = create_bundle(Path(directory))
             run = self._load(bundle, "EvidenceRadar_Run.json")
+            evidence = self._load(bundle, "EvidenceRadar_Evidence.json")
             access = next(
-                item for item in run["source_access"] if item["provider"] == "pubmed"
+                item
+                for item in run["source_access"]
+                if item["provider"] == "europe_pmc"
             )
             access.update(
                 {
                     "retrieval_complete": True,
                     "retrieval_backend": "rss_atom",
-                    "feed_entry_count": 2,
+                    "feed_entry_count": 8,
                     "registry_record_count": 0,
-                    "window_record_count": 2,
-                    "inventory_url": "https://example.test/pubmed/feed.xml",
+                    "window_record_count": 8,
+                    "inventory_url": "https://example.test/europe-pmc/feed.xml",
                 }
             )
+            check = next(
+                item
+                for item in run["source_coverage"]["checks"]
+                if item["source_id"] == "europe_pmc"
+            )
+            self.assertEqual("NO_RESULTS", check["status"])
+            self.assertEqual(0, check["result_count"])
+            check["url"] = access["inventory_url"]
+            evidence["coverage"]["checks"] = copy.deepcopy(
+                run["source_coverage"]["checks"]
+            )
             self._save(bundle, "EvidenceRadar_Run.json", run)
+            self._save(bundle, "EvidenceRadar_Evidence.json", evidence)
+            self._refresh_report(bundle)
 
             errors = self._validate(bundle, canonical)
-            self.assertTrue(
-                any(
-                    "source CHECK 'pubmed' result_count disagrees with complete window inventory"
-                    in error
-                    for error in errors
-                ),
-                errors,
-            )
+            self.assertEqual([], errors)
 
-    def test_inventory_window_count_is_authoritative_for_aggregate_check(self) -> None:
-        """Repeated query receipts must not multiply one provider inventory."""
+    def test_inventory_window_count_does_not_replace_aggregate_query_matches(self) -> None:
+        """Repeated query matches remain separate from one cached provider inventory."""
 
         with tempfile.TemporaryDirectory() as directory:
             bundle, canonical = create_bundle(Path(directory))
@@ -702,7 +753,7 @@ class SemanticContractV3Tests(unittest.TestCase):
                 for item in run["source_coverage"]["checks"]
                 if item["source_id"] == "pubmed"
             )
-            self.assertEqual(1, pubmed_check["result_count"])
+            pubmed_check["result_count"] = 2
             pubmed_check["url"] = inventory["inventory_url"]
             evidence["coverage"]["checks"] = copy.deepcopy(
                 run["source_coverage"]["checks"]
@@ -1587,6 +1638,103 @@ class SemanticContractV3Tests(unittest.TestCase):
                 errors = self._validate(bundle, canonical)
             self.assertTrue(
                 any("modern inventory telemetry is incomplete" in error for error in errors),
+                errors,
+            )
+
+    def test_catalog_hybrid_sources_reject_rss_only_inventory_receipts(self) -> None:
+        for provider, feed_url in (
+            ("jama_network_open", "https://jamanetwork.com/rss/site_214/187.xml"),
+            ("nature_communications", "https://www.nature.com/ncomms.rss"),
+        ):
+            with self.subTest(provider=provider), tempfile.TemporaryDirectory() as directory:
+                bundle, canonical = create_bundle(Path(directory))
+                run = self._load(bundle, "EvidenceRadar_Run.json")
+                run["source_access"].append(
+                    {
+                        "source_id": f"{provider}-rss-only-fixture",
+                        "provider": provider,
+                        "url": feed_url,
+                        "accessed_at": run["finished_at"],
+                        "status": "NO_RESULTS",
+                        "result_count": 0,
+                        "retrieval_complete": True,
+                        "retrieval_backend": "rss_atom",
+                        "feed_entry_count": 8,
+                        "registry_record_count": 0,
+                        "unusable_record_count": 0,
+                        "window_record_count": 8,
+                        "inventory_url": feed_url,
+                        "inventory_pages_requested": 1,
+                        "inventory_pages_received": 1,
+                        "http_requests_attempted": 1,
+                        "http_responses_received": 1,
+                        "cache_reused": False,
+                    }
+                )
+                run["source_access"].sort(key=lambda item: item["source_id"])
+                self._save(bundle, "EvidenceRadar_Run.json", run)
+                self._refresh_report(bundle)
+
+                errors = self._validate(bundle, canonical)
+                self.assertTrue(
+                    any(
+                        f"{provider!r} requires retrieval_backend=" in error
+                        and "rss_atom+crossref_journal_window" in error
+                        for error in errors
+                    ),
+                    errors,
+                )
+                self.assertTrue(
+                    any(
+                        "inventory_url must use the catalog-bound Crossref journal works endpoint"
+                        in error
+                        for error in errors
+                    ),
+                    errors,
+                )
+
+    def test_complete_hybrid_inventory_requires_feed_and_crossref_pages(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            bundle, canonical = create_bundle(Path(directory))
+            run = self._load(bundle, "EvidenceRadar_Run.json")
+            inventory_url = (
+                "https://api.crossref.org/journals/2041-1723/works?"
+                "filter=from-online-pub-date%3A2026-08-06%2C"
+                "until-online-pub-date%3A2026-08-09&rows=1000&cursor=%2A"
+            )
+            run["source_access"].append(
+                {
+                    "source_id": "nature-one-page-hybrid-fixture",
+                    "provider": "nature_communications",
+                    "url": inventory_url,
+                    "accessed_at": run["finished_at"],
+                    "status": "NO_RESULTS",
+                    "result_count": 0,
+                    "retrieval_complete": True,
+                    "retrieval_backend": "rss_atom+crossref_journal_window",
+                    "feed_entry_count": 8,
+                    "registry_record_count": 116,
+                    "unusable_record_count": 0,
+                    "window_record_count": 8,
+                    "inventory_url": inventory_url,
+                    "inventory_pages_requested": 1,
+                    "inventory_pages_received": 1,
+                    "http_requests_attempted": 1,
+                    "http_responses_received": 1,
+                    "cache_reused": False,
+                }
+            )
+            run["source_access"].sort(key=lambda item: item["source_id"])
+            self._save(bundle, "EvidenceRadar_Run.json", run)
+            self._refresh_report(bundle)
+
+            errors = self._validate(bundle, canonical)
+            self.assertTrue(
+                any(
+                    "complete hybrid inventory requires at least 2 requested pages"
+                    in error
+                    for error in errors
+                ),
                 errors,
             )
 

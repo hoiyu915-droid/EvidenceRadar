@@ -64,6 +64,22 @@ Read, in order:
 5. `config/radar_master.json`
 6. `docs/SEMANTIC_CONTRACT_V3.md`
 
+Resolve every active `rss_atom` target directly from the verified
+`config/radar_master.json` source entry. Use the URLs in `feeds` exactly as
+configured; never substitute a remembered, copied, legacy, or search-discovered
+feed URL. When that same entry also declares `crossref_issn`, both the feed and
+Crossref journal-window inventory are mandatory. Execute the hybrid retrieval
+and report `retrieval_backend: rss_atom+crossref_journal_window`.
+
+Keep query matches and provider inventory separate: `result_count` is the
+number of records matched by that query/access receipt, while
+`window_record_count` is the complete de-duplicated in-window inventory before
+query filtering. A non-zero inventory may legitimately produce
+`result_count: 0`. If any configured feed or Crossref inventory surface is
+missing, cannot be fetched or fully paginated, or lacks its required telemetry,
+fail closed with incomplete retrieval and a visible source gap. Never silently
+degrade a configured hybrid source to feed-only or Crossref-only retrieval.
+
 Use profile `owner_daily` unless the user explicitly selects another profile.
 Keep the extracted package read-only and create a new external run directory.
 Copy the selected base State into that directory before merging any current-run

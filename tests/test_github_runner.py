@@ -20,6 +20,7 @@ from tools.run_github_radar import (
     _RequestTelemetrySession,
     build_gap_backlog,
     build_retrieval_ledger,
+    build_source_coverage,
     build_state,
     candidate_content_summary,
     candidate_source_excerpt,
@@ -1144,6 +1145,51 @@ class GithubRunnerTests(unittest.TestCase):
         self.assertEqual(0, len(result.priority_candidates))
         self.assertEqual("LOWER_PRIORITY", result.all_candidates[0].triage_status)
         self.assertEqual(["query-001", "query-002"], result.all_candidates[0].query_ids)
+
+    def test_inventory_backed_source_can_have_nonzero_window_and_no_query_matches(self) -> None:
+        checked_at = datetime(2026, 8, 12, 12, 0, tzinfo=TZ)
+        observation = {
+            "retrieval_complete": True,
+            "retrieval_backend": "rss_atom+crossref_journal_window",
+            "feed_entry_count": 8,
+            "registry_record_count": 116,
+            "unusable_record_count": 0,
+            "window_record_count": 8,
+            "inventory_url": "https://example.test/ncomms-inventory",
+            "inventory_pages_requested": 2,
+            "inventory_pages_received": 2,
+        }
+        source_access = [
+            {
+                "source_id": f"nature-query-{index}",
+                "provider": "nature_communications",
+                "url": observation["inventory_url"],
+                "accessed_at": checked_at.isoformat(),
+                "status": "NO_RESULTS",
+                "result_count": 0,
+                "http_requests_attempted": 2 if index == 1 else 0,
+                "http_responses_received": 2 if index == 1 else 0,
+                "cache_reused": index != 1,
+                **observation,
+            }
+            for index in range(1, 6)
+        ]
+
+        coverage = build_source_coverage(
+            requested_sources={"nature_communications"},
+            checked_sources={"nature_communications"},
+            searched_sources={"nature_communications"},
+            unavailable_sources=set(),
+            source_access=source_access,
+            stage_by_source={"nature_communications": "discovery"},
+            checked_at=checked_at,
+        )
+
+        [check] = coverage["checks"]
+        self.assertEqual("NO_RESULTS", check["status"])
+        self.assertEqual(0, check["result_count"])
+        self.assertIn("8 complete window record(s)", check["summary"])
+        self.assertIn("0 query match(es) across 5 check(s)", check["summary"])
 
     def test_incomplete_cached_inventory_uses_partial_zero_io_replay_receipt(self) -> None:
         streams = {

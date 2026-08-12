@@ -4582,7 +4582,13 @@ def build_source_coverage(
             query_match_count = sum(
                 int(record.get("result_count") or 0) for record in records
             )
-            result_count = max(window_counts) if window_counts else query_match_count
+            # Aggregate CHECK result_count has the same meaning as the query
+            # and source-access receipts it summarizes: records that matched
+            # the configured queries.  An inventory-backed adapter may inspect
+            # many in-window journal records and legitimately return zero
+            # matches; that inventory size remains separate in
+            # window_record_count telemetry and the CHECK summary.
+            result_count = query_match_count
             if "FAILED" in statuses or "PARTIAL" in statuses:
                 status = "FAILED"
             elif "SUCCESS" in statuses:
@@ -4592,6 +4598,7 @@ def build_source_coverage(
             else:
                 status = "NOT_ATTEMPTED"
             if window_counts:
+                window_record_count = max(window_counts)
                 feed_counts = [
                     int(record["feed_entry_count"])
                     for record in records
@@ -4603,7 +4610,7 @@ def build_source_coverage(
                     if isinstance(record.get("registry_record_count"), int)
                 ]
                 summary = (
-                    f"{result_count} complete window record(s); "
+                    f"{window_record_count} complete window record(s); "
                     f"{query_match_count} query match(es) across {len(records)} check(s); "
                     f"RSS entries {max(feed_counts) if feed_counts else 0}; "
                     f"registry records {max(registry_counts) if registry_counts else 0}."
@@ -6218,7 +6225,7 @@ h1{margin:.1rem 0 .45rem;font-size:clamp(2rem,5vw,3.5rem);line-height:1.08;lette
 <summary><span>Source check matrix</span><span>{len(source_coverage.get("checked", []))}/{len(source_coverage.get("requested", []))} sources 有 CHECK</span></summary>
 <div class="panel-body">
 <p class="panel-intro">CHECK 代表本輪留下可稽核紀錄，不等於存取成功；<code>NO_RESULTS</code> 才代表來源成功回應但零筆符合。</p>
-<div class="table-wrap"><table><thead><tr><th>Source</th><th>Stage</th><th>Status</th><th>Results</th><th>Summary</th></tr></thead><tbody>{source_rows}</tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Source</th><th>Stage</th><th>Status</th><th>Query matches</th><th>Summary</th></tr></thead><tbody>{source_rows}</tbody></table></div>
 </div>
 </details>
 </section>

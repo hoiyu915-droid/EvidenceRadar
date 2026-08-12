@@ -260,6 +260,7 @@
           ]
         },
         "result_count": {
+          "description": "Records matched by this query after source filtering; unmatched provider inventory records are excluded.",
           "type": "integer",
           "minimum": 0
         },
@@ -456,6 +457,7 @@
           ]
         },
         "result_count": {
+          "description": "Records matched by this source-access operation after query filtering. For inventory-backed sources, NO_RESULTS requires 0 even when window_record_count is non-zero.",
           "type": "integer",
           "minimum": 0
         },
@@ -479,6 +481,7 @@
           "minimum": 0
         },
         "window_record_count": {
+          "description": "Complete de-duplicated provider records in the monitoring window before per-query filtering; this is inventory telemetry, not query matches.",
           "type": "integer",
           "minimum": 0
         },
@@ -584,6 +587,7 @@
           "format": "date-time"
         },
         "result_count": {
+          "description": "Total per-query matches across the source receipts summarized by this CHECK; unmatched inventory records are excluded.",
           "type": "integer",
           "minimum": 0
         },

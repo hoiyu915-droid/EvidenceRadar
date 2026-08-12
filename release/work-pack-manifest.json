@@ -1,7 +1,7 @@
 {
   "format": "evidenceradar-work-pack-manifest",
   "manifest_version": "1",
-  "pack_version": "1.6.0",
+  "pack_version": "1.6.1",
   "schema_version": "1.0",
   "archive_manifest_path": "manifest.json",
   "required": [

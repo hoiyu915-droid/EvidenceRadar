@@ -33,6 +33,20 @@ NATURE_LIKE_RDF = '''<?xml version="1.0" encoding="UTF-8"?>
  </item>
 </rdf:RDF>'''
 
+JAMA_RELATIVE_PRISM_RSS = '''<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:prism="http://purl.org/rss/1.0/modules/prism/">
+ <channel>
+  <item>
+   <title>Physical Fitness and All-Cause Mortality in Older Adults</title>
+   <link>https://jamanetwork.com/journals/jamanetworkopen/fullarticle/fixture</link>
+   <pubDate>Mon, 10 Aug 2026 00:00:00 GMT</pubDate>
+   <description>A cohort study of physical fitness and mortality.</description>
+   <dc:identifier xmlns:dc="http://purl.org/dc/elements/1.1/">article-fixture</dc:identifier>
+   <prism:doi xmlns:prism="prism">https://doi.org/10.1001/JAMANetworkOpen.2026.28227</prism:doi>
+  </item>
+ </channel>
+</rss>'''
+
 ATOM = '''<?xml version="1.0"?>
 <feed xmlns="http://www.w3.org/2005/Atom">
  <entry>
@@ -189,6 +203,48 @@ class PublisherFeedTests(unittest.TestCase):
         self.assertEqual(rows[0]["venue"], "Nature Physics")
         self.assertEqual(rows[0]["title"], "Quantum widgets improve measurement")
 
+    def test_parse_jama_relative_prism_namespace_doi(self) -> None:
+        rows = parse_feed(
+            JAMA_RELATIVE_PRISM_RSS,
+            feed_url="https://jamanetwork.com/rss/site_214/187.xml",
+            source_id="jama_network_open",
+        )
+        self.assertEqual(1, len(rows))
+        self.assertEqual(
+            "10.1001/jamanetworkopen.2026.28227",
+            rows[0]["doi"],
+        )
+        self.assertEqual("2026-08-10", rows[0]["publication_date"])
+
+    def test_jama_feed_and_crossref_dedupe_on_canonical_doi(self) -> None:
+        [feed_record] = parse_feed(
+            JAMA_RELATIVE_PRISM_RSS,
+            feed_url="https://jamanetwork.com/rss/site_214/187.xml",
+            source_id="jama_network_open",
+        )
+        registry_record = {
+            "title": "Registry title deliberately differs from the RSS title",
+            "landing_url": "https://doi.org/10.1001/jamanetworkopen.2026.28227",
+            "publication_date": "2026-08-10",
+            "doi": "doi:10.1001/JAMANETWORKOPEN.2026.28227",
+            "event_confidence": "publisher_supplied_citation",
+        }
+
+        records = _merge_feed_and_registry_records(
+            [feed_record],
+            [registry_record],
+        )
+
+        self.assertEqual(1, len(records))
+        self.assertEqual(
+            "10.1001/jamanetworkopen.2026.28227",
+            records[0]["doi"],
+        )
+        self.assertEqual(
+            "https://jamanetwork.com/journals/jamanetworkopen/fullarticle/fixture",
+            records[0]["landing_url"],
+        )
+
     def test_parse_atom(self) -> None:
         rows = parse_feed(ATOM, feed_url="https://example.org/feed.atom", source_id="example")
         self.assertEqual(rows[0]["publication_date"], "2026-08-09")
@@ -323,6 +379,27 @@ class PublisherFeedTests(unittest.TestCase):
             _matches_query(
                 "Trust in human-AI interaction",
                 "human AI interaction",
+            )
+        )
+
+    def test_quoted_query_is_exact_phrase_or_without_token_fallback(self) -> None:
+        query = '"large language model" "retrieval-augmented generation"'
+        self.assertTrue(
+            _matches_query(
+                "Evaluating a large language model for clinical decisions",
+                query,
+            )
+        )
+        self.assertTrue(
+            _matches_query(
+                "Grounding with retrieval-augmented generation",
+                query,
+            )
+        )
+        self.assertFalse(
+            _matches_query(
+                "A large clinical cohort with a mechanistic animal model",
+                query,
             )
         )
 

@@ -85,8 +85,12 @@ def _matches_query(text: str, query: str) -> bool:
         return True
     haystack = _strip_markup(text).casefold()
     quoted = [part.casefold().strip() for part in re.findall(r'"([^\"]{2,})"', query)]
-    if quoted and any(_contains_term(haystack, part) for part in quoted):
-        return True
+    # Quoted terms are an explicit OR-list.  Once a query opts into exact
+    # phrases, do not broaden it again through the unquoted token fallback;
+    # that fallback turned owner-scoped Nature queries into matches for any
+    # incidental word such as "model", "training", or "human".
+    if quoted:
+        return any(_contains_term(haystack, part) for part in quoted)
     tokens = [
         token for token in re.findall(r"[a-z0-9][a-z0-9_-]{1,}", query.casefold())
         if token not in QUERY_STOPWORDS
@@ -129,10 +133,44 @@ def _first_local(parent: ET.Element, names: list[str]) -> str:
     return ""
 
 
+def _normalize_doi(value: Any) -> str:
+    """Return the canonical DOI identity used across feed and registry records."""
+
+    text = html.unescape(str(value or "")).strip()
+    text = re.sub(r"^doi\s*:\s*", "", text, flags=re.IGNORECASE)
+    text = re.sub(
+        r"^https?://(?:dx\.)?doi\.org/",
+        "",
+        text,
+        flags=re.IGNORECASE,
+    )
+    match = re.search(
+        r"10\.\d{4,9}/[-._;()/:A-Z0-9]+",
+        text,
+        flags=re.IGNORECASE,
+    )
+    return match.group(0).rstrip(" .,;").casefold() if match else ""
+
+
 def _doi(parent: ET.Element) -> str:
-    value = _first_text(parent, [f"{PRISM_2}doi", f"{PRISM_1}doi", f"{DC}identifier"])
-    match = re.search(r"10\.\d{4,9}/[-._;()/:A-Z0-9]+", value, flags=re.IGNORECASE)
-    return match.group(0).rstrip(" .") if match else ""
+    # JAMA Network feeds currently declare ``xmlns:prism="prism"`` instead
+    # of either standard PRISM URI.  ElementTree therefore exposes
+    # ``{prism}doi``.  The local-name fallback keeps that first-party DOI
+    # available for canonical RSS/Crossref merging without trusting arbitrary
+    # nested markup.
+    # Prefer every explicitly DOI-shaped field before generic identifiers.  A
+    # feed may include a non-DOI dc:identifier ahead of JAMA's relative-URI
+    # prism:doi; combining them in one first-match lookup would hide the DOI.
+    for value in (
+        _first_text(parent, [f"{PRISM_2}doi", f"{PRISM_1}doi"]),
+        _first_local(parent, ["doi"]),
+        _first_text(parent, [f"{DC}identifier"]),
+        _first_local(parent, ["identifier"]),
+    ):
+        doi = _normalize_doi(value)
+        if doi:
+            return doi
+    return ""
 
 
 def parse_feed(
@@ -247,7 +285,7 @@ def _crossref_record(item: Any, *, source_id: str, issn: str) -> dict[str, Any] 
     if not title:
         return None
     publication_date, source_field = _crossref_date(item)
-    doi = str(item.get("DOI") or "").strip()
+    doi = _normalize_doi(item.get("DOI"))
     landing_url = str(item.get("URL") or "").strip()
     if not landing_url and doi:
         landing_url = f"https://doi.org/{quote(doi, safe='/')}"
@@ -296,7 +334,7 @@ def _record_aliases(record: dict[str, Any]) -> list[tuple[str, str]]:
     """
 
     aliases: list[tuple[str, str]] = []
-    doi = str(record.get("doi") or "").casefold().strip()
+    doi = _normalize_doi(record.get("doi"))
     landing_url = str(record.get("landing_url") or "").casefold().rstrip("/")
     if doi:
         aliases.append(("doi", doi))
@@ -369,6 +407,8 @@ def _merge_feed_and_registry_records(
     title_index: dict[str, list[int]] = {}
     for raw_record in [*feed_records, *registry_records]:
         record = dict(raw_record)
+        if "doi" in record:
+            record["doi"] = _normalize_doi(record.get("doi"))
         aliases = _record_aliases(record)
         matched_indexes = {
             alias_index[alias] for alias in aliases if alias in alias_index
@@ -386,8 +426,8 @@ def _merge_feed_and_registry_records(
             )
         if target_index is not None:
             current = merged[target_index]
-            current_doi = str(current.get("doi") or "").casefold().strip()
-            incoming_doi = str(record.get("doi") or "").casefold().strip()
+            current_doi = _normalize_doi(current.get("doi"))
+            incoming_doi = _normalize_doi(record.get("doi"))
             # A generic/shared title is not sufficient to merge conflicting
             # strong identifiers.
             if current_doi and incoming_doi and current_doi != incoming_doi:
