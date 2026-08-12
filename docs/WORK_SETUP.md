@@ -32,11 +32,12 @@ pack does not claim unattended Work scheduling. See the official
 ## 0. User entry: execute Radar
 
 The user only needs to ask ChatGPT Work to execute Radar. Work downloads these
-two GitHub Release assets once:
+three GitHub Release assets once:
 
 ```text
 https://github.com/hoiyu915-droid/EvidenceRadar/releases/latest/download/EvidenceRadar-WorkPack-current.zip
 https://github.com/hoiyu915-droid/EvidenceRadar/releases/latest/download/EvidenceRadar-WorkPack-current.zip.sha256
+https://github.com/hoiyu915-droid/EvidenceRadar/releases/latest/download/EvidenceRadar-WorkPack-current.sigstore.json
 ```
 
 GitHub is the source and package store. It is not an execution coordinator for
@@ -47,35 +48,46 @@ Chinese translation.
 
 ## 1. Verify and install the released pack
 
-1. Download `EvidenceRadar-WorkPack-current.zip` and its matching `.sha256`
-   sidecar from the URLs above.
-2. Verify the archive before opening it. On macOS or Linux:
+1. Download `EvidenceRadar-WorkPack-current.zip`, its matching `.sha256`
+   sidecar and `.sigstore.json` provenance bundle from the URLs above.
+2. Verify signed SLSA provenance and bind it to this repository and release
+   workflow before opening the archive:
+
+   ```sh
+   gh attestation verify EvidenceRadar-WorkPack-current.zip \
+     --repo hoiyu915-droid/EvidenceRadar \
+     --signer-workflow hoiyu915-droid/EvidenceRadar/.github/workflows/work-pack-release.yml \
+     --bundle EvidenceRadar-WorkPack-current.sigstore.json
+   ```
+
+3. Verify the checksum. On macOS or Linux:
 
    ```sh
    shasum -a 256 -c EvidenceRadar-WorkPack-current.zip.sha256
    ```
 
    On systems with GNU coreutils, `sha256sum -c` accepts the same sidecar.
-3. Extract the archive into a fresh read-only package directory and keep its
+4. Extract the archive into a fresh read-only package directory and keep its
    relative paths unchanged.
-4. Set `PYTHONDONTWRITEBYTECODE=1`, then run
+5. Set `PYTHONDONTWRITEBYTECODE=1`, then run
    `python3 tools/verify_work_pack.py --root .`. The verifier checks the
    clean source commit, every file SHA-256, the embedded State, the
    `chatgpt_work` capability declaration and the absence of GitHub control-plane
    entrypoints.
-5. Read `WORK_ENTRY.md`, then `templates/gpt-work-instructions.md`.
+6. Read `WORK_ENTRY.md`, then `templates/gpt-work-instructions.md`.
 
-The pack includes `requirements.txt`, the current `config/radar_master.json`,
+The pack includes `requirements.lock`, the current `config/radar_master.json`,
 the canonical State snapshot, V3 renderer, validators, delivery packager and
 State merge tool. The renderer imports report-projection functions from a
 library-only `run_github_radar.py` whose CLI is disabled inside the pack. The
-local Runtime entrypoint and Stage B automation are excluded. Create an
-isolated environment before using the packaged tools:
+local Runtime entrypoint and Stage B automation are excluded. Keep the
+verified pack read-only and create an isolated environment beside it before
+using the packaged tools (replace the two paths with absolute paths):
 
 ```sh
-python3 -m venv .venv
-. .venv/bin/activate
-python -m pip install -r requirements.txt
+python3 -m venv /path/to/EvidenceRadar-WorkPack-venv
+. /path/to/EvidenceRadar-WorkPack-venv/bin/activate
+python -m pip install --require-hashes -r /path/to/EvidenceRadar-WorkPack/requirements.lock
 ```
 
 Daily reports, CI files, credentials and secret-bearing material remain
@@ -138,6 +150,24 @@ effect measure, analysis set, method and uncertainty); preserve incompatible
 results in a conflict group.
 
 ## 3. Deliver and carry state
+
+After Work has performed the configured searches and source reads, write their
+exact receipts, complete candidate records and bound Traditional Chinese
+translations to one strict `EvidenceRadar_WorkInput` JSON file outside the
+verified pack. Then run the packaged terminal executor:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 python3 tools/run_work_radar.py \
+  --root "$WORK_PACK_DIR" \
+  --input "$WORK_INPUT_JSON" \
+  --run-dir "$WORK_RUN_DIR" \
+  --delivery-dir "$WORK_DELIVERY_DIR"
+```
+
+This is the sole Work execution command. It starts before any run artifact
+exists and performs State advancement, canonical rendering, schema and
+cross-file validation, packaging and direct-alias creation. A successful JSON
+summary declares `status: COMPLETE` and lists all four delivery aliases.
 
 Every completed Work run creates these four files in the current project:
 

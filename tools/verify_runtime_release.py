@@ -13,8 +13,12 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, Mapping
 from zipfile import BadZipFile, ZipFile
 
-
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from tools.strict_json import loads as strict_json_loads
+
 RUNTIME_MANIFEST_NAME = "RUNTIME_MANIFEST.json"
 REQUIRED_FORMAT = "evidenceradar-runtime-release"
 REQUIRED_ENTRYPOINTS = {
@@ -25,9 +29,12 @@ REQUIRED_ENTRYPOINTS = {
 }
 REQUIRED_RUNTIME_FILES = REQUIRED_ENTRYPOINTS | {
     "config/radar_master.json",
+    "requirements.lock",
     "tools/featured_selection.py",
+    "tools/network_safety.py",
     "tools/publisher_feed.py",
     "tools/radar_control.py",
+    "tools/strict_json.py",
 }
 FORBIDDEN_PREFIXES = (
     ".git/",
@@ -74,7 +81,7 @@ def _safe_relative_path(value: str) -> str:
 
 def _load_manifest_bytes(payload: bytes) -> dict[str, Any]:
     try:
-        value = json.loads(payload.decode("utf-8"))
+        value = strict_json_loads(payload.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise RuntimeVerificationError(f"invalid {RUNTIME_MANIFEST_NAME}: {exc}") from exc
     if not isinstance(value, dict):

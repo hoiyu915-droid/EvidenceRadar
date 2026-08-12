@@ -1,5 +1,5 @@
-from src.radar import Paper
 from src import quality
+from src.radar import Paper
 
 
 def paper(title: str, abstract: str = "", stream: str = "sport_science", types=None) -> Paper:

@@ -13,9 +13,17 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, Mapping
 from zipfile import BadZipFile, ZipFile, ZipInfo
 
+# Verification must not mutate the extracted package it is measuring.
+sys.dont_write_bytecode = True
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from tools.strict_json import loads as strict_json_loads
 
 MANIFEST_NAME = "manifest.json"
 REQUIRED_CAPABILITIES = {
+    "DETERMINISTIC_WORK_EXECUTOR_V1",
     "EXECUTOR_HTTP_TELEMETRY_V1",
     "MASTER_CONTROL_V1",
     "TERMINAL_FOUR_ARTIFACT_DELIVERY_V1",
@@ -27,8 +35,11 @@ CANONICAL_ARTIFACTS = [
     "EvidenceRadar_Run.json",
 ]
 REQUIRED_PATHS = {
+    ".agents/skills/evidence-radar/SKILL.md",
     "WORK_ENTRY.md",
     "EVIDENCE_RADAR_PROTOCOL.md",
+    "requirements.lock",
+    "requirements.txt",
     "config/radar_master.json",
     "docs/SEMANTIC_CONTRACT_V3.md",
     "docs/WORK_SETUP.md",
@@ -42,11 +53,14 @@ REQUIRED_PATHS = {
     "tools/featured_selection.py",
     "tools/materialize_delivery_aliases.py",
     "tools/merge_radar_state.py",
+    "tools/network_safety.py",
     "tools/package_work_delivery.py",
     "tools/publisher_feed.py",
     "tools/radar_control.py",
     "tools/render_report_from_artifacts.py",
     "tools/run_github_radar.py",
+    "tools/run_work_radar.py",
+    "tools/strict_json.py",
     "tools/validate_delivery_bundle.py",
     "tools/validate_gpt_work_artifacts.py",
     "tools/verify_work_pack.py",
@@ -94,7 +108,7 @@ def _safe_relative(value: Any) -> str:
 
 def _load_manifest(payload: bytes) -> dict[str, Any]:
     try:
-        value = json.loads(payload.decode("utf-8"))
+        value = strict_json_loads(payload)
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise WorkPackVerificationError(f"invalid Work Pack manifest: {exc}") from exc
     if not isinstance(value, dict):
@@ -109,6 +123,10 @@ def _validated_records(manifest: Mapping[str, Any]) -> list[dict[str, Any]]:
         raise WorkPackVerificationError("Work Pack execution_lane must be chatgpt_work")
     if manifest.get("entrypoint") != "WORK_ENTRY.md":
         raise WorkPackVerificationError("Work Pack entrypoint must be WORK_ENTRY.md")
+    if manifest.get("executor") != "tools/run_work_radar.py":
+        raise WorkPackVerificationError(
+            "Work Pack executor must be tools/run_work_radar.py"
+        )
     if manifest.get("terminal_delivery") is not True:
         raise WorkPackVerificationError("Work Pack must require terminal delivery")
     if manifest.get("canonical_artifacts") != CANONICAL_ARTIFACTS:
@@ -191,7 +209,7 @@ def _verify_payloads(manifest: Mapping[str, Any], payloads: Mapping[str, bytes])
     if total > MAX_TOTAL_BYTES:
         raise WorkPackVerificationError("Work Pack expanded payload exceeds size limit")
     try:
-        state = json.loads(payloads["state/current/EvidenceRadar_State.json"].decode("utf-8"))
+        state = strict_json_loads(payloads["state/current/EvidenceRadar_State.json"])
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise WorkPackVerificationError(f"embedded State is invalid JSON: {exc}") from exc
     if not isinstance(state, Mapping) or state.get("artifact_type") != "EvidenceRadar_State":

@@ -7,7 +7,7 @@ research problem a work studies, and a work may carry multiple directions.
 from __future__ import annotations
 
 from collections import defaultdict
-from typing import Any, Iterable
+from typing import Iterable
 
 from . import quality
 from . import radar as core

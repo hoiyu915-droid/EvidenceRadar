@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import subprocess
 import sys
 import tempfile
@@ -17,9 +16,12 @@ from tools.build_runtime_release import (
     build_runtime_release,
 )
 from tools.run_local_runtime import LocalRuntimeError, _outside_runtime, build_runner_command
-from tools.verify_runtime_release import RuntimeVerificationError, verify_archive, verify_extracted_root
-from tools.verify_runtime_release import _validated_records
-
+from tools.verify_runtime_release import (
+    RuntimeVerificationError,
+    _validated_records,
+    verify_archive,
+    verify_extracted_root,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 CLEAN_GIT_STATE = {
@@ -53,7 +55,7 @@ class RuntimeReleaseTests(unittest.TestCase):
             self.assertEqual(first.archive_sha256, second.archive_sha256)
             manifest = first.manifest
             self.assertEqual("evidenceradar-runtime-release", manifest["format"])
-            self.assertEqual("1.0.6", manifest["runtime_version"])
+            self.assertEqual("1.0.7", manifest["runtime_version"])
             self.assertRegex(manifest["source_commit"], r"^[0-9a-f]{40}$")
             self.assertEqual(manifest["source_commit"], manifest["git_commit"])
             self.assertFalse(manifest["git_dirty"])
@@ -101,7 +103,7 @@ class RuntimeReleaseTests(unittest.TestCase):
             self.assertNotIn("tools/verify_work_pack.py", names)
             self.assertNotIn("state/current/EvidenceRadar_State.json", names)
             root_result = verify_extracted_root(extracted)
-            self.assertEqual("1.0.6", root_result["manifest"]["runtime_version"])
+            self.assertEqual("1.0.7", root_result["manifest"]["runtime_version"])
 
             verifier = subprocess.run(
                 [sys.executable, "tools/verify_runtime_release.py", "--root", "."],
@@ -225,6 +227,12 @@ class RuntimeReleaseTests(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn('"tools/materialize_delivery_aliases.py"', workflow)
+        self.assertIn('"tools/network_safety.py"', workflow)
+        self.assertIn('"tools/strict_json.py"', workflow)
+        self.assertIn("A newer main commit exists", workflow)
+        self.assertIn("--cleanup-tag", workflow)
+        self.assertIn("'.immutable'", workflow)
+        self.assertIn(".sigstore.json", workflow)
 
 
 if __name__ == "__main__":

@@ -12,7 +12,6 @@ import yaml
 from tools.radar_control import compile_runtime, load_master
 from tools.run_github_radar import RadarRuntimeError, execute, parse_args
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 

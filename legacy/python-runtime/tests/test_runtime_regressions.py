@@ -1,6 +1,6 @@
-from src import run  # applies runtime classification guards
-from src.radar import Paper
 from src import quality
+from src import run as _runtime_guards  # noqa: F401 - installs classification guards
+from src.radar import Paper
 
 
 def make_paper(title: str, abstract: str = "", types=None) -> Paper:

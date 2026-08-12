@@ -8,7 +8,7 @@ crawler, CI files and secret-bearing material stay out of the archive. The
 resulting manifest records every included file's digest and the source Git
 revision so a release can be audited after extraction.  The builder itself is
 standard-library only; the included active runner uses the pinned packages in
-``requirements.txt``.
+``requirements.lock`` with hashes.
 """
 
 from __future__ import annotations
@@ -28,12 +28,17 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Iterable
 from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 
-
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from tools.strict_json import loads as strict_json_loads
+
 DEFAULT_SPEC_PATH = ROOT / "release" / "work-pack-manifest.json"
 WORK_ENTRYPOINT = "WORK_ENTRY.md"
 SEED_STATE_PATH = "state/current/EvidenceRadar_State.json"
 WORK_PACK_CAPABILITIES = (
+    "DETERMINISTIC_WORK_EXECUTOR_V1",
     "EXECUTOR_HTTP_TELEMETRY_V1",
     "MASTER_CONTROL_V1",
     "TERMINAL_FOUR_ARTIFACT_DELIVERY_V1",
@@ -143,7 +148,7 @@ def _is_excluded(relative: str, patterns: Iterable[str]) -> bool:
 
 def _load_json(path: Path) -> dict[str, Any]:
     try:
-        value = json.loads(path.read_text(encoding="utf-8"))
+        value = strict_json_loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise WorkPackError(f"cannot read manifest {path}: {exc}") from exc
     if not isinstance(value, dict):
@@ -383,6 +388,7 @@ def build_work_pack(
         "git_state": git["git_state"],
         "execution_lane": "chatgpt_work",
         "entrypoint": WORK_ENTRYPOINT,
+        "executor": "tools/run_work_radar.py",
         "terminal_delivery": True,
         "canonical_artifacts": list(CANONICAL_ARTIFACTS),
         "github_role": "source_and_package_storage_only",

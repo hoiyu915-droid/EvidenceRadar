@@ -16,6 +16,8 @@ import tempfile
 from pathlib import Path
 from typing import Any, Mapping
 
+from tools.strict_json import dumps as strict_json_dumps
+from tools.strict_json import loads as strict_json_loads
 
 REQUEST_ARTIFACT_TYPE = "EvidenceRadar_TranslationRequest"
 RESPONSE_ARTIFACT_TYPE = "EvidenceRadar_TranslationResponse"
@@ -27,7 +29,7 @@ class TranslationHandoffError(RuntimeError):
 
 
 def canonical_json_bytes(value: Any) -> bytes:
-    return json.dumps(
+    return strict_json_dumps(
         value,
         ensure_ascii=False,
         sort_keys=True,
@@ -48,7 +50,7 @@ def request_sha256(request: Mapping[str, Any]) -> str:
 def _write_json_atomic(path: Path, value: Mapping[str, Any]) -> None:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    payload = json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+    payload = strict_json_dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
     temporary_name: str | None = None
     try:
         with tempfile.NamedTemporaryFile(
@@ -80,7 +82,7 @@ def write_translation_request(path: Path, request: Mapping[str, Any]) -> None:
 
 def load_json_object(path: Path, *, label: str) -> dict[str, Any]:
     try:
-        value = json.loads(Path(path).read_text(encoding="utf-8"))
+        value = strict_json_loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise TranslationHandoffError(f"cannot load {label}: {exc}") from exc
     if not isinstance(value, dict):

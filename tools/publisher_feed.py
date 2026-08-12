@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import html
 import re
-import xml.etree.ElementTree as ET
 from datetime import date, datetime
 from email.utils import parsedate_to_datetime
 from typing import Any
 from urllib.parse import quote, urljoin
 
+from defusedxml import ElementTree as ET
+from defusedxml.common import DefusedXmlException
+
+from tools.network_safety import bounded_response_bytes, bounded_response_text
 
 ATOM = "{http://www.w3.org/2005/Atom}"
 DC = "{http://purl.org/dc/elements/1.1/}"
@@ -141,7 +144,7 @@ def parse_feed(
 ) -> list[dict[str, Any]]:
     try:
         root = ET.fromstring(text)
-    except ET.ParseError as exc:
+    except (ET.ParseError, DefusedXmlException) as exc:
         raise PublisherFeedError(f"invalid XML from {source_id}: {exc}") from exc
 
     records: list[dict[str, Any]] = []
@@ -454,11 +457,13 @@ def _fetch_crossref_inventory(
                 },
                 headers={"User-Agent": user_agent, "Accept": "application/json"},
                 timeout=timeout,
+                stream=True,
             )
             inventory_url = str(getattr(response, "url", "") or endpoint)
             pages_received += 1
             response_counted = True
             response.raise_for_status()
+            bounded_response_bytes(response)
             payload = response.json()
         except Exception as exc:
             if not response_counted:
@@ -561,13 +566,14 @@ def fetch_feed_records(
                     feed_url,
                     headers={"User-Agent": user_agent, "Accept": "application/atom+xml, application/rss+xml, application/xml, text/xml"},
                     timeout=timeout,
+                    stream=True,
                 )
                 pages_received += 1
                 response_counted = True
                 response.raise_for_status()
                 feed_observation: dict[str, int] = {}
                 parsed = parse_feed(
-                    response.text,
+                    bounded_response_text(response),
                     feed_url=feed_url,
                     source_id=source_id,
                     observation=feed_observation,

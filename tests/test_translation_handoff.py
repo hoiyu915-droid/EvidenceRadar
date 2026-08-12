@@ -12,13 +12,12 @@ from zoneinfo import ZoneInfo
 
 import tools.run_github_radar as radar_runtime
 from tools.run_github_radar import Candidate, RadarRuntimeError, event_record, execute
-from tools.validate_gpt_work_artifacts import validate_document
 from tools.translation_handoff import (
     TranslationHandoffError,
     request_sha256,
     validate_translation_response,
 )
-
+from tools.validate_gpt_work_artifacts import validate_document
 
 ROOT = Path(__file__).resolve().parents[1]
 TZ = ZoneInfo("Asia/Tokyo")

@@ -8,6 +8,8 @@ from typing import Any
 
 import yaml
 
+from tools.strict_json import loads as strict_json_loads
+
 
 class RadarControlError(RuntimeError):
     pass
@@ -38,7 +40,7 @@ class MasterRuntime:
 def _load_mapping(path: Path, *, json_only: bool = False) -> dict[str, Any]:
     try:
         text = path.read_text(encoding="utf-8")
-        value = json.loads(text) if json_only else yaml.safe_load(text)
+        value = strict_json_loads(text) if json_only else yaml.safe_load(text)
     except (OSError, json.JSONDecodeError, yaml.YAMLError) as exc:
         raise RadarControlError(f"cannot load control input {path}: {exc}") from exc
     if not isinstance(value, dict):

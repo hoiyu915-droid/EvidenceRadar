@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from typing import Any, Iterable, Mapping
 
+from tools.strict_json import loads as strict_json_loads
 
 FEATURED_POLICY_NOTE_PREFIX = "FEATURED_SELECTION_POLICY_V2:"
 
@@ -110,7 +111,7 @@ def parse_featured_policy_note(notes: Iterable[Any]) -> dict[str, Any] | None:
     if len(matches) != 1:
         raise FeaturedSelectionError("Run notes must contain at most one featured-selection policy")
     try:
-        decoded = json.loads(matches[0][len(FEATURED_POLICY_NOTE_PREFIX):])
+        decoded = strict_json_loads(matches[0][len(FEATURED_POLICY_NOTE_PREFIX):])
     except json.JSONDecodeError as exc:
         raise FeaturedSelectionError(f"invalid featured-selection policy note: {exc}") from exc
     if not isinstance(decoded, dict):

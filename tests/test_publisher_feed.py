@@ -17,7 +17,6 @@ from publisher_feed import (  # noqa: E402
     parse_feed,
 )
 
-
 NATURE_LIKE_RDF = '''<?xml version="1.0" encoding="UTF-8"?>
 <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
  xmlns="http://purl.org/rss/1.0/"
@@ -84,6 +83,17 @@ class _Session:
 
 
 class PublisherFeedTests(unittest.TestCase):
+    def test_xml_entity_expansion_is_rejected(self) -> None:
+        malicious = """<?xml version='1.0'?>
+<!DOCTYPE feed [<!ENTITY x 'expanded'>]>
+<feed xmlns='http://www.w3.org/2005/Atom'><entry><title>&x;</title></entry></feed>"""
+        with self.assertRaisesRegex(PublisherFeedError, "invalid XML"):
+            parse_feed(
+                malicious,
+                feed_url="https://example.test/feed.xml",
+                source_id="fixture",
+            )
+
     def test_http_error_response_is_counted_as_received_inventory_page(self) -> None:
         class FailingResponse(_Response):
             url = "https://example.test/failed"

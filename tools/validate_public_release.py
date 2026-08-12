@@ -20,6 +20,10 @@ REQUIRED = {
     "CITATION.cff": "cff-version: 1.2.0",
     "ROADMAP.md": "Roadmap",
     "PUBLIC_RELEASE_AUDIT.md": "Public release audit",
+    "requirements.lock": "--hash=sha256:",
+    "requirements-dev.lock": "--hash=sha256:",
+    "legacy/python-runtime/requirements.lock": "--hash=sha256:",
+    "ruff.toml": "select =",
 }
 
 BANNED_PATHS = (
@@ -40,6 +44,8 @@ SECRET_PATTERNS = (
 )
 
 TEXT_SUFFIXES = {".md", ".txt", ".py", ".json", ".jsonl", ".yml", ".yaml", ".html", ".cff"}
+ACTION_USES_RE = re.compile(r"^\s*(?:-\s*)?uses:\s*([^#\s]+)", re.MULTILINE)
+FULL_COMMIT_RE = re.compile(r"[0-9a-f]{40}")
 
 
 def repository_files() -> list[str]:
@@ -50,6 +56,28 @@ def repository_files() -> list[str]:
         stdout=subprocess.PIPE,
     )
     return [item.decode("utf-8") for item in result.stdout.split(b"\0") if item]
+
+
+def action_pin_errors(paths: list[Path]) -> list[str]:
+    """Require immutable commit pins for every remotely sourced Action."""
+
+    errors: list[str] = []
+    for path in paths:
+        content = path.read_text(encoding="utf-8")
+        try:
+            display_path = path.relative_to(ROOT)
+        except ValueError:
+            display_path = path
+        for target in ACTION_USES_RE.findall(content):
+            if target.startswith("./"):
+                continue
+            _separator, _at, ref = target.rpartition("@")
+            if FULL_COMMIT_RE.fullmatch(ref) is None:
+                errors.append(
+                    f"GitHub Action is not pinned to a full commit SHA: "
+                    f"{display_path} -> {target}"
+                )
+    return errors
 
 
 def main() -> int:
@@ -86,6 +114,10 @@ def main() -> int:
             continue
         if any(pattern.search(content) for pattern in SECRET_PATTERNS):
             errors.append(f"possible credential pattern in: {relative}")
+
+    workflow_paths = sorted((ROOT / ".github" / "workflows").glob("*.y*ml"))
+    workflow_paths.extend(sorted((ROOT / "legacy" / "github-actions").glob("*.y*ml")))
+    errors.extend(action_pin_errors(workflow_paths))
 
     if errors:
         for error in sorted(set(errors)):

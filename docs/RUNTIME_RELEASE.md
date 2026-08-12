@@ -26,11 +26,12 @@ Runtime version.
 
 ## Release contents
 
-A release publishes exactly two assets:
+A release publishes exactly three assets:
 
 ```text
 EvidenceRadar-Runtime-v<VERSION>.zip
 EvidenceRadar-Runtime-v<VERSION>.zip.sha256
+EvidenceRadar-Runtime-v<VERSION>.zip.sigstore.json
 ```
 
 The ZIP contains the same portable protocol/config/schema/renderer/runner
@@ -91,7 +92,10 @@ Before publishing, the workflow:
 6. verifies the ZIP and checksum;
 7. extracts it into a fresh directory and verifies the extracted tree;
 8. refuses to reuse an existing `runtime-v<VERSION>` tag or GitHub Release;
-9. creates the GitHub Release and uploads the ZIP plus checksum.
+9. rechecks current `main`, publishes, then verifies the release's public
+   `immutable` field and removes the release/tag if immutability is disabled;
+10. signs SLSA build provenance with GitHub OIDC;
+11. creates the GitHub Release and uploads the ZIP, checksum and provenance bundle.
 
 A package-surface change after publication therefore requires a
 `runtime/VERSION` bump. Reusing a published version fails closed instead of
@@ -113,7 +117,7 @@ workspace/
 Install requirements into the chosen environment:
 
 ```sh
-python3 -m pip install -r workspace/runtime/requirements.txt
+python3 -m pip install --require-hashes -r workspace/runtime/requirements.lock
 ```
 
 Then run:

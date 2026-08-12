@@ -5,9 +5,17 @@ on:
     branches:
       - main
     paths:
+      - ".github/workflows/pages.yml"
       - "artifacts/current/**"
+      - "requirements.lock"
       - "state/current/EvidenceRadar_State.json"
       - "runs/**"
+      - "tools/build_pages_site.py"
+      - "tools/delivery_contract.py"
+      - "tools/promote_workrun_bundle.py"
+      - "tools/strict_json.py"
+      - "tools/validate_delivery_bundle.py"
+      - "tools/validate_gpt_work_artifacts.py"
 
 permissions:
   contents: read
@@ -27,7 +35,7 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Check out complete producer history
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
@@ -46,12 +54,12 @@ jobs:
           fi
 
       - name: Set up Python 3.12
-        uses: actions/setup-python@v7.0.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
 
       - name: Install active-lane dependencies
-        run: python -m pip install -r requirements.txt
+        run: python -m pip install --require-hashes -r requirements.lock
 
       - name: Fail closed if GitHub Pages is not enabled
         env:
@@ -67,7 +75,7 @@ jobs:
 
       - name: Configure GitHub Pages
         id: pages
-        uses: actions/configure-pages@v6.0.0
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
 
       - name: Resolve previous immutable history revision
         id: history_baseline
@@ -140,13 +148,13 @@ jobs:
             --output-dir _site
 
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v5.0.0
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: _site
 
       - name: Deploy report
         id: deployment
-        uses: actions/deploy-pages@v5.0.0
+        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0
 
       - name: Publish clickable links in the run summary
         run: |

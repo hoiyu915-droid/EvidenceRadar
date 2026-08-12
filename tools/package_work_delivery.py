@@ -32,9 +32,9 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from tools.strict_json import loads as strict_json_loads
 from tools.validate_delivery_bundle import validate_delivery_bundle
 from tools.validate_gpt_work_artifacts import validate_files
-
 
 CANONICAL_FILES = (
     "EvidenceRadar_Report.html",
@@ -74,7 +74,7 @@ def _sha256(data: bytes) -> str:
 
 def _load_json(path: Path) -> dict[str, Any]:
     try:
-        value = json.loads(path.read_text(encoding="utf-8"))
+        value = strict_json_loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise WorkDeliveryError(f"cannot read JSON artifact {path}: {exc}") from exc
     if not isinstance(value, dict):

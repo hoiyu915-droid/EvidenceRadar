@@ -17,9 +17,8 @@ import json
 import os
 import re
 import sys
-import time
+import time as time_module
 import unicodedata
-import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict, dataclass, field
 from datetime import date, datetime, time, timedelta
@@ -30,6 +29,7 @@ from zoneinfo import ZoneInfo
 
 import requests
 import yaml
+from defusedxml import ElementTree as ET
 
 from . import events
 
@@ -95,7 +95,11 @@ class Paper:
         if self.openalex_id:
             return f"openalex:{self.openalex_id.rsplit('/', 1)[-1]}"
         normalized_title = normalize_title(self.title)
-        return "title:" + hashlib.sha1(normalized_title.encode("utf-8")).hexdigest()
+        # Preserve legacy IDs; this digest labels normalized titles and is not
+        # used as a security primitive.
+        return "title:" + hashlib.sha1(
+            normalized_title.encode("utf-8"), usedforsecurity=False
+        ).hexdigest()
 
     def all_streams(self) -> list[str]:
         return [self.stream, *[s for s in self.secondary_streams if s != self.stream]]
@@ -187,7 +191,7 @@ def request(
         except requests.RequestException as exc:
             last_error = exc
             if attempt < attempts:
-                time.sleep(2 ** (attempt - 1))
+                time_module.sleep(2 ** (attempt - 1))
     raise RadarError(f"Request failed after {attempts} attempts: {url}: {last_error}")
 
 

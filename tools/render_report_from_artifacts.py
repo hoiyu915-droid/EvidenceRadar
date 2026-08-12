@@ -23,13 +23,18 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from tools.run_github_radar import RadarRuntimeError, render_report_from_documents, validate_documents
+from tools.run_github_radar import (
+    RadarRuntimeError,
+    render_report_from_documents,
+    validate_documents,
+)
+from tools.strict_json import loads as strict_json_loads
 from tools.validate_delivery_bundle import validate_delivery_payload
 
 
 def _load_object(path: Path) -> dict[str, Any]:
     try:
-        value = json.loads(path.read_text(encoding="utf-8"))
+        value = strict_json_loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise RadarRuntimeError(f"cannot load {path}: {exc}") from exc
     if not isinstance(value, dict):
@@ -138,7 +143,7 @@ def _recover_pending_transaction(bundle: Path) -> None:
     if not journal_path.exists():
         return
     try:
-        journal = json.loads(journal_path.read_text(encoding="utf-8"))
+        journal = strict_json_loads(journal_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise RadarRuntimeError(
             f"cannot recover canonical artifact transaction: {exc}"

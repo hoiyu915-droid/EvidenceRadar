@@ -22,11 +22,12 @@ from pathlib import Path
 from typing import Any, Mapping
 from zipfile import BadZipFile, ZipFile
 
-
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from tools.strict_json import dumps as strict_json_dumps
+from tools.strict_json import loads as strict_json_loads
 from tools.translation_handoff import (
     TranslationHandoffError,
     _validate_translation_item,
@@ -34,7 +35,6 @@ from tools.translation_handoff import (
     validate_translation_request,
     validate_translation_response,
 )
-
 
 QUEUE_VERSION = "1.0"
 PLAN_TYPE = "EvidenceRadar_TranslationBatchPlan"
@@ -54,7 +54,7 @@ class WorkTranslationQueueError(RuntimeError):
 
 
 def canonical_json_bytes(value: Any) -> bytes:
-    return json.dumps(
+    return strict_json_dumps(
         value,
         ensure_ascii=False,
         sort_keys=True,
@@ -74,7 +74,7 @@ def _bound_sha(value: Mapping[str, Any], field: str) -> str:
 
 def _load_object(path: Path, *, label: str) -> dict[str, Any]:
     try:
-        value = json.loads(Path(path).read_text(encoding="utf-8"))
+        value = strict_json_loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise WorkTranslationQueueError(f"cannot load {label}: {exc}") from exc
     if not isinstance(value, dict):
@@ -87,7 +87,7 @@ def _write_json_atomic(path: Path, value: Mapping[str, Any], *, replace: bool) -
     if path.exists() and not replace:
         raise WorkTranslationQueueError(f"refusing to overwrite existing file: {path}")
     path.parent.mkdir(parents=True, exist_ok=True)
-    payload = json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+    payload = strict_json_dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
     temporary_name: str | None = None
     try:
         with tempfile.NamedTemporaryFile(

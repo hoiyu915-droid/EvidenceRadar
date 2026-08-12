@@ -5,20 +5,19 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
-from pathlib import Path
 import subprocess
 import tempfile
 import unittest
-from unittest import mock
 import zipfile
+from pathlib import Path
+from unittest import mock
 
 from tests import test_delivery_bundle as delivery_fixture
 from tests.test_delivery_bundle import create_bundle
-from tools.package_work_delivery import package_work_delivery
 from tools import promote_workrun_bundle as promotion
+from tools.package_work_delivery import package_work_delivery
 from tools.run_github_radar import render_report_from_documents
 from tools.validate_delivery_bundle import validate_delivery_bundle
-
 
 ROOT = Path(__file__).resolve().parents[1]
 

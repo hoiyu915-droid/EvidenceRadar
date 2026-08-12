@@ -3,7 +3,6 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -68,7 +67,10 @@ class ProtocolSurfaceTests(unittest.TestCase):
         self.assertIn("evidenceradar-ready-to-publish", stage_b)
 
         pages = (workflow_dir / "pages.yml").read_text(encoding="utf-8")
-        self.assertIn("actions/deploy-pages@v5.0.0", pages)
+        self.assertIn(
+            "actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0",
+            pages,
+        )
         self.assertIn("python tools/build_pages_site.py", pages)
 
         runtime_release = (workflow_dir / "runtime-release.yml").read_text(encoding="utf-8")
@@ -92,9 +94,11 @@ class ProtocolSurfaceTests(unittest.TestCase):
     def test_new_runner_is_separate_from_archived_runtime(self) -> None:
         self.assertFalse((ROOT / "src").exists())
         self.assertTrue((ROOT / "requirements.txt").exists())
+        self.assertTrue((ROOT / "requirements.lock").exists())
         self.assertTrue((ROOT / "tools" / "run_github_radar.py").exists())
         self.assertTrue((ROOT / "legacy" / "python-runtime" / "src" / "run.py").exists())
         self.assertTrue((ROOT / "legacy" / "python-runtime" / "requirements.txt").exists())
+        self.assertTrue((ROOT / "legacy" / "python-runtime" / "requirements.lock").exists())
 
         runner = (ROOT / "tools" / "run_github_radar.py").read_text(encoding="utf-8")
         self.assertNotIn("legacy/python-runtime", runner)

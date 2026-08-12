@@ -5,7 +5,6 @@ import argparse
 from pathlib import Path
 
 import yaml
-
 from radar_control import legacy_projection
 
 

@@ -13,8 +13,12 @@ import sys
 from pathlib import Path
 from typing import Any
 
-
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from tools.strict_json import loads as strict_json_loads
+
 MANIFEST_PATH = ROOT / "RUNTIME_MANIFEST.json"
 BUNDLE_FILENAMES = (
     "EvidenceRadar_Report.html",
@@ -44,7 +48,7 @@ def _outside_runtime(path: Path, *, label: str) -> Path:
 
 def _load_manifest() -> dict[str, Any]:
     try:
-        value = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
+        value = strict_json_loads(MANIFEST_PATH.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise LocalRuntimeError(f"cannot read verified Runtime manifest: {exc}") from exc
     if not isinstance(value, dict):
@@ -103,7 +107,7 @@ def _check_environment(manifest: dict[str, Any]) -> None:
         raise LocalRuntimeError(
             "missing Runtime dependencies: "
             + ", ".join(missing)
-            + "; install with 'python -m pip install -r requirements.txt'"
+            + "; install with 'python -m pip install --require-hashes -r requirements.lock'"
         )
 
 
@@ -183,7 +187,7 @@ def _write_receipt(
 ) -> dict[str, Any]:
     run_path = output_dir / "EvidenceRadar_Run.json"
     try:
-        run = json.loads(run_path.read_text(encoding="utf-8"))
+        run = strict_json_loads(run_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise LocalRuntimeError(f"cannot read validated Run artifact: {exc}") from exc
     if not isinstance(run, dict):
@@ -276,7 +280,7 @@ def execute_local_runtime(args: argparse.Namespace) -> dict[str, Any]:
         label="EvidenceRadar canonical producer",
     )
     try:
-        producer_summary = json.loads(runner_output.strip().splitlines()[-1])
+        producer_summary = strict_json_loads(runner_output.strip().splitlines()[-1])
     except (IndexError, json.JSONDecodeError) as exc:
         raise LocalRuntimeError("canonical producer did not return a JSON status") from exc
     if producer_summary.get("run_status") == "TRANSLATION_REQUIRED":

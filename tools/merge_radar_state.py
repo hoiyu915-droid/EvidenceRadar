@@ -50,6 +50,8 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from tools.strict_json import loads as strict_json_loads
+
 _IDENTIFIER_FIELDS = (
     "doi",
     "pmid",
@@ -1350,7 +1352,7 @@ def write_json_atomic(path: Path, value: Any) -> None:
 
 def _load_json(path: Path) -> JsonObject:
     try:
-        value = json.loads(path.read_text(encoding="utf-8"))
+        value = strict_json_loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise StateMergeError(f"cannot load {path}: {exc}") from exc
     if not isinstance(value, dict):

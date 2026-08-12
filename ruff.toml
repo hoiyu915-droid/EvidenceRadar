@@ -1,0 +1,12 @@
+target-version = "py312"
+line-length = 100
+
+[lint]
+select = ["E4", "E7", "E9", "F", "I"]
+
+[lint.per-file-ignores]
+# Command-line tools intentionally establish the repository import root before
+# importing sibling modules; tests use the same pattern for isolated fixtures.
+"tools/*.py" = ["E402"]
+"tests/*.py" = ["E402"]
+"legacy/python-runtime/**/*.py" = ["E402"]

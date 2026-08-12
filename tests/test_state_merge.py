@@ -14,13 +14,11 @@ from pathlib import Path
 from tests.test_delivery_bundle import create_bundle
 from tools.merge_radar_state import (
     StateMergeError,
-    canonical_json,
     merge_states,
     state_sha256,
     write_json_atomic,
 )
 from tools.validate_gpt_work_artifacts import load_json, validate_document
-
 
 ROOT = Path(__file__).resolve().parents[1]
 
