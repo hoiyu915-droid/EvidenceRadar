@@ -3,6 +3,33 @@
   "manifest_version": "1",
   "runs": [
     {
+      "directory": "chatgpt-work-20260812T205013+0900-r2",
+      "files": [
+        {
+          "path": "EvidenceRadar_Report.html",
+          "sha256": "83995b22d35cebb1ed7c4ee4118c7245706f1049b59d935a6c27e5a165a29710",
+          "size": 271973
+        },
+        {
+          "path": "EvidenceRadar_State.json",
+          "sha256": "434c1edf0e2fc8497ae74df1f9f971a4871d9e8389562126086a905e8c0f0da4",
+          "size": 6501700
+        },
+        {
+          "path": "EvidenceRadar_Evidence.json",
+          "sha256": "22555137d4c9e563385b2fa9b42fa8a62140f2f89bed29d648da80593ee220dd",
+          "size": 5910594
+        },
+        {
+          "path": "EvidenceRadar_Run.json",
+          "sha256": "9ea5221ae5d0d631b7924ef38d733b46c22f3f6d50fc253e62931afc4d0712f3",
+          "size": 252287
+        }
+      ],
+      "protocol_commit": "3045bd18b7149f1916406584caf401145145273d",
+      "run_id": "chatgpt-work-20260812T205013+0900-r2"
+    },
+    {
       "directory": "github-actions-20260810T175707+0900",
       "files": [
         {
