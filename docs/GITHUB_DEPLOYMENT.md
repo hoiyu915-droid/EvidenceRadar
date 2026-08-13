@@ -149,7 +149,8 @@ Pages artifact 每次 deployment 都會完整取代前一版，不能依賴上�
 記錄四檔 size／SHA-256、run ID 與 recorded producer commit。建站工具會拒絕 symlink、
 path／casefold collision、缺檔、額外檔案、hash 漂移、ZIP size／compression bomb、
 不存在的 producer、未通過 current delivery contract（只允許交由 recorded producer
-重驗的 renderer byte drift），以及未通過該 producer delivery validator 的 bundle。
+重驗的 renderer byte drift，以及因 master/source routing 演進而產生的 control-plane
+binding drift），以及未通過該 producer delivery validator 的 bundle。
 任一 manifest 核准項目失敗時整個 build 失敗，不會用少一筆歷史的站點覆蓋線上版本。
 
 未列入 manifest 的舊 `runs/` 內容視為 quarantine，不會發布；`public/reports/` 中只有
@@ -162,10 +163,11 @@ current run 與 `artifacts/current` 若同 ID 但 bytes 不同，建站會 fail 
 canonical State bytes 時，額外要求 current bundle 由目前 checkout producer 產生。
 只 append archive inventory 的 rebuild 會略過
 這個 current-producer equality gate，避免
-舊 canonical report 因 renderer 演進而無法重新部署；建站工具仍只容許已知的 canonical
-renderer byte drift，current run 必須與 manifest inventory byte-identical，且仍須通過
-其 `protocol_commit` 的 exact recorded-producer validator。其他 validation error、缺少
-producer commit 或任何 inventory drift 一律 fail closed。
+舊 canonical report 因 renderer 或 source registry 演進而無法重新部署；建站工具仍只
+容許已知的 canonical renderer drift 與 control-plane binding drift，current run 必須與
+manifest inventory byte-identical，且每個歷史 bundle 仍須通過其 `protocol_commit` 的
+exact recorded-producer validator。其他 validation error、缺少 producer commit 或任何
+inventory drift 一律 fail closed。
 
 Append-only 比對使用 push 的 `github.event.before`，不使用只能看見最後一個 commit
 的 `HEAD^`；builder 另會逐一核對 manifest 的 first-parent mainline 歷史。因此一次

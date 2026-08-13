@@ -365,6 +365,38 @@ class DeliveryBundleTests(unittest.TestCase):
                 )
             recorded_validator.assert_called_once()
 
+            recorded_validator.reset_mock()
+            with (
+                mock.patch.object(
+                    pages_builder,
+                    "validate_delivery_bundle",
+                    side_effect=[
+                        ([], run),
+                        (
+                            sorted(
+                                pages_builder.HISTORICAL_CONTROL_PLANE_DRIFT_ERRORS
+                            ),
+                            run,
+                        ),
+                    ],
+                ),
+                mock.patch.object(
+                    pages_builder,
+                    "_validate_with_recorded_producer",
+                    recorded_validator,
+                ),
+            ):
+                build_pages_site(
+                    root=ROOT,
+                    bundle=current,
+                    output_dir=temporary / "control-plane-drift-site",
+                    repository="example-owner/EvidenceRadar",
+                    canonical_state=canonical,
+                    require_current_producer=False,
+                    history_manifests=[manifest],
+                )
+            recorded_validator.assert_called_once()
+
             with (
                 mock.patch.object(
                     pages_builder,
