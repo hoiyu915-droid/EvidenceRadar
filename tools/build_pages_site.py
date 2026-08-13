@@ -45,6 +45,15 @@ MAX_CHECKSUM_SIDECAR_BYTES = 1024
 HISTORICAL_RENDER_DRIFT_ERROR = (
     "V3 Report HTML is not the canonical byte-identical projection of Run + Evidence"
 )
+HISTORICAL_CONTROL_PLANE_DRIFT_ERRORS = frozenset(
+    {
+        "Run.master_control_sha256 does not match authoritative master bytes",
+        "Run.resolved_stream_ids must exactly equal load_master_runtime resolution",
+        "Run.resolved_source_ids must exactly equal load_master_runtime resolution",
+        "Run.source_coverage.requested must exactly equal configured stream sources",
+        "Run.source_coverage.checks must exactly cover configured stream sources",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -416,7 +425,16 @@ def _validate_with_current_contract(
     payloads: Mapping[str, bytes],
     source: str,
 ) -> None:
-    """Apply current semantic checks, deferring only renderer parity to its producer."""
+    """Apply stable current checks and defer version-bound checks to the producer.
+
+    Historical bundles are intentionally bound to the master control and source
+    resolution recorded by their exact producer commit. Comparing those fields
+    with today's mutable master would make every legitimate source expansion
+    retroactively unpublishable. The recorded-producer validator below still
+    verifies those bindings; only their expected cross-version drift is deferred
+    here alongside renderer parity. Every other current-contract error remains
+    blocking.
+    """
 
     with tempfile.TemporaryDirectory(prefix="evidenceradar-pages-current-") as directory:
         bundle = Path(directory)
@@ -430,7 +448,11 @@ def _validate_with_current_contract(
             require_semantic_contract_v3=True,
             reject_dirty=True,
         )
-    blocking = [error for error in errors if error != HISTORICAL_RENDER_DRIFT_ERROR]
+    deferred = {
+        HISTORICAL_RENDER_DRIFT_ERROR,
+        *HISTORICAL_CONTROL_PLANE_DRIFT_ERRORS,
+    }
+    blocking = [error for error in errors if error not in deferred]
     if blocking:
         raise PagesBuildError(
             f"history bundle failed the current delivery contract: {source}\n"
