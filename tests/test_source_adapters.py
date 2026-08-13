@@ -344,6 +344,37 @@ class SourceAdapterFieldParsingTests(unittest.TestCase):
             [], _call(fetch_acl_anthology, _session(_response(text=feed_text)))
         )
 
+    def test_acl_feed_refresh_cannot_move_old_work_into_current_window(self) -> None:
+        response = _response(
+            text=(
+                '<?xml version="1.0" encoding="UTF-8"?>'
+                "<rss><channel><item>"
+                "<title>Historical EVALITA paper fixture query</title>"
+                "<link>https://aclanthology.org/2018.evalita-1.14/</link>"
+                "<guid>https://aclanthology.org/2018.evalita-1.14/</guid>"
+                "<pubDate>Sat, 08 Aug 2026 00:00:00 +0000</pubDate>"
+                "<description>Feed refresh metadata.</description>"
+                "</item></channel></rss>"
+            )
+        )
+        self.assertEqual([], _call(fetch_acl_anthology, _session(response)))
+
+    def test_acl_matching_identifier_year_retains_provider_event(self) -> None:
+        response = _response(
+            text=(
+                '<?xml version="1.0" encoding="UTF-8"?>'
+                "<rss><channel><item>"
+                "<title>Current EVALITA paper fixture query</title>"
+                "<link>https://aclanthology.org/2026.evalita-1.20/</link>"
+                "<pubDate>Sat, 08 Aug 2026 00:00:00 +0000</pubDate>"
+                "<description>Current proceedings metadata.</description>"
+                "</item></channel></rss>"
+            )
+        )
+        [candidate] = _call(fetch_acl_anthology, _session(response))
+        self.assertEqual("2026-08-08", candidate.publication_date)
+        self.assertEqual("formal_proceedings_release", candidate.events[0]["event_type"])
+
     def test_pmlr_parses_listing_identity_and_event(self) -> None:
         response = _response(
             text=(
