@@ -1743,6 +1743,27 @@ def _xml_link(entry: ET.Element, atom: str, rel: str = "alternate") -> str:
     return ""
 
 
+def _acl_publication_date(published: str, landing_url: str) -> str:
+    """Reject feed timestamps that contradict the Anthology work year.
+
+    ACL's RSS surface can republish an older work during a bulk feed refresh.
+    In that case ``pubDate`` is an observation timestamp, not a defensible
+    formal-proceedings event.  Anthology IDs begin with the proceedings year,
+    so a year mismatch must fail closed instead of entering the rolling window.
+    """
+
+    publication_date = _normalized_provider_date(published)
+    anthology_id = _terminal_id(landing_url)
+    identifier_year = re.match(r"^(\d{4})\.", anthology_id)
+    if (
+        publication_date
+        and identifier_year is not None
+        and publication_date[:4] != identifier_year.group(1)
+    ):
+        return ""
+    return publication_date
+
+
 def _candidate_from_acl_atom(
     entry: ET.Element,
     *,
@@ -1757,7 +1778,7 @@ def _candidate_from_acl_atom(
     if not title:
         return None
     doi_url = _xml_link(entry, atom, "doi")
-    publication_date = _normalized_provider_date(published)
+    publication_date = _acl_publication_date(published, landing_url)
     return Candidate(
         title=title,
         stream=stream,
@@ -1778,14 +1799,14 @@ def _candidate_from_acl_atom(
         events=[
             event_record(
                 "formal_proceedings_release",
-                published or publication_date,
+                published,
                 "ACL Anthology",
                 "atom:published",
                 landing_url,
                 "instant" if "T" in published else "date",
                 "provider_metadata",
             )
-        ] if (published or publication_date) else [],
+        ] if publication_date else [],
     )
 
 
@@ -1829,7 +1850,7 @@ def fetch_acl_anthology(
                 title = _text(item.find("title"))
                 landing_url = _text(item.find("link")) or _text(item.find("guid"))
                 published = _text(item.find("pubDate"))
-                publication_date = _normalized_provider_date(published)
+                publication_date = _acl_publication_date(published, landing_url)
                 if not title:
                     continue
                 description = _strip_markup(_text(item.find("description")))
@@ -1851,14 +1872,14 @@ def fetch_acl_anthology(
                         events=[
                             event_record(
                                 "formal_proceedings_release",
-                                published or publication_date,
+                                published,
                                 "ACL Anthology",
                                 "rss:pubDate",
                                 landing_url,
                                 "instant" if ":" in published else "date",
                                 "provider_metadata",
                             )
-                        ] if (published or publication_date) else [],
+                        ] if publication_date else [],
                     )
                 )
         cache["acl_anthology_items"] = items
