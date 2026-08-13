@@ -5153,6 +5153,12 @@ def build_source_registry(
                         break
             if attempt is None:
                 continue
+            # A candidate retained from a PARTIAL/FAILED discovery inventory
+            # proves bibliographic observation, not successful access to its
+            # landing page.  Keep the candidate and receipt, but do not mint an
+            # ACCESSIBLE observation that the non-success receipt cannot support.
+            if access is None and str(attempt.get("status") or "") != "SUCCESS":
+                access_outcome = "NOT_CHECKED"
             observation_id = _v3_id("obs", source_id, run_id, attempt["attempt_id"])
             observation: dict[str, Any] = {
                 "observation_id": observation_id,
