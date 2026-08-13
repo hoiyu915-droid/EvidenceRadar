@@ -110,7 +110,7 @@ ChatGPT Work 會下載一次正式 Work Pack、checksum 與簽署 provenance；�
 
 GitHub 在這條一般用家路徑主要負責原始碼、版本化設定與 immutable Work Pack 儲存。下載完成後不需要啟動 Actions、不需要建立 issue／PR，也不需要等待 Stage A／Stage B。
 
-Repository 亦提供 [` .agents/skills/evidence-radar/SKILL.md`](.agents/skills/evidence-radar/SKILL.md)（路徑實際為 `.agents/skills/evidence-radar/SKILL.md`），供支援 agent skills 的環境理解 EvidenceRadar 的 end-to-end 執行契約。
+Repository 亦提供 [`.agents/skills/evidence-radar/SKILL.md`](.agents/skills/evidence-radar/SKILL.md)，供支援 agent skills 的環境理解 EvidenceRadar 的 end-to-end 執行契約。
 
 ## Work 執行模型：一次下載，一輪完成
 
