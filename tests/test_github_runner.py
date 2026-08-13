@@ -1548,6 +1548,41 @@ class GithubRunnerTests(unittest.TestCase):
         self.assertEqual(403, observations[0]["http_status"])
         self.assertFalse(any(item["status"] == "SUCCESS" for item in source_access))
 
+    def test_partial_discovery_receipt_cannot_claim_landing_page_accessible(self) -> None:
+        url = "https://www.sciencedirect.com/science/article/pii/S000000000000002"
+        retrieval_attempts = [
+            {
+                "attempt_id": "attempt-partial-feed",
+                "source_access_id": "query-feed",
+                "query_id": "query-feed",
+                "source_id": "lancet",
+                "attempted_at": "2026-08-13T08:00:00+09:00",
+                "status": "PARTIAL",
+                "stage": "DISCOVERY",
+            }
+        ]
+        _registry, observations = build_source_registry(
+            candidate_records=[
+                {
+                    "work_id": "work-partial-feed",
+                    "source_urls": [url],
+                    "identifiers": {},
+                    "fulltext_locations": [],
+                    "access_depth": "METADATA",
+                    "query_ids": ["query-feed"],
+                    "discovery_sources": ["lancet"],
+                }
+            ],
+            source_access=[],
+            retrieval_attempts=retrieval_attempts,
+            prior_state=None,
+            run_id="run-partial-feed",
+            generated_at=datetime(2026, 8, 13, 8, 0, tzinfo=TZ),
+        )
+        self.assertEqual(1, len(observations))
+        self.assertEqual("NOT_CHECKED", observations[0]["access_outcome"])
+        self.assertEqual("METADATA", observations[0]["access_depth"])
+
     def test_publisher_url_prefers_formal_doi_over_discovery_landing_page(self) -> None:
         item = candidate(1, domain="repository.example")
         self.assertEqual("https://doi.org/10.1000/example.1", item.publisher_url())
