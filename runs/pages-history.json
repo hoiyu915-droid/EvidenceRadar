@@ -55,6 +55,33 @@
       ],
       "protocol_commit": "c7b9aafaa385763bd8c4c72ae0f9d15a4ff0b99b",
       "run_id": "github-actions-20260810T175707+0900"
+    },
+    {
+      "directory": "github-actions-20260813T090000+0900",
+      "files": [
+        {
+          "path": "EvidenceRadar_Report.html",
+          "sha256": "cee9d9c4b90cd1fc54ba40e5a5e159fec62011b073c418978e4690a3b2f84cf5",
+          "size": 2329908
+        },
+        {
+          "path": "EvidenceRadar_State.json",
+          "sha256": "7b367eaa563e80ca2ed98c677039784025c26416fc33b609f2a0b3365a82697a",
+          "size": 8854679
+        },
+        {
+          "path": "EvidenceRadar_Evidence.json",
+          "sha256": "bb45f3a5a4e478259bc64f3fb4874a616fcc51b95472cbfbde1448063e213953",
+          "size": 8667969
+        },
+        {
+          "path": "EvidenceRadar_Run.json",
+          "sha256": "e02e9cc51648c181e0e7bfabae84f09b80ab375ce766e089cf5c1c2e3179bc48",
+          "size": 2222307
+        }
+      ],
+      "protocol_commit": "9eba746ecbde1198ae63cbffa762b2414092e5cb",
+      "run_id": "github-actions-20260813T090000+0900"
     }
   ]
 }
