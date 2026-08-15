@@ -55,7 +55,7 @@ class RuntimeReleaseTests(unittest.TestCase):
             self.assertEqual(first.archive_sha256, second.archive_sha256)
             manifest = first.manifest
             self.assertEqual("evidenceradar-runtime-release", manifest["format"])
-            self.assertEqual("1.0.13", manifest["runtime_version"])
+            self.assertEqual("1.0.14", manifest["runtime_version"])
             self.assertRegex(manifest["source_commit"], r"^[0-9a-f]{40}$")
             self.assertEqual(manifest["source_commit"], manifest["git_commit"])
             self.assertFalse(manifest["git_dirty"])
@@ -103,7 +103,7 @@ class RuntimeReleaseTests(unittest.TestCase):
             self.assertNotIn("tools/verify_work_pack.py", names)
             self.assertNotIn("state/current/EvidenceRadar_State.json", names)
             root_result = verify_extracted_root(extracted)
-            self.assertEqual("1.0.13", root_result["manifest"]["runtime_version"])
+            self.assertEqual("1.0.14", root_result["manifest"]["runtime_version"])
 
             verifier = subprocess.run(
                 [sys.executable, "tools/verify_runtime_release.py", "--root", "."],

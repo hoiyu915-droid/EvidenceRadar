@@ -27,6 +27,7 @@ INTEGRATED_RUNNER_MARKERS = (
     "translation request profile mismatch",
     "authoritative master control is missing: config/radar_master.json",
 )
+COMPATIBILITY_CORE_MARKER = "run_github_radar_core"
 
 
 def validate_runner_source(source: str) -> None:
@@ -45,6 +46,21 @@ def patch_runner_source(source: str) -> str:
     return source
 
 
+def _implementation_path(path: Path) -> Path:
+    """Resolve the implementation behind the checked-in compatibility wrapper."""
+
+    path = Path(path)
+    source = path.read_text(encoding="utf-8")
+    if COMPATIBILITY_CORE_MARKER not in source:
+        return path
+    core = path.with_name("run_github_radar_core.py")
+    if not core.is_file():
+        raise RuntimePatchError(
+            "runner compatibility entrypoint is missing run_github_radar_core.py"
+        )
+    return core
+
+
 def patch_runner(path: Path, *, check_only: bool = False) -> bool:
     """Validate a runner without changing bytes; always returns ``False``."""
 
@@ -52,7 +68,8 @@ def patch_runner(path: Path, *, check_only: bool = False) -> bool:
         raise RuntimePatchError(
             "write mode was retired; master-control must be committed in the producer"
         )
-    validate_runner_source(Path(path).read_text(encoding="utf-8"))
+    implementation = _implementation_path(Path(path))
+    validate_runner_source(implementation.read_text(encoding="utf-8"))
     return False
 
 

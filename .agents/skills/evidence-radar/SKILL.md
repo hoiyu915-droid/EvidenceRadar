@@ -14,6 +14,18 @@ read. Keep the tool-result URL, timestamp, status, result count and paging facts
 from the operation that actually ran. Never fabricate an executor receipt from
 prose or reuse an example as current evidence.
 
+For `publisher_listing` sources, use only the verified `endpoint` and
+`adapter_config` from `config/radar_master.json`. Treat the configured
+`published_online` field and publisher label as the freshness authority; issue
+month, volume month, print date and search-engine crawl time are not qualifying
+publication events. Page the first-party listing until the exact window is
+closed or the configured page bound is reached. Open retained first-party
+article pages to confirm identity, online date, OA/license, manuscript version
+and the HTML/PDF locations actually observed. Preserve Accepted Manuscripts as
+such instead of silently promoting them to a Version of Record. If dates,
+ordering or pagination are incomplete, preserve a source gap rather than
+claiming `NO_RESULTS`.
+
 Create one strict `EvidenceRadar_WorkInput` JSON file outside the verified pack.
 Set `schema_version` to `1.0`; include `end_at`, `profile_id`,
 `raw_candidate_count`, the complete `queries` and `source_access` ledgers,

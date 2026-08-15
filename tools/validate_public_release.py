@@ -93,9 +93,10 @@ def main() -> int:
 
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     for marker in (
-        "## 唯一用家執行路徑",
-        "GitHub 在這條路徑只負責原始碼與版本化 ZIP 儲存",
-        "Codex is **not** part of the radar runtime",
+        "## 建議使用方式：長期使用請先複製到自己的 GitHub",
+        "## 最快的試用方式",
+        "GitHub 在這條一般用家路徑主要負責原始碼、版本化設定與 immutable Work Pack 儲存",
+        "目前 ChatGPT Work lane 是 user-launched terminal flow",
         "## License",
     ):
         if marker not in readme:

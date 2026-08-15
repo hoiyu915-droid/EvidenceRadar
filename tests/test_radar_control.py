@@ -90,6 +90,67 @@ class RadarControlTests(unittest.TestCase):
             runtime.streams["source_catalog"]["nature_communications"]["crossref_issn"],
         )
 
+    def test_cambridge_publisher_listing_is_profile_scoped_and_projected(self) -> None:
+        source = self.master["sources"]["cambridge_core_oa"]
+        self.assertEqual("publisher_listing", source["adapter"])
+        self.assertEqual("discovery", source["stage"])
+        self.assertEqual("active", source["status"])
+        self.assertTrue(source["enabled"])
+        self.assertTrue(
+            source["endpoint"].startswith(
+                "https://www.cambridge.org/core/publications/open-access/listing"
+            )
+        )
+        adapter_config = source["adapter_config"]
+        self.assertEqual("publisher_listing_v1", adapter_config["template"])
+        self.assertEqual("published_online", adapter_config["freshness"]["field"])
+        self.assertEqual("desc", adapter_config["freshness"]["order"])
+        self.assertTrue(adapter_config["freshness"]["stop_when_older_than_window"])
+        self.assertEqual(
+            "Published online by Cambridge University Press",
+            adapter_config["freshness"]["authoritative_label"],
+        )
+        self.assertTrue(adapter_config["verification"]["article_page_required"])
+
+        runtime = self.runtime("owner_daily")
+        catalog = runtime.streams["source_catalog"]["cambridge_core_oa"]
+        self.assertEqual(adapter_config, catalog["adapter_config"])
+        self.assertEqual("discovery", catalog["stage"])
+        self.assertNotIn(
+            "cambridge_core_oa",
+            runtime.streams["source_check_contract"]["bounded_verification_sources"],
+        )
+        for stream_id in (
+            "owner_cambridge_clinical",
+            "owner_cambridge_sport",
+            "owner_cambridge_sport_nutrition",
+            "owner_cambridge_llm",
+            "owner_cambridge_human_ai",
+        ):
+            self.assertEqual(
+                ["cambridge_core_oa"], runtime.streams["streams"][stream_id]["sources"]
+            )
+
+        current_focus = self.runtime("current_focus")
+        current_sources = {
+            source_id
+            for stream in current_focus.streams["streams"].values()
+            for source_id in stream["sources"]
+        }
+        self.assertNotIn("cambridge_core_oa", current_sources)
+
+    def test_cambridge_publisher_listing_rejects_weak_freshness_contract(self) -> None:
+        broken = copy.deepcopy(self.master)
+        freshness = broken["sources"]["cambridge_core_oa"]["adapter_config"]["freshness"]
+        freshness["field"] = "issue_date"
+        with self.assertRaisesRegex(RadarControlError, "freshness.field"):
+            compile_runtime(
+                broken,
+                legacy_streams=self.legacy_streams,
+                legacy_scoring=self.legacy_scoring,
+                profile_id="owner_daily",
+            )
+
     def test_lancet_batch_is_named_first_party_and_crossref_backed(self) -> None:
         expected = {
             "lancet": "0140-6736",
@@ -257,9 +318,10 @@ class RadarControlTests(unittest.TestCase):
             "llm_research",
             "human_ai",
         ])
-        self.assertEqual(len(requested), 49)
+        self.assertEqual(len(requested), 50)
         self.assertIn("jama_network_open", requested)
         self.assertIn("nature_communications", requested)
+        self.assertIn("cambridge_core_oa", requested)
         self.assertEqual(
             set(self.master["source_groups"]["lancet_clinical_core"])
             & requested,
