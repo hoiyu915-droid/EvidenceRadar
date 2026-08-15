@@ -332,6 +332,19 @@ def _validate_publisher_listing_config(source_id: str, config: dict[str, Any]) -
             f"publisher_listing source {source_id} freshness.authoritative_label is required"
         )
 
+    extract = adapter_config.get("extract")
+    if not isinstance(extract, dict) or not str(extract.get("article_href_contains") or "").strip():
+        raise RadarControlError(
+            f"publisher_listing source {source_id} needs extract.article_href_contains"
+        )
+    date_formats = extract.get("date_formats")
+    if not isinstance(date_formats, list) or not date_formats or not all(
+        str(value).strip() for value in date_formats
+    ):
+        raise RadarControlError(
+            f"publisher_listing source {source_id} needs non-empty extract.date_formats"
+        )
+
     verification = adapter_config.get("verification")
     if not isinstance(verification, dict) or verification.get("article_page_required") is not True:
         raise RadarControlError(
@@ -446,6 +459,14 @@ def _legacy_paths(master_path: Path, master: dict[str, Any]) -> tuple[Path, Path
     )
 
 
+def _runtime_dispatch_adapter(configured_adapter: str) -> str:
+    # The canonical Python runner already routes all first-party publisher
+    # inventories through fetch_rss_atom(), which delegates to publisher_feed.
+    # publisher_feed is now a generic inventory dispatcher, so HTML listings
+    # share that stable call path without lying in the authoritative master.
+    return "rss_atom" if configured_adapter == "publisher_listing" else configured_adapter
+
+
 def compile_runtime(
     master: dict[str, Any],
     *,
@@ -501,10 +522,17 @@ def compile_runtime(
     )
     for source_id in sorted(requested_source_ids):
         config = sources[source_id]
+        configured_adapter = str(config["adapter"])
+        dispatch_adapter = _runtime_dispatch_adapter(configured_adapter)
         source_catalog[source_id] = {
             "role": str(config.get("role") or ""),
             "stage": str(config["stage"]),
-            "adapter": str(config["adapter"]),
+            "adapter": dispatch_adapter,
+            **(
+                {"configured_adapter": configured_adapter}
+                if dispatch_adapter != configured_adapter
+                else {}
+            ),
             "kind": str(config.get("kind") or ""),
             **({"discovery_tier": str(config["discovery_tier"])} if config.get("discovery_tier") else {}),
             "check_summary_required": True,
@@ -556,7 +584,10 @@ def compile_runtime(
     scoring_runtime["category_min_relevance"] = category_min
 
     endpoints = {source_id: str(sources[source_id].get("endpoint") or "") for source_id in requested_source_ids if sources[source_id].get("endpoint")}
-    adapters = {source_id: str(sources[source_id]["adapter"]) for source_id in requested_source_ids}
+    adapters = {
+        source_id: _runtime_dispatch_adapter(str(sources[source_id]["adapter"]))
+        for source_id in requested_source_ids
+    }
     labels = {category_id: str(config.get("label_zh_tw") or category_id) for category_id, config in master["routing_categories"].items() if category_id in categories}
     return MasterRuntime(
         profile_id=profile_id,
