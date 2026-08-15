@@ -2,22 +2,29 @@
 """Compatibility entry point for the archived GitHub/local runner.
 
 The full historical implementation is preserved in ``run_github_radar_core``.
-This thin shim only teaches its source-coverage accounting that the new
-``publisher_listing`` adapter is a recognized discovery capability.  Active
-EvidenceRadar execution remains the ChatGPT Work lane; the archived runner
-continues to fail closed if no executor actually services a configured source.
+This shim only teaches its source-coverage accounting that the new
+``publisher_listing`` adapter is a recognized discovery capability.  Imports
+resolve to the core module itself so existing monkey-patches and test hooks keep
+the same global-function behavior as before this refactor.
 """
 
 from __future__ import annotations
 
-from tools import run_github_radar_core as _core
+import sys
+from pathlib import Path
+
+if __package__ in {None, ""}:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from tools import run_github_radar_core as _core  # noqa: E402
 
 _core.DISCOVERY_ADAPTER_KEYS.add("publisher_listing")
 
-for _name in dir(_core):
-    if not _name.startswith("__"):
-        globals()[_name] = getattr(_core, _name)
-
-
 if __name__ == "__main__":
     raise SystemExit(_core.main())
+
+# The import surface is deliberately the implementation module, not a copy of
+# its globals. unittest.mock.patch("tools.run_github_radar.<name>") therefore
+# patches the same globals used by discover()/run(), exactly as it did when the
+# implementation lived in this file.
+sys.modules[__name__] = _core
