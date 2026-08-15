@@ -95,15 +95,43 @@ search-discovered URL is not an acceptable substitute. If the entry also has
 and record `retrieval_backend: rss_atom+crossref_journal_window`. This is one
 mandatory hybrid retrieval, not permission to choose whichever surface works.
 
+For every active source whose adapter is `publisher_listing`, use only the
+verified source `endpoint` and `adapter_config`. This is a first-party HTML
+inventory adapter, not an RSS fallback and not a search-engine freshness hack.
+Start from `pagination.start_page`, advance with the configured pagination
+parameter, and respect `pagination.max_pages`. Treat
+`freshness.field: published_online` and its configured `authoritative_label` as
+the event-date authority. Issue month, volume month, print date, search-engine
+crawl time and generic page freshness do not establish an in-window event.
+
+A `publisher_listing` inventory may stop early only when the configured order
+is descending, the observed provider dates are monotonic enough to support that
+assumption, and the listing has crossed below the exact run window. If a page
+is missing authoritative dates, ordering is inconsistent, pagination is
+incomplete, or the configured page limit is reached before the window is
+closed, fail closed and preserve a source-coverage gap. Do not convert that
+state into `NO_RESULTS`.
+
+Listing rows are discovery records. For every retained candidate, open the
+first-party article page when `verification.article_page_required` is true and
+confirm DOI/identity, the authoritative online date, OA/license signal,
+manuscript version and the exact HTML/PDF locations actually observed. An
+`Accepted manuscript` row can support an
+`author_accepted_manuscript_first_available` event after article-page
+confirmation; it must not be silently upgraded to a Version of Record. A
+FirstView/Version-of-Record article uses the publisher online date rather than
+its later issue assignment. Preserve blocked or unprobed full-text locations as
+such even when the listing says Open access.
+
 Do not conflate filtering with inventory. `result_count` records the matches
 returned by a query/access receipt; `window_record_count` records the complete
 de-duplicated in-window provider inventory before query filtering. Therefore a
 complete non-empty inventory can correctly accompany `result_count: 0` and
-`NO_RESULTS`. If a configured feed or Crossref inventory surface is absent,
-unreachable, incompletely paginated, or missing required inventory telemetry,
-fail closed: mark retrieval incomplete, preserve the source gap, and do not
-claim `SUCCESS`, `NO_RESULTS`, or complete coverage by silently degrading to a
-single surface.
+`NO_RESULTS`. If a configured feed, Crossref inventory, or publisher-listing
+surface is absent, unreachable, incompletely paginated, or missing required
+inventory telemetry, fail closed: mark retrieval incomplete, preserve the
+source gap, and do not claim `SUCCESS`, `NO_RESULTS`, or complete coverage by
+silently degrading to another surface.
 
 After the live searches and primary-page reads, bind their actual receipts,
 complete candidates and your source-grounded Traditional Chinese translations
