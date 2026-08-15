@@ -13,6 +13,10 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+# Runtime/Work Pack verification requires the extracted package to remain
+# byte-identical even when this compatibility entrypoint is invoked directly.
+sys.dont_write_bytecode = True
+
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
