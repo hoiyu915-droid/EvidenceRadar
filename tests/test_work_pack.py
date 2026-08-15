@@ -8,10 +8,10 @@ ROOT = TESTS.parent
 if str(TESTS) not in sys.path:
     sys.path.insert(0, str(TESTS))
 
-from work_pack_contract_cases import WorkPackTests as _WorkPackContractCases  # noqa: E402, I001
+import work_pack_contract_cases as _cases  # noqa: E402, I001
 
 
-class WorkPackTests(_WorkPackContractCases):
+class WorkPackTests(_cases.WorkPackTests):
     """Run the established Work Pack cases with the current user-entry wording."""
 
     def test_user_entry_is_one_download_then_terminal_four_file_delivery(self) -> None:
