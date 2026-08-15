@@ -17,6 +17,21 @@ from pathlib import Path
 # byte-identical even when this compatibility entrypoint is invoked directly.
 sys.dont_write_bytecode = True
 
+# ``validate_delivery_bundle`` deliberately detects producer capabilities from
+# packaged entrypoint bytes when no Git checkout is available.  The wrapper is
+# therefore an explicit declaration of the capabilities implemented by its
+# immutable core, rather than making a gitless package look like a legacy
+# producer merely because the implementation was split into a sibling module.
+PACKAGED_PRODUCER_CAPABILITY_MARKERS = (
+    "load_master_runtime",
+    "RADAR_STREAMS_JSON:",
+    "RADAR_SOURCES_JSON:",
+    "EXECUTOR_HTTP_TELEMETRY_V1",
+    "http_requests_attempted",
+    "inventory_pages_requested",
+    "unusable_record_count",
+)
+
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
