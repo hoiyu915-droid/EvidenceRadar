@@ -34,6 +34,7 @@
     "tools/run_work_radar.py",
     "tools/strict_json.py",
     "tools/validate_delivery_bundle.py",
+    "tools/validate_delivery_bundle_core.py",
     "tools/validate_gpt_work_artifacts.py",
     "tools/verify_work_pack.py"
   ],
@@ -77,6 +78,7 @@
     "tools/run_work_radar.py",
     "tools/strict_json.py",
     "tools/validate_delivery_bundle.py",
+    "tools/validate_delivery_bundle_core.py",
     "tools/validate_gpt_work_artifacts.py",
     "tools/verify_work_pack.py"
   ],
