@@ -8,7 +8,7 @@ ROOT = TESTS.parent
 if str(TESTS) not in sys.path:
     sys.path.insert(0, str(TESTS))
 
-from work_pack_contract_cases import WorkPackTests as _WorkPackContractCases  # noqa: E402
+from work_pack_contract_cases import WorkPackTests as _WorkPackContractCases  # noqa: E402, I001
 
 
 class WorkPackTests(_WorkPackContractCases):
