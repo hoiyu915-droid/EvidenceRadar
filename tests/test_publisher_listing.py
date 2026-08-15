@@ -9,7 +9,7 @@ from urllib.parse import parse_qs, urlsplit
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 
-from publisher_listing import (  # noqa: E402
+from publisher_listing import (  # noqa: E402, I001
     fetch_publisher_listing_records,
     parse_publisher_listing,
 )
