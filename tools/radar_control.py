@@ -55,6 +55,28 @@ def _apply_template_defaults(master: dict[str, Any]) -> dict[str, Any]:
     return normalized
 
 
+def _restore_semantic_adapter(runtime: MasterRuntime) -> MasterRuntime:
+    """Keep source identity semantic while the archived runner uses a shim.
+
+    The Python runner's dispatch table is intentionally unchanged and therefore
+    receives ``rss_atom`` in ``runtime.source_adapters`` for publisher-listing
+    sources.  The source catalog, however, is serialized into audit artifacts
+    and must continue to state the authoritative adapter identity rather than
+    the internal dispatch path.
+    """
+
+    source_catalog = runtime.streams.get("source_catalog", {})
+    if not isinstance(source_catalog, dict):
+        return runtime
+    for config in source_catalog.values():
+        if not isinstance(config, dict):
+            continue
+        configured_adapter = str(config.get("configured_adapter") or "")
+        if configured_adapter == "publisher_listing":
+            config["adapter"] = configured_adapter
+    return runtime
+
+
 def validate_master(master: dict[str, Any]) -> None:
     _core.validate_master(_apply_template_defaults(master))
 
@@ -73,12 +95,13 @@ def compile_runtime(
     legacy_scoring: dict[str, Any],
     profile_id: str | None = None,
 ) -> MasterRuntime:
-    return _core.compile_runtime(
+    runtime = _core.compile_runtime(
         _apply_template_defaults(master),
         legacy_streams=legacy_streams,
         legacy_scoring=legacy_scoring,
         profile_id=profile_id,
     )
+    return _restore_semantic_adapter(runtime)
 
 
 def load_master_runtime(path: Path, profile_id: str | None = None) -> MasterRuntime:
