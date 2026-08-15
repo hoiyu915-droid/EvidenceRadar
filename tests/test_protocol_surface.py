@@ -5,6 +5,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 RUNNER_IMPL = ROOT / "tools" / "run_github_radar_core.py"
+VALIDATOR_IMPL = ROOT / "tools" / "validate_delivery_bundle_core.py"
 
 
 class ProtocolSurfaceTests(unittest.TestCase):
@@ -153,6 +154,7 @@ class ProtocolSurfaceTests(unittest.TestCase):
         self.assertTrue((ROOT / "tools" / "merge_radar_state.py").exists())
         self.assertTrue((ROOT / "tools" / "build_work_pack.py").exists())
         self.assertTrue((ROOT / "tools" / "validate_delivery_bundle.py").exists())
+        self.assertTrue(VALIDATOR_IMPL.exists())
         self.assertTrue((ROOT / "tools" / "render_report_from_artifacts.py").exists())
         self.assertTrue((ROOT / "tools" / "build_pages_site.py").exists())
         self.assertTrue((ROOT / "release" / "work-pack-manifest.json").exists())
@@ -165,7 +167,7 @@ class ProtocolSurfaceTests(unittest.TestCase):
         protocol = (ROOT / "EVIDENCE_RADAR_PROTOCOL.md").read_text(encoding="utf-8")
         semantic = (ROOT / "docs" / "SEMANTIC_CONTRACT_V3.md").read_text(encoding="utf-8")
         instructions = (ROOT / "templates" / "gpt-work-instructions.md").read_text(encoding="utf-8")
-        validator = (ROOT / "tools" / "validate_delivery_bundle.py").read_text(encoding="utf-8")
+        validator = VALIDATOR_IMPL.read_text(encoding="utf-8")
         runner = RUNNER_IMPL.read_text(encoding="utf-8")
         for marker in (
             "SEMANTIC_CONTRACT_V3",
