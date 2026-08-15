@@ -4,6 +4,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+RUNNER_IMPL = ROOT / "tools" / "run_github_radar_core.py"
 
 
 class ProtocolSurfaceTests(unittest.TestCase):
@@ -96,6 +97,7 @@ class ProtocolSurfaceTests(unittest.TestCase):
         self.assertTrue((ROOT / "requirements.txt").exists())
         self.assertTrue((ROOT / "requirements.lock").exists())
         self.assertTrue((ROOT / "tools" / "run_github_radar.py").exists())
+        self.assertTrue(RUNNER_IMPL.exists())
         self.assertTrue((ROOT / "legacy" / "python-runtime" / "src" / "run.py").exists())
         self.assertTrue((ROOT / "legacy" / "python-runtime" / "requirements.txt").exists())
         self.assertTrue((ROOT / "legacy" / "python-runtime" / "requirements.lock").exists())
@@ -118,7 +120,7 @@ class ProtocolSurfaceTests(unittest.TestCase):
     def test_candidate_visibility_is_independent_of_publisher_access_budget(self) -> None:
         output = (ROOT / "config/output.yml").read_text(encoding="utf-8")
         protocol = (ROOT / "EVIDENCE_RADAR_PROTOCOL.md").read_text(encoding="utf-8")
-        runner = (ROOT / "tools" / "run_github_radar.py").read_text(encoding="utf-8")
+        runner = RUNNER_IMPL.read_text(encoding="utf-8")
         self.assertIn("candidate_display_capped_by_publisher_budget: false", output)
         self.assertIn("display_all_deduplicated: true", output)
         self.assertIn("group_by_category: true", output)
@@ -128,9 +130,9 @@ class ProtocolSurfaceTests(unittest.TestCase):
         self.assertIn("select_display_candidates", runner)
 
     def test_report_requires_readable_summaries_and_interactive_filters(self) -> None:
-        output = (ROOT / "config" / "output.yml").read_text(encoding="utf-8")
+        output = (ROOT / "config/output.yml").read_text(encoding="utf-8")
         protocol = (ROOT / "EVIDENCE_RADAR_PROTOCOL.md").read_text(encoding="utf-8")
-        runner = (ROOT / "tools" / "run_github_radar.py").read_text(encoding="utf-8")
+        runner = RUNNER_IMPL.read_text(encoding="utf-8")
         self.assertIn("include_candidate_content_summary: true", output)
         self.assertIn("interactive_candidate_filters: true", output)
         self.assertIn("candidate_summary_max_chars: 320", output)
@@ -164,7 +166,7 @@ class ProtocolSurfaceTests(unittest.TestCase):
         semantic = (ROOT / "docs" / "SEMANTIC_CONTRACT_V3.md").read_text(encoding="utf-8")
         instructions = (ROOT / "templates" / "gpt-work-instructions.md").read_text(encoding="utf-8")
         validator = (ROOT / "tools" / "validate_delivery_bundle.py").read_text(encoding="utf-8")
-        runner = (ROOT / "tools" / "run_github_radar.py").read_text(encoding="utf-8")
+        runner = RUNNER_IMPL.read_text(encoding="utf-8")
         for marker in (
             "SEMANTIC_CONTRACT_V3",
             "retrieval_attempts",
