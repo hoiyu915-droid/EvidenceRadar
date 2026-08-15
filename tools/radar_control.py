@@ -21,6 +21,7 @@ ALLOWED_DISCOVERY_TIERS = {"primary", "supplemental"}
 IMPLEMENTED_ADAPTERS = {
     "pubmed", "europe_pmc", "openalex", "arxiv", "openreview",
     "acl_anthology", "pmlr", "rss_atom", "bounded_publisher",
+    "publisher_listing",
 }
 
 
@@ -274,6 +275,70 @@ def project_runtime_limits(
     return projected_output, projected_deployment
 
 
+def _validate_publisher_listing_config(source_id: str, config: dict[str, Any]) -> None:
+    adapter_config = config.get("adapter_config")
+    if not isinstance(adapter_config, dict):
+        raise RadarControlError(
+            f"active publisher_listing source {source_id} needs adapter_config"
+        )
+    if str(adapter_config.get("template") or "") != "publisher_listing_v1":
+        raise RadarControlError(
+            f"publisher_listing source {source_id} must use template publisher_listing_v1"
+        )
+    endpoint = str(config.get("endpoint") or "")
+    if not endpoint.startswith("https://"):
+        raise RadarControlError(
+            f"publisher_listing source {source_id} needs an https endpoint"
+        )
+
+    pagination = adapter_config.get("pagination")
+    if not isinstance(pagination, dict):
+        raise RadarControlError(
+            f"publisher_listing source {source_id} needs adapter_config.pagination"
+        )
+    parameter = str(pagination.get("parameter") or "").strip()
+    if not parameter:
+        raise RadarControlError(
+            f"publisher_listing source {source_id} pagination.parameter is required"
+        )
+    _positive_int(
+        pagination.get("start_page"),
+        path=f"source {source_id}.adapter_config.pagination.start_page",
+    )
+    _positive_int(
+        pagination.get("max_pages"),
+        path=f"source {source_id}.adapter_config.pagination.max_pages",
+    )
+
+    freshness = adapter_config.get("freshness")
+    if not isinstance(freshness, dict):
+        raise RadarControlError(
+            f"publisher_listing source {source_id} needs adapter_config.freshness"
+        )
+    if str(freshness.get("field") or "") != "published_online":
+        raise RadarControlError(
+            f"publisher_listing source {source_id} freshness.field must be published_online"
+        )
+    if str(freshness.get("order") or "") != "desc":
+        raise RadarControlError(
+            f"publisher_listing source {source_id} freshness.order must be desc"
+        )
+    if freshness.get("stop_when_older_than_window") is not True:
+        raise RadarControlError(
+            f"publisher_listing source {source_id} must stop when the listing is older than the window"
+        )
+    if not str(freshness.get("authoritative_label") or "").strip():
+        raise RadarControlError(
+            f"publisher_listing source {source_id} freshness.authoritative_label is required"
+        )
+
+    verification = adapter_config.get("verification")
+    if not isinstance(verification, dict) or verification.get("article_page_required") is not True:
+        raise RadarControlError(
+            f"publisher_listing source {source_id} must require article-page verification"
+        )
+
+
 def validate_master(master: dict[str, Any]) -> None:
     if master.get("artifact_type") != "EvidenceRadar_MasterControl":
         raise RadarControlError("artifact_type must be EvidenceRadar_MasterControl")
@@ -310,6 +375,8 @@ def validate_master(master: dict[str, Any]) -> None:
             feeds = config.get("feeds")
             if not isinstance(feeds, list) or not feeds:
                 raise RadarControlError(f"active rss_atom source {source_id} needs feeds[]")
+        if adapter == "publisher_listing" and status == "active":
+            _validate_publisher_listing_config(source_id, config)
 
     # Source groups are a catalog convenience. They may exist before any stream
     # selects them, but every member must at least exist in the source catalog.
@@ -444,6 +511,7 @@ def compile_runtime(
             **({"preferred_domain": config["preferred_domains"][0]} if config.get("preferred_domains") else {}),
             **({"endpoint": config["endpoint"]} if config.get("endpoint") else {}),
             **({"feeds": copy.deepcopy(config["feeds"])} if config.get("feeds") else {}),
+            **({"adapter_config": copy.deepcopy(config["adapter_config"])} if config.get("adapter_config") else {}),
             **({field: copy.deepcopy(config[field]) for field in passthrough_fields if field in config}),
         }
         stage_by_source[source_id] = str(config["stage"])
