@@ -1,0 +1,77 @@
+{
+  "artifact_type": "EvidenceRadar_CambridgeJournalSelection",
+  "schema_version": "1.0",
+  "selection_id": "owner_daily_cambridge_v1_20260816",
+  "source_id": "cambridge_core_oa",
+  "family_url": "https://www.cambridge.org/core/journals",
+  "endpoint_template": "https://www.cambridge.org/core/journals/{slug}/listing?sort=canonical.date%3Adesc",
+  "max_pages_per_shard": 5,
+  "journals": [
+    {
+      "slug": "natural-language-processing",
+      "title": "Natural Language Processing",
+      "priority": "core",
+      "topic_lines": ["llm_research"]
+    },
+    {
+      "slug": "ai-edam",
+      "title": "AI EDAM",
+      "priority": "core",
+      "topic_lines": ["llm_research", "human_ai"]
+    },
+    {
+      "slug": "data-and-policy",
+      "title": "Data & Policy",
+      "priority": "core",
+      "topic_lines": ["human_ai", "llm_research"]
+    },
+    {
+      "slug": "behavioral-and-brain-sciences",
+      "title": "Behavioral and Brain Sciences",
+      "priority": "core",
+      "topic_lines": ["human_ai", "llm_research"]
+    },
+    {
+      "slug": "language-and-cognition",
+      "title": "Language and Cognition",
+      "priority": "supporting",
+      "topic_lines": ["human_ai", "llm_research"]
+    },
+    {
+      "slug": "psychological-medicine",
+      "title": "Psychological Medicine",
+      "priority": "core",
+      "topic_lines": ["clinical_medicine", "human_ai"]
+    },
+    {
+      "slug": "bjpsych-open",
+      "title": "BJPsych Open",
+      "priority": "core",
+      "topic_lines": ["clinical_medicine", "human_ai"]
+    },
+    {
+      "slug": "epidemiology-and-psychiatric-sciences",
+      "title": "Epidemiology and Psychiatric Sciences",
+      "priority": "supporting",
+      "topic_lines": ["clinical_medicine", "human_ai"]
+    },
+    {
+      "slug": "journal-of-nutritional-science",
+      "title": "Journal of Nutritional Science",
+      "priority": "core",
+      "topic_lines": ["sport_nutrition_fitness", "sport_science"]
+    },
+    {
+      "slug": "nutrition-research-reviews",
+      "title": "Nutrition Research Reviews",
+      "priority": "core",
+      "topic_lines": ["sport_nutrition_fitness", "sport_science"]
+    },
+    {
+      "slug": "british-journal-of-nutrition",
+      "title": "British Journal of Nutrition",
+      "priority": "supporting",
+      "topic_lines": ["sport_nutrition_fitness", "sport_science"]
+    }
+  ]
+}

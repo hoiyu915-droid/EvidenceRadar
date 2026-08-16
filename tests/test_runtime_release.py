@@ -55,7 +55,7 @@ class RuntimeReleaseTests(unittest.TestCase):
             self.assertEqual(first.archive_sha256, second.archive_sha256)
             manifest = first.manifest
             self.assertEqual("evidenceradar-runtime-release", manifest["format"])
-            self.assertEqual("1.0.15", manifest["runtime_version"])
+            self.assertEqual("1.0.16", manifest["runtime_version"])
             self.assertRegex(manifest["source_commit"], r"^[0-9a-f]{40}$")
             self.assertEqual(manifest["source_commit"], manifest["git_commit"])
             self.assertFalse(manifest["git_dirty"])
@@ -94,6 +94,7 @@ class RuntimeReleaseTests(unittest.TestCase):
                 self.assertFalse(any(name.startswith(forbidden_prefix) for name in names))
             self.assertIn("RUNTIME_MANIFEST.json", names)
             self.assertIn("config/radar_master.json", names)
+            self.assertIn("config/cambridge_journal_selection.json", names)
             self.assertIn("tools/featured_selection.py", names)
             self.assertIn("tools/publisher_feed.py", names)
             self.assertIn("tools/radar_control.py", names)
@@ -103,7 +104,7 @@ class RuntimeReleaseTests(unittest.TestCase):
             self.assertNotIn("tools/verify_work_pack.py", names)
             self.assertNotIn("state/current/EvidenceRadar_State.json", names)
             root_result = verify_extracted_root(extracted)
-            self.assertEqual("1.0.15", root_result["manifest"]["runtime_version"])
+            self.assertEqual("1.0.16", root_result["manifest"]["runtime_version"])
 
             verifier = subprocess.run(
                 [sys.executable, "tools/verify_runtime_release.py", "--root", "."],

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import re
 from pathlib import Path
 from typing import Any
 
@@ -27,10 +28,70 @@ PUBLISHER_LISTING_V1_INVENTORY_DEFAULTS = {
     "journal_level_coverage": False,
     "shard_strategy": "catalog_or_subject_optional",
 }
+CAMBRIDGE_SELECTION_PATH = Path(__file__).resolve().parents[1] / "config" / "cambridge_journal_selection.json"
+
 CAMBRIDGE_CONTAINER_DEFAULTS = {
     "container_path_regex": r"/core/journals/(?P<container>[^/]+)/article/",
     "container_id_prefix": "cambridge-core",
 }
+
+
+def _load_cambridge_selection() -> dict[str, Any]:
+    try:
+        selection = _core._load_mapping(CAMBRIDGE_SELECTION_PATH, json_only=True)
+    except (OSError, RadarControlError) as exc:
+        raise RadarControlError(
+            f"cannot load Cambridge journal selection {CAMBRIDGE_SELECTION_PATH}: {exc}"
+        ) from exc
+    if selection.get("artifact_type") != "EvidenceRadar_CambridgeJournalSelection":
+        raise RadarControlError("Cambridge journal selection has invalid artifact_type")
+    if str(selection.get("schema_version") or "") != "1.0":
+        raise RadarControlError("unsupported Cambridge journal selection schema_version")
+    if str(selection.get("source_id") or "") != "cambridge_core_oa":
+        raise RadarControlError("Cambridge journal selection must bind cambridge_core_oa")
+    family_url = str(selection.get("family_url") or "").strip()
+    endpoint_template = str(selection.get("endpoint_template") or "").strip()
+    journals = selection.get("journals")
+    max_pages = selection.get("max_pages_per_shard")
+    if not family_url.startswith("https://www.cambridge.org/core/journals"):
+        raise RadarControlError("Cambridge family_url must be a Cambridge Core journals URL")
+    if "{slug}" not in endpoint_template or not endpoint_template.startswith(
+        "https://www.cambridge.org/core/journals/"
+    ):
+        raise RadarControlError("Cambridge endpoint_template must contain {slug}")
+    if isinstance(max_pages, bool) or not isinstance(max_pages, int) or max_pages <= 0:
+        raise RadarControlError("Cambridge max_pages_per_shard must be a positive integer")
+    if not isinstance(journals, list) or not journals:
+        raise RadarControlError("Cambridge journal selection requires journals[]")
+    seen: set[str] = set()
+    normalized_journals: list[dict[str, Any]] = []
+    for index, raw in enumerate(journals):
+        if not isinstance(raw, dict):
+            raise RadarControlError(f"Cambridge journals[{index}] must be an object")
+        slug = str(raw.get("slug") or "").strip().casefold()
+        title = str(raw.get("title") or "").strip()
+        if not slug or not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", slug):
+            raise RadarControlError(f"Cambridge journals[{index}] has invalid slug")
+        if slug in seen:
+            raise RadarControlError(f"duplicate Cambridge journal slug: {slug}")
+        if not title:
+            raise RadarControlError(f"Cambridge journals[{index}] needs title")
+        seen.add(slug)
+        normalized_journals.append(
+            {
+                "shard_id": f"journal:{slug}",
+                "journal_slug": slug,
+                "journal_title": title,
+                "endpoint": endpoint_template.format(slug=slug),
+                "priority": str(raw.get("priority") or "supporting"),
+                "topic_lines": [
+                    str(value) for value in raw.get("topic_lines", []) if str(value)
+                ],
+            }
+        )
+    normalized = copy.deepcopy(selection)
+    normalized["journals"] = normalized_journals
+    return normalized
 
 
 def _apply_template_defaults(master: dict[str, Any]) -> dict[str, Any]:
@@ -40,7 +101,7 @@ def _apply_template_defaults(master: dict[str, Any]) -> dict[str, Any]:
     sources = normalized.get("sources")
     if not isinstance(sources, dict):
         return normalized
-    for config in sources.values():
+    for source_id, config in sources.items():
         if not isinstance(config, dict):
             continue
         if str(config.get("adapter") or "") != "publisher_listing":
@@ -76,11 +137,32 @@ def _apply_template_defaults(master: dict[str, Any]) -> dict[str, Any]:
             for key, value in CAMBRIDGE_CONTAINER_DEFAULTS.items():
                 inventory.setdefault(key, copy.deepcopy(value))
 
-        # A publisher-wide OA-article listing proves article-level OA.  It does
-        # not prove that every parent journal is fully OA.  Preserve the legacy
-        # raw marker only as compatibility provenance while projecting the
-        # effective runtime semantics as publisher_oa_articles.
-        if str(config.get("oa_mode") or "").casefold() == "fully_oa":
+        if source_id == "cambridge_core_oa" and isinstance(inventory, dict):
+            selection = _load_cambridge_selection()
+            shards = copy.deepcopy(selection["journals"])
+            inventory.update(
+                {
+                    "scope": "curated_journal_articles",
+                    "coverage_unit": "article",
+                    "journal_level_coverage": False,
+                    "shard_strategy": "curated_journal_allowlist",
+                    "article_oa_guarantee": False,
+                    "selection_id": str(selection.get("selection_id") or ""),
+                    "family_url": str(selection.get("family_url") or ""),
+                    "selected_journal_count": len(shards),
+                    "shards": shards,
+                }
+            )
+            pagination = adapter_config.get("pagination")
+            if isinstance(pagination, dict):
+                pagination["max_pages"] = int(selection["max_pages_per_shard"])
+            configured_oa_mode = str(config.get("oa_mode") or "")
+            if configured_oa_mode:
+                config.setdefault("configured_oa_mode", configured_oa_mode)
+            config["oa_mode"] = "verify_per_work"
+        elif str(config.get("oa_mode") or "").casefold() == "fully_oa":
+            # A publisher-wide OA-article listing proves article-level OA.  It
+            # does not prove that every parent journal is fully OA.
             config["configured_oa_mode"] = "fully_oa"
             config["oa_mode"] = "publisher_oa_articles"
     return normalized
