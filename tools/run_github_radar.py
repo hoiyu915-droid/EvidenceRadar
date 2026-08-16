@@ -15,15 +15,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
-# Runtime/Work Pack verification requires the extracted package to remain
-# byte-identical even when this compatibility entrypoint is invoked directly.
 sys.dont_write_bytecode = True
 
-# ``validate_delivery_bundle`` deliberately detects producer capabilities from
-# packaged entrypoint bytes when no Git checkout is available.  The wrapper is
-# therefore an explicit declaration of the capabilities implemented by its
-# immutable core, rather than making a gitless package look like a legacy
-# producer merely because the implementation was split into a sibling module.
 PACKAGED_PRODUCER_CAPABILITY_MARKERS = (
     "load_master_runtime",
     "RADAR_STREAMS_JSON:",
@@ -97,11 +90,9 @@ def _install_publisher_listing_compatibility() -> None:
         if not _is_publisher_listing_source(source_config):
             return candidates
 
+        inventory = _publisher_inventory_config(source_config)
+        article_oa_guarantee = inventory.get("article_oa_guarantee") is True
         for candidate in candidates:
-            # The aggregate listing establishes that this article is in the
-            # publisher's OA article inventory.  It does not establish that
-            # the parent journal itself is fully OA.
-            candidate.open_access = True
             candidate.oa_evidence = [
                 evidence
                 for evidence in candidate.oa_evidence
@@ -111,6 +102,16 @@ def _install_publisher_listing_compatibility() -> None:
                     and str(evidence.get("value") or "") == "fully_oa"
                 )
             ]
+            if not article_oa_guarantee:
+                candidate.open_access = None
+                candidate.oa_evidence = [
+                    evidence
+                    for evidence in candidate.oa_evidence
+                    if str(evidence.get("evidence_type") or "")
+                    != "publisher_listing_oa_inventory"
+                ]
+                continue
+            candidate.open_access = True
             if not any(
                 str(evidence.get("evidence_type") or "")
                 == "publisher_listing_oa_inventory"
@@ -146,10 +147,6 @@ def _install_publisher_listing_compatibility() -> None:
                 streams, scoring, start, end, session=session
             )
 
-        # The core runner predates semantic publisher_listing identity and has
-        # one stable first-party inventory call path: rss_atom -> publisher_feed.
-        # Feed it an execution-only copy while leaving the authoritative runtime
-        # and serialized source catalog untouched.
         dispatch_streams = copy.deepcopy(streams)
         dispatch_catalog = dispatch_streams.get("source_catalog", {})
         for source_id in publisher_sources:
@@ -178,6 +175,7 @@ def _install_publisher_listing_compatibility() -> None:
                 "did not close the requested window within" in value
                 for value in combined_errors
             )
+            hard_failure = any("HARD_FAILURE:" in value for value in combined_errors)
             status = str(access.get("status") or "")
             pages_received = int(access.get("inventory_pages_received") or 0)
             access.update(
@@ -192,9 +190,15 @@ def _install_publisher_listing_compatibility() -> None:
                         "journal_level_coverage"
                     )
                     is True,
+                    "selection_id": str(inventory.get("selection_id") or ""),
+                    "selected_journal_count": int(
+                        inventory.get("selected_journal_count") or 0
+                    ),
+                    "shard_strategy": str(inventory.get("shard_strategy") or ""),
                     "page_bound_reached": page_bound_reached,
                     "window_closed": (
                         not page_bound_reached
+                        and not hard_failure
                         and pages_received > 0
                         and status in {"SUCCESS", "NO_RESULTS", "PARTIAL"}
                     ),
@@ -213,8 +217,4 @@ _install_publisher_listing_compatibility()
 if __name__ == "__main__":
     raise SystemExit(_core.main())
 
-# The import surface is deliberately the implementation module, not a copy of
-# its globals. unittest.mock.patch("tools.run_github_radar.<name>") therefore
-# patches the same globals used by discover()/run(), exactly as it did when the
-# implementation lived in this file.
 sys.modules[__name__] = _core
