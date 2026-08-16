@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from tools.radar_control import load_master_runtime  # noqa: E402
+from tools.radar_control import load_master_runtime  # noqa: E402, I001
 from tools.run_github_radar import discover_candidates  # noqa: E402
 
 
