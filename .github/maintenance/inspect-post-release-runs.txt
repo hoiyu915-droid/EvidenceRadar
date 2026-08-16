@@ -1,0 +1,1 @@
+Benchmark 4 concurrent 5-item Copilot batches with 640-character source excerpts after v1.0.2 daily timeout. Sequence: 8.
