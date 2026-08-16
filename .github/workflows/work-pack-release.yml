@@ -218,6 +218,20 @@ jobs:
           set -euo pipefail
           cp "$BUNDLE_PATH" dist/EvidenceRadar-WorkPack-current.sigstore.json
 
+      - name: Upload ChatGPT transport artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: EvidenceRadar-WorkPack-transport-${{ github.sha }}
+          path: |
+            dist/${{ steps.build.outputs.archive }}
+            dist/${{ steps.build.outputs.checksum }}
+            dist/EvidenceRadar-WorkPack-current.zip
+            dist/EvidenceRadar-WorkPack-current.zip.sha256
+            dist/EvidenceRadar-WorkPack-current.sigstore.json
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 90
+
       - name: Publish Work Pack as latest GitHub Release
         shell: bash
         env:
