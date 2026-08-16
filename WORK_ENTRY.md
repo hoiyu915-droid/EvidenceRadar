@@ -24,10 +24,32 @@ status, GitHub issue, pull request or workflow run is not a completed Radar run.
 
 ## Package and GitHub boundary
 
-Before extraction, verify the downloaded ZIP's signed provenance against
+Acquire one canonical Work Pack release trio before extraction. Prefer the
+immutable Release assets `EvidenceRadar-WorkPack-current.zip`, its `.sha256`
+sidecar and `EvidenceRadar-WorkPack-current.sigstore.json`.
+
+If the current host can inspect the Release but cannot materialize those asset
+bytes, do not replace the package with repository files. Resolve the Release
+source commit and use the already-completed successful `ChatGPT Work Pack
+release` run for that exact commit as a read-only workflow artifact transport.
+Download `EvidenceRadar-WorkPack-transport-<40-hex-source-commit>` through the
+connector's artifact-download primitive (`download_workflow_artifact` in the
+ChatGPT GitHub connector).
+
+That download is an outer transport ZIP, not an executable Work Pack. Extract
+it exactly once and read `TRANSPORT_MANIFEST.json`. It must declare
+`artifact_type: EvidenceRadar_WorkPackTransport`,
+`transport_role: byte_transport_only`, the same source commit as the immutable
+Release, and `canonical_member: EvidenceRadar-WorkPack-current.zip`. Its member
+ledger must bind exactly the canonical ZIP, matching checksum sidecar and
+Sigstore provenance bundle. Verify those member hashes, then continue with the
+canonical inner trio. Never run the Work Pack verifier against the outer
+workflow artifact ZIP and never select a versioned sibling ZIP from transport.
+
+Before extracting the canonical inner ZIP, verify its signed provenance against
 `hoiyu915-droid/EvidenceRadar/.github/workflows/work-pack-release.yml` using the
-released `EvidenceRadar-WorkPack-current.sigstore.json` bundle, then verify its
-checksum. Before execution, verify the extracted tree with:
+transported or released `EvidenceRadar-WorkPack-current.sigstore.json` bundle,
+then verify its checksum. Before execution, verify the extracted tree with:
 
 ```sh
 python3 tools/verify_work_pack.py --root .
@@ -38,12 +60,14 @@ python3 tools/verify_work_pack.py --root .
 Work project already contains a newer validated State returned by an earlier
 run.  Never fetch a second State or policy file after the package is verified.
 
-GitHub is only the versioned source and package storage boundary. After the ZIP,
-checksum and provenance bundle have been downloaded and verified, do not invoke GitHub Actions, create an
-issue or pull request, poll a workflow, publish a branch, or fetch moving
-repository files.  Live searches of PubMed, publishers and the other configured
-research sources are part of Radar execution and are not GitHub control-plane
-activity.
+GitHub is only the versioned source and package storage boundary. The workflow
+artifact fallback above may read an already-completed run solely to obtain the
+same immutable Release bytes. After the canonical inner ZIP, checksum and
+provenance bundle have been obtained and verified, do not invoke GitHub Actions,
+create an issue or pull request, poll a workflow, publish a branch, or fetch
+moving repository files. Live searches of PubMed, publishers and the other
+configured research sources are part of Radar execution and are not GitHub
+control-plane activity.
 
 Do not invoke `run_github_radar.py`, `run_local_runtime.py`, or any translation
 handoff automation. The canonical renderer imports projection functions from

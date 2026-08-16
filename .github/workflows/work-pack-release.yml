@@ -29,6 +29,7 @@ on:
       - "templates/daily-radar.md"
       - "templates/gpt-work-instructions.md"
       - "tools/build_work_pack.py"
+      - "tools/build_work_pack_transport.py"
       - "tools/delivery_contract.py"
       - "tools/featured_selection.py"
       - "tools/materialize_delivery_aliases.py"
@@ -98,6 +99,7 @@ jobs:
           python tools/validate_gpt_work_artifacts.py --root . state/current/EvidenceRadar_State.json
           python -m unittest -v \
             tests.test_work_pack \
+            tests.test_work_pack_transport \
             tests.test_work_delivery \
             tests.test_package_work_delivery_naming \
             tests.test_delivery_bundle \
@@ -218,16 +220,25 @@ jobs:
           set -euo pipefail
           cp "$BUNDLE_PATH" dist/EvidenceRadar-WorkPack-current.sigstore.json
 
+      - name: Materialize connector transport directory
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/build_work_pack_transport.py \
+            --archive dist/EvidenceRadar-WorkPack-current.zip \
+            --checksum dist/EvidenceRadar-WorkPack-current.zip.sha256 \
+            --provenance dist/EvidenceRadar-WorkPack-current.sigstore.json \
+            --source-commit "$GITHUB_SHA" \
+            --version "${{ steps.build.outputs.version }}" \
+            --output-dir dist/work-pack-transport \
+            > "$RUNNER_TEMP/work-pack-transport.json"
+          python -m json.tool "$RUNNER_TEMP/work-pack-transport.json"
+
       - name: Upload ChatGPT transport artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: EvidenceRadar-WorkPack-transport-${{ github.sha }}
-          path: |
-            dist/${{ steps.build.outputs.archive }}
-            dist/${{ steps.build.outputs.checksum }}
-            dist/EvidenceRadar-WorkPack-current.zip
-            dist/EvidenceRadar-WorkPack-current.zip.sha256
-            dist/EvidenceRadar-WorkPack-current.sigstore.json
+          path: dist/work-pack-transport/
           if-no-files-found: error
           compression-level: 0
           retention-days: 90

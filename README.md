@@ -106,15 +106,15 @@ EvidenceRadar_Evidence.json
 EvidenceRadar_Run.json
 ```
 
-ChatGPT Work 會下載一次正式 Work Pack、checksum 與簽署 provenance；驗證後在同一輪完成搜尋、來源讀取、核實、繁中翻譯、去重、State 處理、canonical HTML render 與四件套 validation。
+ChatGPT Work 會取得一次正式 Work Pack、checksum 與簽署 provenance；驗證後在同一輪完成搜尋、來源讀取、核實、繁中翻譯、去重、State 處理、canonical HTML render 與四件套 validation。
 
-GitHub 在這條一般用家路徑主要負責原始碼、版本化設定與 immutable Work Pack 儲存。下載完成後不需要啟動 Actions、不需要建立 issue／PR，也不需要等待 Stage A／Stage B。
+GitHub 在這條一般用家路徑主要負責原始碼、版本化設定與 immutable Work Pack 儲存。正常情況直接讀 latest Release 的三個固定 assets；若目前 host 能看見 Release metadata 卻無法 materialize asset bytes，允許使用**同一 source commit、已成功完成**的 `ChatGPT Work Pack release` workflow artifact 作只讀 byte transport。這個 fallback 不是啟動或續跑 Actions，也不是 Stage A／Stage B。
 
 Repository 亦提供 [`.agents/skills/evidence-radar/SKILL.md`](.agents/skills/evidence-radar/SKILL.md)，供支援 agent skills 的環境理解 EvidenceRadar 的 end-to-end 執行契約。
 
-## Work 執行模型：一次下載，一輪完成
+## Work 執行模型：一次取得，一輪完成
 
-ChatGPT Work 從 GitHub latest Release 下載三個固定名稱：
+首選是從 GitHub latest Release 取得三個固定名稱：
 
 ```text
 EvidenceRadar-WorkPack-current.zip
@@ -122,7 +122,17 @@ EvidenceRadar-WorkPack-current.zip.sha256
 EvidenceRadar-WorkPack-current.sigstore.json
 ```
 
-Work Pack releases 為 immutable package。驗證簽署 provenance、checksum 與 manifest 後，後續 Work run 不再把 GitHub 當 execution coordinator。
+如果 Release URL 在目前 connector 只能回 metadata、空 content 或其他不能 materialize 的結果，**不要**因此退回讀 moving repository files 執行。先從 Release metadata 確定 source commit，再找該 commit 已完成且成功的 `ChatGPT Work Pack release` run，下載名稱為：
+
+```text
+EvidenceRadar-WorkPack-transport-<40-hex-source-commit>
+```
+
+的 workflow artifact。ChatGPT 連接的 GitHub 工具可使用專門的 `download_workflow_artifact` 動作；generic `fetch` 不是 artifact byte download 的替代品。
+
+workflow artifact 本身是**外層 transport ZIP**，不能直接當 Work Pack。只解一層，先讀 `TRANSPORT_MANIFEST.json`；它必須把 `source_commit` 綁回同一個 immutable Release，標示 `transport_role: byte_transport_only`，並指定唯一 `canonical_member: EvidenceRadar-WorkPack-current.zip`。外層只允許這份 canonical ZIP、matching checksum、Sigstore provenance 與 transport manifest；確認 member hashes 後，才對 canonical inner ZIP 做 provenance／checksum／Work Pack manifest 驗證。不要挑 versioned sibling ZIP，也不要對 outer ZIP 執行 `tools/verify_work_pack.py`。
+
+Work Pack releases 為 immutable package。驗證簽署 provenance、checksum 與 inner `manifest.json` 後，後續 Work run 不再把 GitHub 當 execution coordinator；workflow artifact fallback 也只負責把同一份 release bytes 搬進 host。
 
 Work Pack 包含 protocol、設定、schema、template、基準 State、V3 canonical renderer、State merge、四件套 validator、run-id delivery packager 與 requirements。維護者或從 source 使用的人可重現建置：
 
@@ -258,7 +268,7 @@ GitHub blob/raw URL 不等於可閱讀 HTML preview；如果要提供公開閱�
 
 ## 封存 maintainer／GitHub producer
 
-Repository 內仍保留維護者回歸與舊部署參考材料。現行一般用家 lane 不依賴 GitHub Actions；`github_actions` producer／Stage A／Stage B 等歷史 transport 不應取代 ChatGPT Work 的 terminal four-file delivery。
+Repository 內仍保留維護者回歸與舊部署參考材料。現行一般用家 lane 不依賴 GitHub Actions；`github_actions` producer／Stage A／Stage B 等歷史 transport 不應取代 ChatGPT Work 的 terminal four-file delivery。Work Pack workflow artifact 是現行 package 的 read-only byte-transport fallback，與歷史 producer transport 不同。
 
 封存 producer 的 publisher probing 使用 bounded verification budget，並保留 access gap；publisher 頁面成功打開只代表 access observation，不代表 scientific claim 已被核實。
 
@@ -292,6 +302,7 @@ Claim support 只可使用 `SUPPORTED`、`PARTIAL`、`CONFLICT`、`UNVERIFIED`�
 - [`schemas/`](schemas/)：State、Evidence、Run schema
 - [`examples/`](examples/)：結構範例，不是目前研究證據
 - [`tools/build_work_pack.py`](tools/build_work_pack.py)：可重現 Work Pack builder
+- [`tools/build_work_pack_transport.py`](tools/build_work_pack_transport.py)：建立單一 canonical Work Pack 的 workflow artifact transport payload
 - [`tools/run_work_radar.py`](tools/run_work_radar.py)：ChatGPT Work terminal executor
 - [`tools/merge_radar_state.py`](tools/merge_radar_state.py)：deterministic State union
 - [`tools/package_work_delivery.py`](tools/package_work_delivery.py)：驗證後建立 run-id delivery pack

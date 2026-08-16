@@ -6,7 +6,7 @@ opens primary or authoritative source pages, checks evidence, and writes the
 four per-run artifacts. The repository and this pack provide versioned policy,
 configuration, schemas, examples, reusable instructions, the active V3
 renderer and validation tools. GitHub stores the versioned package; it is not
-part of a Work run after download.
+part of a Work run after the canonical package bytes are acquired and verified.
 
 ## Work run completion boundary
 
@@ -31,8 +31,8 @@ pack does not claim unattended Work scheduling. See the official
 
 ## 0. User entry: execute Radar
 
-The user only needs to ask ChatGPT Work to execute Radar. Work downloads these
-three GitHub Release assets once:
+The user only needs to ask ChatGPT Work to execute Radar. The preferred
+acquisition path is the immutable GitHub Release trio:
 
 ```text
 https://github.com/hoiyu915-droid/EvidenceRadar/releases/latest/download/EvidenceRadar-WorkPack-current.zip
@@ -40,18 +40,44 @@ https://github.com/hoiyu915-droid/EvidenceRadar/releases/latest/download/Evidenc
 https://github.com/hoiyu915-droid/EvidenceRadar/releases/latest/download/EvidenceRadar-WorkPack-current.sigstore.json
 ```
 
+If the host can inspect the latest Release but cannot materialize those asset
+bytes, do not substitute repository source files. Read the Release source
+commit, locate the already-completed successful `ChatGPT Work Pack release`
+workflow run with that exact `head_sha`, and download its single artifact:
+
+```text
+EvidenceRadar-WorkPack-transport-<40-hex-source-commit>
+```
+
+Use a real workflow artifact byte-download operation. In ChatGPT's connected
+GitHub tool this is `download_workflow_artifact`; a generic artifact `fetch`
+that returns metadata or empty content is not equivalent.
+
+The downloaded workflow artifact is an **outer ZIP transport envelope**. Extract
+it once and read `TRANSPORT_MANIFEST.json` before touching the inner ZIP. The
+manifest must declare `artifact_type: EvidenceRadar_WorkPackTransport`,
+`transport_role: byte_transport_only`, the exact Release source commit and
+`canonical_member: EvidenceRadar-WorkPack-current.zip`. Its member hashes must
+bind exactly the canonical ZIP, matching `.sha256` sidecar and matching
+`.sigstore.json` provenance bundle. Use those three inner files as the Release
+trio. Do not run `tools/verify_work_pack.py` on the outer workflow artifact and
+do not select a versioned sibling ZIP.
+
 GitHub is the source and package store. It is not an execution coordinator for
-this lane. After download, Work must not start or poll Actions, create an issue
-or pull request, fetch a second repository file, or wait for translation Stage
-B. ChatGPT Work itself performs the searches, evidence review and Traditional
-Chinese translation.
+this lane. The workflow artifact fallback only reads an already-completed
+artifact containing the same Release bytes. It must not trigger or rerun
+Actions, create an issue or pull request, substitute a different commit, or
+wait for translation Stage B. After the canonical trio is obtained and
+verified, ChatGPT Work itself performs the searches, evidence review and
+Traditional Chinese translation.
 
 ## 1. Verify and install the released pack
 
-1. Download `EvidenceRadar-WorkPack-current.zip`, its matching `.sha256`
-   sidecar and `.sigstore.json` provenance bundle from the URLs above.
+1. Obtain `EvidenceRadar-WorkPack-current.zip`, its matching `.sha256` sidecar
+   and `.sigstore.json` provenance bundle either directly from the immutable
+   Release or from the verified workflow artifact transport envelope above.
 2. Verify signed SLSA provenance and bind it to this repository and release
-   workflow before opening the archive:
+   workflow before opening the canonical inner archive:
 
    ```sh
    gh attestation verify EvidenceRadar-WorkPack-current.zip \
@@ -67,8 +93,8 @@ Chinese translation.
    ```
 
    On systems with GNU coreutils, `sha256sum -c` accepts the same sidecar.
-4. Extract the archive into a fresh read-only package directory and keep its
-   relative paths unchanged.
+4. Extract the canonical inner archive into a fresh read-only package directory
+   and keep its relative paths unchanged.
 5. Set `PYTHONDONTWRITEBYTECODE=1`, then run
    `python3 tools/verify_work_pack.py --root .`. The verifier checks the
    clean source commit, every file SHA-256, the embedded State, the
