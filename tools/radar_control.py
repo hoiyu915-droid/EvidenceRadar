@@ -21,6 +21,16 @@ PUBLISHER_LISTING_V1_EXTRACT_DEFAULTS = {
     "date_formats": ["%Y-%m-%d", "%d %B %Y", "%B %d, %Y"],
     "minimum_title_chars": 12,
 }
+PUBLISHER_LISTING_V1_INVENTORY_DEFAULTS = {
+    "scope": "publisher_oa_articles",
+    "coverage_unit": "article",
+    "journal_level_coverage": False,
+    "shard_strategy": "catalog_or_subject_optional",
+}
+CAMBRIDGE_CONTAINER_DEFAULTS = {
+    "container_path_regex": r"/core/journals/(?P<container>[^/]+)/article/",
+    "container_id_prefix": "cambridge-core",
+}
 
 
 def _apply_template_defaults(master: dict[str, Any]) -> dict[str, Any]:
@@ -40,30 +50,44 @@ def _apply_template_defaults(master: dict[str, Any]) -> dict[str, Any]:
             continue
         if str(adapter_config.get("template") or "") != "publisher_listing_v1":
             continue
+
         extract = adapter_config.get("extract")
         if extract is None:
             adapter_config["extract"] = copy.deepcopy(
                 PUBLISHER_LISTING_V1_EXTRACT_DEFAULTS
             )
-            continue
-        if not isinstance(extract, dict):
-            # Let the core validator report a structural error rather than
-            # silently replacing malformed caller configuration.
-            continue
-        for key, value in PUBLISHER_LISTING_V1_EXTRACT_DEFAULTS.items():
-            extract.setdefault(key, copy.deepcopy(value))
+        elif isinstance(extract, dict):
+            for key, value in PUBLISHER_LISTING_V1_EXTRACT_DEFAULTS.items():
+                extract.setdefault(key, copy.deepcopy(value))
+        # Let the core validator report malformed non-mapping extract values.
+
+        inventory = adapter_config.get("inventory")
+        if inventory is None:
+            inventory = copy.deepcopy(PUBLISHER_LISTING_V1_INVENTORY_DEFAULTS)
+            adapter_config["inventory"] = inventory
+        elif isinstance(inventory, dict):
+            for key, value in PUBLISHER_LISTING_V1_INVENTORY_DEFAULTS.items():
+                inventory.setdefault(key, copy.deepcopy(value))
+        # Keep malformed inventory values visible to callers; do not silently
+        # replace them.  Generic v1 consumers can fail closed when using them.
+
+        endpoint = str(config.get("endpoint") or "")
+        if isinstance(inventory, dict) and "cambridge.org/" in endpoint.casefold():
+            for key, value in CAMBRIDGE_CONTAINER_DEFAULTS.items():
+                inventory.setdefault(key, copy.deepcopy(value))
+
+        # A publisher-wide OA-article listing proves article-level OA.  It does
+        # not prove that every parent journal is fully OA.  Preserve the legacy
+        # raw marker only as compatibility provenance while projecting the
+        # effective runtime semantics as publisher_oa_articles.
+        if str(config.get("oa_mode") or "").casefold() == "fully_oa":
+            config["configured_oa_mode"] = "fully_oa"
+            config["oa_mode"] = "publisher_oa_articles"
     return normalized
 
 
 def _restore_semantic_adapter(runtime: MasterRuntime) -> MasterRuntime:
-    """Keep source identity semantic while the archived runner uses a shim.
-
-    The Python runner's dispatch table is intentionally unchanged and therefore
-    receives ``rss_atom`` in ``runtime.source_adapters`` for publisher-listing
-    sources.  The source catalog, however, is serialized into audit artifacts
-    and must continue to state the authoritative adapter identity rather than
-    the internal dispatch path.
-    """
+    """Expose semantic source identity while retaining the internal dispatch path."""
 
     source_catalog = runtime.streams.get("source_catalog", {})
     if not isinstance(source_catalog, dict):
@@ -73,6 +97,9 @@ def _restore_semantic_adapter(runtime: MasterRuntime) -> MasterRuntime:
             continue
         configured_adapter = str(config.get("configured_adapter") or "")
         if configured_adapter == "publisher_listing":
+            dispatch_adapter = str(config.get("adapter") or "").strip()
+            if dispatch_adapter:
+                config["dispatch_adapter"] = dispatch_adapter
             config["adapter"] = configured_adapter
     return runtime
 
