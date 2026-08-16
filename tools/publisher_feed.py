@@ -59,9 +59,7 @@ def _publisher_listing_shards(source_config: dict[str, Any]) -> list[dict[str, A
             raise PublisherFeedError(
                 f"publisher listing shard {shard_id} has invalid journal_slug"
             )
-        expected_prefix = (
-            f"https://www.cambridge.org/core/journals/{journal_slug}/listing"
-        )
+        expected_prefix = f"https://www.cambridge.org/core/journals/{journal_slug}/listing"
         if not endpoint.startswith(expected_prefix):
             raise PublisherFeedError(
                 f"publisher listing shard {shard_id} endpoint is not bound to its journal"
@@ -283,7 +281,9 @@ def _fetch_sharded_publisher_listing_records(
             int(observation.get("window_record_count") or 0)
             for _shard, observation in observations
         ),
-        "inventory_url": str(source_config.get("endpoint") or ""),
+        "inventory_url": str(
+            inventory.get("family_url") or source_config.get("endpoint") or ""
+        ),
         "inventory_pages_requested": sum(
             int(observation.get("inventory_pages_requested") or 0)
             for _shard, observation in observations
@@ -293,9 +293,7 @@ def _fetch_sharded_publisher_listing_records(
             for _shard, observation in observations
         ),
         "errors": all_errors,
-        "inventory_scope": str(
-            inventory.get("scope") or "curated_journal_articles"
-        ),
+        "inventory_scope": str(inventory.get("scope") or "curated_journal_articles"),
         "coverage_unit": str(inventory.get("coverage_unit") or "article"),
         "journal_level_coverage": inventory.get("journal_level_coverage") is True,
         "window_closed": window_closed,
@@ -322,7 +320,9 @@ def _fetch_sharded_publisher_listing_records(
         observation = cache[f"source_observation:{source_id}"]
         raise PublisherFeedError(
             "; ".join(hard_failures),
-            inventory_url=str(source_config.get("endpoint") or ""),
+            inventory_url=str(
+                inventory.get("family_url") or source_config.get("endpoint") or ""
+            ),
             pages_requested=int(observation["inventory_pages_requested"]),
             pages_received=int(observation["inventory_pages_received"]),
             partial_records=[],
