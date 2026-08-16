@@ -28,9 +28,7 @@ PUBLISHER_LISTING_V1_INVENTORY_DEFAULTS = {
     "journal_level_coverage": False,
     "shard_strategy": "catalog_or_subject_optional",
 }
-CAMBRIDGE_SELECTION_PATH = (
-    Path(__file__).resolve().parents[1] / "config" / "cambridge_journal_selection.json"
-)
+CAMBRIDGE_SELECTION_PATH = Path(__file__).resolve().parents[1] / "config" / "cambridge_journal_selection.json"
 
 CAMBRIDGE_CONTAINER_DEFAULTS = {
     "container_path_regex": r"/core/journals/(?P<container>[^/]+)/article/",
@@ -56,17 +54,13 @@ def _load_cambridge_selection() -> dict[str, Any]:
     journals = selection.get("journals")
     max_pages = selection.get("max_pages_per_shard")
     if not family_url.startswith("https://www.cambridge.org/core/journals"):
-        raise RadarControlError(
-            "Cambridge family_url must be a Cambridge Core journals URL"
-        )
+        raise RadarControlError("Cambridge family_url must be a Cambridge Core journals URL")
     if "{slug}" not in endpoint_template or not endpoint_template.startswith(
         "https://www.cambridge.org/core/journals/"
     ):
         raise RadarControlError("Cambridge endpoint_template must contain {slug}")
     if isinstance(max_pages, bool) or not isinstance(max_pages, int) or max_pages <= 0:
-        raise RadarControlError(
-            "Cambridge max_pages_per_shard must be a positive integer"
-        )
+        raise RadarControlError("Cambridge max_pages_per_shard must be a positive integer")
     if not isinstance(journals, list) or not journals:
         raise RadarControlError("Cambridge journal selection requires journals[]")
     seen: set[str] = set()
@@ -136,7 +130,7 @@ def _apply_template_defaults(master: dict[str, Any]) -> dict[str, Any]:
             for key, value in PUBLISHER_LISTING_V1_INVENTORY_DEFAULTS.items():
                 inventory.setdefault(key, copy.deepcopy(value))
         # Keep malformed inventory values visible to callers; do not silently
-        # replace them. Generic v1 consumers can fail closed when using them.
+        # replace them.  Generic v1 consumers can fail closed when using them.
 
         endpoint = str(config.get("endpoint") or "")
         if isinstance(inventory, dict) and "cambridge.org/" in endpoint.casefold():
@@ -154,6 +148,7 @@ def _apply_template_defaults(master: dict[str, Any]) -> dict[str, Any]:
                     "shard_strategy": "curated_journal_allowlist",
                     "article_oa_guarantee": False,
                     "selection_id": str(selection.get("selection_id") or ""),
+                    "family_url": str(selection.get("family_url") or ""),
                     "selected_journal_count": len(shards),
                     "shards": shards,
                 }
@@ -161,13 +156,12 @@ def _apply_template_defaults(master: dict[str, Any]) -> dict[str, Any]:
             pagination = adapter_config.get("pagination")
             if isinstance(pagination, dict):
                 pagination["max_pages"] = int(selection["max_pages_per_shard"])
-            config["endpoint"] = str(selection["family_url"])
             configured_oa_mode = str(config.get("oa_mode") or "")
             if configured_oa_mode:
                 config.setdefault("configured_oa_mode", configured_oa_mode)
             config["oa_mode"] = "verify_per_work"
         elif str(config.get("oa_mode") or "").casefold() == "fully_oa":
-            # A publisher-wide OA-article listing proves article-level OA. It
+            # A publisher-wide OA-article listing proves article-level OA.  It
             # does not prove that every parent journal is fully OA.
             config["configured_oa_mode"] = "fully_oa"
             config["oa_mode"] = "publisher_oa_articles"
